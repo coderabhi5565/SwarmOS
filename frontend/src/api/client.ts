@@ -57,7 +57,7 @@ export async function apiFetch<T>(
   return (await response.json()) as T;
 }
 
-async function toApiError(response: Response): Promise<ApiError> {
+export async function toApiError(response: Response): Promise<ApiError> {
   let detail: unknown = null;
   try {
     detail = ((await response.json()) as { detail?: unknown }).detail ?? null;

@@ -27,6 +27,8 @@ export type RunRecord = Schemas["RunRecord"];
 export type RunSummary = Schemas["RunSummary"];
 export type RunList = Schemas["RunListResponse"];
 export type RunEvents = Schemas["RunEventsResponse"];
+/** The `end` message of a run's event stream (GET /api/runs/{run_id}/stream). */
+export type RunStreamEnd = Schemas["RunStreamEnd"];
 export type RunStatus = Schemas["RunRecord"]["status"];
 export type TraceEvent = Schemas["TraceEvent"];
 export type TraceKind = TraceEvent["kind"];
