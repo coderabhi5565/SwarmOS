@@ -57,11 +57,15 @@ export function ExecutionView({ state, live }: { state: ExecutionState; live: bo
         </div>
       }
     >
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_19rem]">
-        <div className="h-[26rem] min-w-0 overflow-hidden rounded-lg border border-border/70 bg-background/40">
-          {viewMode === "3d" ? <Scene3DView model={model} live={live} fallback={graph} /> : graph}
+      {/* Sized by the space the page gives the view (narrower in the console),
+          not the window: details go beside the graph only when both fit. */}
+      <div className="@container">
+        <div className="grid gap-3 @5xl:grid-cols-[minmax(0,1fr)_19rem]">
+          <div className="h-[26rem] min-w-0 overflow-hidden rounded-lg border border-border/70 bg-background/40">
+            {viewMode === "3d" ? <Scene3DView model={model} live={live} fallback={graph} /> : graph}
+          </div>
+          <NodeDetails state={state} model={model} />
         </div>
-        <NodeDetails state={state} model={model} />
       </div>
       <GraphNotes model={model} />
     </Section>

@@ -91,7 +91,8 @@ function Graph({ model, live }: { model: VizModel; live: boolean }) {
         edgesFocusable={false}
         elementsSelectable
         fitView
-        fitViewOptions={{ padding: 0.15, maxZoom: 1.1 }}
+        // Below about half size the text is unreadable: wider graphs pan instead.
+        fitViewOptions={{ padding: 0.15, minZoom: 0.5, maxZoom: 1.1 }}
         minZoom={0.2}
         maxZoom={2}
         colorMode="dark"
