@@ -9,7 +9,7 @@
  */
 import { Line, OrbitControls, QuadraticBezierLine } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { memo, useEffect, useMemo, useRef, type RefObject } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Vector3, type Group } from "three";
 import type { VizEdge, VizModel, VizNode } from "@/domain/visualization";
 import { cn } from "@/lib/utils";
@@ -268,13 +268,22 @@ function CameraRig({
     .map((node) => node.id)
     .join(" ");
 
+  // Back to the whole graph on request, and once when the run stops being
+  // live (it finished, or a replay started).
+  const wasLive = useRef(follow);
+  const [overview, setOverview] = useState(0);
+  useEffect(() => {
+    if (wasLive.current && !follow) setOverview((count) => count + 1);
+    wasLive.current = follow;
+  }, [follow]);
+
   useEffect(() => {
     camera.position.set(0, CAMERA_HEIGHT, distance);
     const orbit = controls as unknown as { target: { set: (x: number, y: number, z: number) => void }; update: () => void } | null;
     orbit?.target.set(0, 0, 0);
     orbit?.update();
     invalidate();
-  }, [resetKey, distance, camera, controls, invalidate]);
+  }, [resetKey, overview, distance, camera, controls, invalidate]);
 
   useEffect(() => {
     if (!follow || !followLive || !activeKey || !controls) return;

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createReplay, replay, type ExecutionState } from "@/domain/execution";
 import { fixtures } from "@/domain/execution/fixtures";
@@ -23,6 +23,14 @@ function View({ state, live = false }: { state: ExecutionState; live?: boolean }
 
 const initial = useViewStore.getState();
 beforeEach(() => useViewStore.setState(initial, true));
+
+const transform = () => document.querySelector<HTMLElement>(".react-flow__viewport")!.style.transform;
+const zoom = () => Number(/scale\(([\d.]+)\)/.exec(transform())?.[1] ?? NaN);
+/** Wait for React Flow's initial fit (it starts at the identity transform). */
+async function fitted() {
+  await waitFor(() => expect(transform().replace(/\s/g, "")).not.toBe("translate(0px,0px)scale(1)"));
+  return { transform: transform(), zoom: zoom() };
+}
 
 const graphNode = (name: RegExp) => within(screen.getByTestId("execution-graph-2d")).getByRole("group", { name });
 
@@ -114,6 +122,35 @@ describe("ExecutionGraph2D", () => {
     const { container } = render(<View state={unknown} />);
     expect(within(screen.getByRole("complementary", { name: "Node details" })).getByText("not recorded")).toBeInTheDocument();
     expect(container.querySelector('[data-id^="dependency:"]')).toBeNull();
+  });
+
+  it("follows running work while live, and returns to the whole graph when the run ends", async () => {
+    const fixture = fixtures.demoPipelineCompleted;
+    const run = createReplay(fixture.events, fixture.run);
+    // In jsdom React Flow's initial fit waits for the next node update.
+    const { rerender } = render(<View state={run.stateAtIndex(1)} live />);
+    rerender(<View state={run.stateAtIndex(2)} live />);
+    const overview = await fitted();
+
+    // inspect_tests starts: the view closes in on it.
+    rerender(<View state={run.stateAtIndex(3)} live />);
+    await waitFor(() => expect(zoom()).toBeCloseTo(1.1));
+    expect(zoom()).toBeGreaterThan(overview.zoom);
+
+    rerender(<View state={run.final()} live={false} />);
+    await waitFor(() => expect(transform()).toBe(overview.transform));
+  });
+
+  it("leaves the view alone when following is off", async () => {
+    const fixture = fixtures.demoPipelineCompleted;
+    const run = createReplay(fixture.events, fixture.run);
+    useViewStore.getState().setFollowLive(false);
+    const { rerender } = render(<View state={run.stateAtIndex(1)} live />);
+    rerender(<View state={run.stateAtIndex(2)} live />);
+    const overview = await fitted();
+    rerender(<View state={run.stateAtIndex(3)} live />);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(transform()).toBe(overview.transform);
   });
 
   it("follows the reducer: new events update the same nodes in place", () => {

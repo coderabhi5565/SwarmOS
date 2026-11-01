@@ -17,7 +17,7 @@ import {
 } from "@xyflow/react";
 import { Bot, FlaskConical, GitBranch } from "lucide-react";
 import { useReducedMotionConfig } from "motion/react";
-import { memo, useCallback, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { RoleDot, ToneBadge } from "@/components/execution/primitives";
 import type { VizEdge, VizModel, VizNode } from "@/domain/visualization";
 import { cn } from "@/lib/utils";
@@ -101,28 +101,50 @@ function Graph({ model, live }: { model: VizModel; live: boolean }) {
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--border)" />
         <Controls showInteractive={false} position="bottom-left" />
-        <FollowActive model={model} enabled={live && followLive} animate={!reducedMotion} />
+        <FollowActive model={model} live={live} follow={followLive} animate={!reducedMotion} />
       </ReactFlow>
     </div>
   );
 }
 
-/** While following a live run, keep the work that is running in view. */
-function FollowActive({ model, enabled, animate }: { model: VizModel; enabled: boolean; animate: boolean }) {
+/**
+ * While following a live run, keep the work that is running in view. When
+ * the run stops being live (it finished, or a replay started), return to
+ * the whole graph once; turning follow off by hand leaves the view alone.
+ */
+function FollowActive({
+  model,
+  live,
+  follow,
+  animate,
+}: {
+  model: VizModel;
+  live: boolean;
+  follow: boolean;
+  animate: boolean;
+}) {
   const { fitView } = useReactFlow();
   const activeKey = model.nodes
     .filter((node) => node.active)
     .map((node) => node.id)
     .join(" ");
   useEffect(() => {
-    if (!enabled || !activeKey) return;
+    if (!live || !follow || !activeKey) return;
     void fitView({
       nodes: activeKey.split(" ").map((id) => ({ id })),
       padding: 0.8,
       maxZoom: 1.1,
       duration: animate ? 400 : 0,
     });
-  }, [enabled, activeKey, animate, fitView]);
+  }, [live, follow, activeKey, animate, fitView]);
+
+  const wasLive = useRef(live);
+  useEffect(() => {
+    if (wasLive.current && !live) {
+      void fitView({ padding: 0.15, minZoom: 0.5, maxZoom: 1.1, duration: animate ? 400 : 0 });
+    }
+    wasLive.current = live;
+  }, [live, animate, fitView]);
   return null;
 }
 
@@ -139,6 +161,10 @@ function toFlowNode(node: VizNode, finished: boolean, selected: boolean): GraphN
     position: { x: node.column * COLUMN_WIDTH, y: node.row * ROW_HEIGHT - height / 2 },
     width,
     height,
+    // Declared as measured too: a node replaced by a live update keeps its
+    // size, so React Flow never re-measures it, and without this it counts
+    // the graph as uninitialised and holds back queued fits (follow live).
+    measured: { width, height },
     handles: handlesFor(node.kind, width, height),
     selected,
     data: { node, finished },

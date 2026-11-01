@@ -100,7 +100,8 @@ function StepFacts({ state, node }: { state: ExecutionState; node: VizNode }) {
         )}
       </Fact>
       <Fact label="files">
-        {step.targetFiles.length === 0 ? <Unknown /> : <span className="font-mono">{step.targetFiles.join(", ")}</span>}
+        {/* An empty list may mean "writes none" or "not recorded": say only what is known. */}
+        {step.targetFiles.length === 0 ? <Unknown>none listed</Unknown> : <span className="font-mono">{step.targetFiles.join(", ")}</span>}
       </Fact>
       <Fact label="attempts">{step.attempts}</Fact>
       {step.acceptanceCriteria.length > 0 && (
