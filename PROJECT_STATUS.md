@@ -4,20 +4,55 @@ Last updated: 2026-11-01
 
 ## Current milestone
 
-**M0 — Stabilize the existing system: complete** (branch `m0-stabilize-review-guard`).
-Next: **M1 — Backend reliability.**
+**M1 — Backend reliability: complete** (branch `m0-stabilize-review-guard`).
+Next: **M2 — Production execution infrastructure** (sandboxed verification).
 
 ## Validation at the last milestone boundary
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest` | 229 passed, 1 skipped (symlink test; needs symlink privilege on Windows) |
+| `python -m pytest` | 248 passed, 1 skipped (symlink test; needs symlink privilege on Windows) |
 | `ruff check .` | clean |
 | `npx tsc --noEmit` (frontend) | clean |
 | `npm run build` (frontend) | builds |
 | Live local-model run with the guard | **not yet performed** |
 
+Suite wall time varies a lot on this machine (80 s to 300 s for the same code).
+Most of it is real `pytest` subprocesses spawned by verification tests.
+
 ## Completed
+
+### M1 — backend reliability
+
+- **Revisions:** every actionable finding for each step reaches the coder.
+  Findings without a known step reach every revised step. Unsupported blockers
+  are withheld and listed in the `revision` event. (`Orchestrator._findings_by_step`)
+- **Wall clock:**
+  - provider calls are capped at the remaining time (`AgentRunner._complete_before_deadline`);
+  - verification's timeout is capped the same way, and no verification starts
+    after the deadline;
+  - a deadline now ends the run as `timed_out`, distinct from the call-count
+    `limit_exceeded`.
+- **Async verification:** runs via `asyncio.to_thread`, so the API stays
+  responsive.
+- **Cancellation:**
+  - `RunService.cancel` and `POST /api/runs/{id}/cancel`, with a new
+    `cancelled` status;
+  - the verification process tree is killed (`Workspace.kill_active_process`);
+  - runs cancelled before they start are handled.
+- **Shutdown and recovery:** `RunService.shutdown` gives runs a grace period
+  and then cancels them. `RunStore.recover_interrupted` marks orphaned
+  `queued`/`running` runs `failed` at startup.
+- **Live progress:** the run record is persisted after plan, merge, review, and
+  verification.
+- **Wired up:** `Limits.parallel_coding` now serialises coding calls when false.
+  Snapshot truncation emits a `warning` event and a summary line.
+- **Demo provider:** its blockers now carry the evidence the guard requires.
+- **Test hygiene:** `make_settings` pins safety, execution, and path settings,
+  so a local `.env` cannot leak into tests.
+- **Frontend:** `cancelled` and `timed_out` statuses, and a "cancel run"
+  action on live runs.
+- **Tests:** `tests/test_revision_findings.py` and `tests/test_run_lifecycle.py`.
 
 ### M0 — reviewer evidence guard finished
 
@@ -43,19 +78,23 @@ Next: **M1 — Backend reliability.**
 - Only blocker findings are validated. Major/minor/nit findings and zero-finding rejections follow the normal revision path.
 - The guard checks evidence shape, not truth. Verification remains the independent ground truth.
 
-## Known issues carried into M1 (verified in code)
+## Known issues (open)
 
-1. Revision routing keeps only the last finding per step and drops findings without a `step_id` (`Orchestrator._after_review`, `_after_escalate`).
-2. In a mixed review, unsupported blockers are still forwarded to the coder.
-3. Verification runs a blocking `subprocess.communicate` inside an async node, which freezes the API for the duration.
-4. The run record is persisted only at queued, running and the end, so live metrics read zero.
-5. Runs orphaned by a restart stay `running` forever. There is no cancellation.
-6. The wall-clock limit is checked only before model calls, not during verification.
-7. `Limits.parallel_coding` and `RunRequest.metadata` are accepted but unused. `Workspace.last_truncated` is never surfaced.
-8. An escalated revision can exceed `max_revisions` (by design, undocumented).
-9. The demo provider's own blockers carry no evidence, so the guard would now classify them as invalid.
-10. `load_dotenv()` lets a developer `.env` leak into tests. `make_settings` does not override every safety setting.
-11. The seeded demo plan contains the literal solution, so demo runs barely test the coder.
+1. **Security (M2):** verification executes model-written code with
+   containment only: no sandbox, network, CPU or memory isolation. The API must
+   stay on loopback.
+2. `RunRequest.metadata` is accepted but not persisted (M3, with benchmark
+   endpoints).
+3. An escalated revision can exceed `max_revisions` (by design; to be
+   documented or bounded).
+4. The seeded demo plan contains the literal solution, so demo runs barely
+   test the coder (M6/benchmarks).
+5. Cancellation and recovery are in-process only. A multi-worker deployment
+   needs the durable job queue (M3).
+6. A cancelled run's worker thread can outlive the cancel by a moment while the
+   killed process exits.
+7. There are no "agent started" events yet. In-flight agent state must be
+   inferred from dispatch events (M3).
 
 ## Blockers needing the user
 

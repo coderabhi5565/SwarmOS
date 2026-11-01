@@ -167,6 +167,7 @@ All four roles run the same graph under every policy; policies only change model
 | `GET` | `/api/runs` | Recent runs |
 | `GET` | `/api/runs/{id}` | Run record plus every trace event |
 | `GET` | `/api/runs/{id}/events` | Trace events only |
+| `POST` | `/api/runs/{id}/cancel` | Cancel an in-flight run (`202`; `404` unknown, `409` finished or not active here) |
 
 Set `SWARMOS_API_TOKEN` to require `Authorization: Bearer <token>` on every `/api` route. The CLI refuses a non-loopback bind unless the token is set and `SWARMOS_ALLOW_REMOTE_BIND=1`.
 
@@ -204,7 +205,7 @@ labelled as fixtures. It also provides:
 | Control | Behaviour |
 | --- | --- |
 | `max_agent_calls` | The ledger refuses the next call; the run ends `limit_exceeded` |
-| `max_wall_seconds` | A call after the deadline is refused |
+| `max_wall_seconds` | No call starts after the deadline; in-flight calls and verification are cut off at it; the run ends `timed_out` |
 | `max_retries` | Coding attempts per step, plus repair rounds after failed verification |
 | `max_revisions` | Revision rounds dispatched after a review rejection |
 | `max_escalations` | Bounded switch to a configured strong profile |
@@ -282,7 +283,9 @@ docs/                  Architecture, providers, safety, audit
   orchestration.
 - Verification is contained by path checks, a filtered environment, a binary
   allowlist, and a timeout — not a kernel sandbox. Do not run untrusted code.
-- Orchestration is in-process: no worker queue, checkpoint/resume, or cancellation.
+- Orchestration is in-process: no worker queue or checkpoint/resume. Runs can be
+  cancelled, and runs interrupted by a restart are marked failed at startup,
+  but they are not resumed.
 - There is no live repository workflow (clone, branch, diff, commit, push).
 - The planner is one model call; conflicting parallel writes are rejected rather than
   re-planned.

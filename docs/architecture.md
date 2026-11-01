@@ -112,8 +112,37 @@ Steps are dispatched only when all of `depends_on` are complete, so every `Send`
 | Reviewer rejects only with evidence-less blockers | `review_invalid` (terminal): no revision, no escalation, diagnostic verification attached; never an approval |
 | Reviewer still rejects after the limit | `completed_with_findings` with a diagnostic verification result; the changes are not approved |
 | Verification fails | Repair rounds up to `max_retries`, then fail |
-| Ledger refuses a call | `budget_exceeded` or `limit_exceeded` |
+| Ledger refuses a call | `budget_exceeded` (USD) or `limit_exceeded` (call count) |
+| Wall-clock limit reached before, during, or between calls or verification | `timed_out`; an in-flight model call is abandoned and verification is killed at the deadline |
+| Cancelled via `POST /api/runs/{id}/cancel` or at server shutdown | `cancelled`; the verification process tree is killed and the progress so far is kept |
+| Server stopped while a run was queued or running | `failed` with an "interrupted" error, applied at the next startup |
 | Unexpected graph exception | `failed`, with the exception recorded in the trace |
+
+## Run lifecycle
+
+- **Progress.** The run record is saved after planning, after each merge, after
+  review, and after verification. A client polling a live run sees the plan,
+  call count, cost, changed files, review, and verification as they happen,
+  not only at the end.
+- **Deadline.** The ledger refuses calls that would start after
+  `max_wall_seconds`. `AgentRunner` also caps each provider call at the
+  remaining time, and verification's timeout is capped the same way.
+- **Off the event loop.** Verification runs on a worker thread
+  (`asyncio.to_thread`), so a long test run does not freeze the API.
+- **Cancellation.** `RunService.cancel` cancels the orchestration task and kills
+  the verification process. On shutdown, runs get a short grace period and are
+  then cancelled. On startup, `RunStore.recover_interrupted` closes runs that a
+  stopped process left `queued` or `running`. This assumes one API process per
+  database; a durable job queue replaces it in M3.
+- **Sequential coding.** With `limits.parallel_coding = false`, waves are still
+  dispatched as batches, so routing and revision rounds are unchanged, but
+  their coding calls run one at a time.
+- **Revisions** receive every actionable finding for each revised step. A
+  finding without a known `step_id` goes to every revised step. Blockers the
+  evidence guard found unsupported are withheld and listed in the `revision`
+  event.
+- **Snapshot truncation** emits one `warning` event, and the run summary says
+  the agents saw a partial workspace.
 
 ## Review evidence guard
 
