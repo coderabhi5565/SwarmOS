@@ -223,3 +223,47 @@ def test_cursor_follows_an_active_run(client):
     ).json()
     assert [event["message"] for event in second["events"]] == ["e3"]
     assert second["last_seq"] == 3
+
+
+# ----------------------------------------------------------------------
+# public demo safety on the new surface
+# ----------------------------------------------------------------------
+def test_no_public_response_leaks_the_endpoint_or_key(tmp_path, monkeypatch):
+    """A full public catalog run: config, history, detail and events stay clean.
+
+    The provider is configured with a private URL and key, but the request
+    is served by the demo fixture (provider=auto resolves to the configured
+    default, "demo"), so the run completes without any network access.
+    """
+    import time
+
+    overrides = {**PUBLIC, "base_url": PRIVATE_URL, "fast_model": "m", "api_key": SECRET_KEY}
+    with client_with(tmp_path, monkeypatch, **overrides) as client:
+        created = client.post(
+            "/api/runs", json={"goal": "catalog run", "demo_task": "sample_tag_normalization"}
+        )
+        assert created.status_code == 202
+        run_id = created.json()["run"]["run_id"]
+        deadline = time.time() + 60
+        while client.get(f"/api/runs/{run_id}").json()["run"]["status"] in {"queued", "running"}:
+            assert time.time() < deadline
+            time.sleep(0.1)
+
+        bodies = [
+            client.get("/api/config").text,
+            client.get("/api/runs").text,
+            client.get(f"/api/runs/{run_id}").text,
+            client.get(f"/api/runs/{run_id}/events").text,
+            client.get(f"/api/runs/{run_id}/events", params={"after_seq": 2}).text,
+            client.get("/api/demo-tasks").text,
+            client.get("/health").text,
+        ]
+        # The restrictions themselves are unchanged by the new parameters.
+        assert client.post("/api/runs", json={"goal": "arbitrary goal text"}).status_code == 403
+        assert client.post(f"/api/runs/{run_id}/cancel").status_code == 403
+        assert client.get("/api/provider/models").status_code == 403
+
+    for body in bodies:
+        assert SECRET_KEY not in body
+        assert PRIVATE_URL not in body
+        assert "10.20.30.40" not in body
