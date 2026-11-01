@@ -115,3 +115,57 @@ export function runSummaryFrom(fixture: TraceFixture, overrides: Partial<RunReco
     verification_diagnostic: null,
   };
 }
+
+/**
+ * A live event-stream response under the test's control: send trace events,
+ * end the stream, drop it, or fail it. Aborting the request (the client
+ * closing the stream) errors the body like a real fetch does.
+ */
+export function sseResponse(init?: RequestInit) {
+  const encoder = new TextEncoder();
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  let open = true;
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      controller = c;
+    },
+    cancel() {
+      open = false;
+    },
+  });
+  const signal = init?.signal;
+  signal?.addEventListener("abort", () => {
+    if (open) controller.error(new DOMException("The operation was aborted.", "AbortError"));
+    open = false;
+  });
+  const send = (text: string) => {
+    if (open) controller.enqueue(encoder.encode(text));
+  };
+  return {
+    response: new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } }),
+    get open() {
+      return open;
+    },
+    send,
+    events(events: TraceEvent[]) {
+      send(events.map((event) => `id: ${event.seq}\nevent: trace\ndata: ${JSON.stringify(event)}\n\n`).join(""));
+    },
+    keepalive() {
+      send(": keepalive\n\n");
+    },
+    end(runId: string, status: RunRecord["status"], lastSeq: number) {
+      send(`event: end\ndata: ${JSON.stringify({ run_id: runId, status, last_seq: lastSeq })}\n\n`);
+      this.close();
+    },
+    close() {
+      if (open) controller.close();
+      open = false;
+    },
+    fail() {
+      if (open) controller.error(new TypeError("network error"));
+      open = false;
+    },
+  };
+}
+
+export type SseResponse = ReturnType<typeof sseResponse>;

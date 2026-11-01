@@ -8,7 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import {
   initialState,
   isTerminal,
@@ -18,6 +18,7 @@ import {
   type RunSeed,
 } from "@/domain/execution";
 import { api } from "./client";
+import { liveConnectionsFor, type ConnectionStatus } from "./liveConnection";
 import type { RunDetail, RunRecord, RunRequest, RunStatus } from "./types";
 
 /** How often a live run is polled. Event polls are cheap (cursor-based). */
@@ -67,15 +68,31 @@ export function useRunHistory(limit = 25, { pollMs }: { pollMs?: number } = {}) 
   });
 }
 
-/** A run record, polled while it is queued or running. */
-export function useRun(runId: string | undefined) {
+/**
+ * A run record, polled while it is queued or running, unless `streaming`:
+ * then the event stream carries the run and its end refreshes the record.
+ */
+export function useRun(runId: string | undefined, { streaming = false }: { streaming?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.run(runId ?? ""),
     queryFn: () => api.getRun(runId as string),
     enabled: Boolean(runId),
     refetchInterval: (query) =>
-      isLiveStatus(query.state.data?.run.status) ? LIVE_RUN_POLL_MS : false,
+      !streaming && isLiveStatus(query.state.data?.run.status) ? LIVE_RUN_POLL_MS : false,
   });
+}
+
+/** Connection states in which the stream, not polling, carries the run. */
+const STREAMING: ReadonlySet<ConnectionStatus> = new Set(["connecting", "connected", "reconnecting"]);
+
+/** The live transport's state for a run (see liveConnection.ts). */
+export function useConnectionStatus(runId: string | undefined): ConnectionStatus {
+  const connections = liveConnectionsFor(useQueryClient());
+  const subscribe = useCallback(
+    (listener: () => void) => (runId ? connections.subscribe(runId, listener) : () => {}),
+    [connections, runId],
+  );
+  return useSyncExternalStore(subscribe, () => (runId ? connections.status(runId) : "idle"));
 }
 
 /** The parts of a run record the execution reducer may use (see RunSeed). */
@@ -95,26 +112,32 @@ export function runSeed(run: RunRecord): RunSeed {
 }
 
 /**
- * When to poll a run's events again: while the record says the run is live
- * and the trace has not reached run_finished. A terminal run is fetched once
- * more when it ends (see useExecution), then never again.
+ * When to poll a run's events again: while the record says the run is live,
+ * the trace has not reached run_finished, and the event stream is not
+ * carrying it (`streaming`). A terminal run is fetched once more when it
+ * ends (see useExecution), then never again.
  */
 export function executionPollInterval(
   status: RunStatus | undefined,
   state: ExecutionState | undefined,
+  streaming = false,
 ): number | false {
-  return isLiveStatus(status) && !state?.outcome ? LIVE_EVENTS_POLL_MS : false;
+  return isLiveStatus(status) && !state?.outcome && !streaming ? LIVE_EVENTS_POLL_MS : false;
 }
 
 /**
- * A run's execution state, kept current by cursor polling. Each poll asks
- * only for events after the state's lastSeq and folds them in through the
- * execution reducer, so a repeated or overlapping page changes nothing.
- * Components get normalised state; none of them sees raw events.
+ * A run's execution state. The first load fetches the trace; while the run
+ * is live, the event stream keeps it current (liveConnection.ts), with
+ * cursor polling as the fallback when the stream is unavailable. Both fold
+ * events through the execution reducer into this one cache entry, so a
+ * repeated or overlapping event changes nothing. Components get normalised
+ * state; none of them sees raw events.
  */
 export function useExecution(runId: string | undefined) {
   const client = useQueryClient();
-  const record = useRun(runId);
+  const connection = useConnectionStatus(runId);
+  const streaming = STREAMING.has(connection);
+  const record = useRun(runId, { streaming });
   const run = record.data?.run;
   const status = run?.status;
   const key = queryKeys.execution(runId ?? "");
@@ -123,17 +146,26 @@ export function useExecution(runId: string | undefined) {
     queryKey: key,
     queryFn: async () => {
       const id = runId as string;
-      const held =
-        client.getQueryData<ExecutionState>(queryKeys.execution(id)) ??
-        initialState(run ? runSeed(run) : null);
+      const cacheKey = queryKeys.execution(id);
+      const held = client.getQueryData<ExecutionState>(cacheKey) ?? initialState(run ? runSeed(run) : null);
       const page = await api.runEvents(id, held.lastSeq || undefined);
-      return page.events.reduce(reduce, held);
+      // Fold onto the latest state, not `held`: the stream may have applied
+      // events while this request was in flight.
+      return page.events.reduce(reduce, client.getQueryData<ExecutionState>(cacheKey) ?? held);
     },
     // The record seeds the state (goal, limits, plan for old traces).
     enabled: Boolean(runId) && record.isSuccess,
     staleTime: Infinity,
-    refetchInterval: (query) => executionPollInterval(status, query.state.data),
+    refetchInterval: (query) => executionPollInterval(status, query.state.data, streaming),
   });
+
+  // Stream a live run once its trace has loaded; stop when it is no longer
+  // live, on unmount, or when the run changes.
+  const watch = Boolean(runId) && isLiveStatus(status) && trace.isSuccess;
+  useEffect(() => {
+    if (!watch || !runId) return;
+    return liveConnectionsFor(client).acquire(runId);
+  }, [client, runId, watch]);
 
   // When the run ends between polls, collect its final events once.
   const previous = useRef(status);
@@ -151,7 +183,7 @@ export function useExecution(runId: string | undefined) {
     return settleWithRecord({ ...state, seed: runSeed(run) });
   }, [trace.data, trace.isFetching, run]);
 
-  return { record, trace, execution, live: isLiveStatus(status) };
+  return { record, trace, execution, live: isLiveStatus(status), connection };
 }
 
 export function useCreateRun() {
