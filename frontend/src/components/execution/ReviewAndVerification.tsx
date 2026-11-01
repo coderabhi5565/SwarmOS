@@ -99,11 +99,11 @@ export function VerificationRuns({ state }: { state: ExecutionState }) {
               </div>
               <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-xs sm:grid-cols-4">
                 <div>
-                  <dt className="text-muted-foreground">passed</dt>
+                  <dt className="text-muted-foreground">tests passed</dt>
                   <dd><Value value={run.testsPassed} missing={run.status === "running" ? "…" : "not recorded"} /></dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">failed</dt>
+                  <dt className="text-muted-foreground">tests failed</dt>
                   <dd><Value value={run.testsFailed} missing={run.status === "running" ? "…" : "not recorded"} /></dd>
                 </div>
                 <div>
