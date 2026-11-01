@@ -10,6 +10,17 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
+from app.api_models import (
+    CancelResponse,
+    ConfigResponse,
+    DemoTaskInfo,
+    DemoTasksResponse,
+    HealthResponse,
+    ProviderModelsResponse,
+    RunEventsResponse,
+    RunListResponse,
+    RunSummary,
+)
 from app.config import settings
 from app.demo_tasks import DemoTaskError, demo_catalog
 from app.models import RunDetail, RunRequest
@@ -115,30 +126,28 @@ def _detail(run_id: str) -> RunDetail:
 
 
 @app.get("/health")
-async def health() -> dict:
-    return {
-        "status": "ok",
-        "service": "swarmos",
-        "version": __version__,
-        "mode": settings.mode,
-        "provider_mode": settings.provider,
-        "provider_kind": settings.provider_kind,
-        "openai_configured": settings.openai_configured,
-        "auth_required": bool(settings.api_token),
-    }
+async def health() -> HealthResponse:
+    return HealthResponse(
+        version=__version__,
+        mode=settings.mode,
+        provider_mode=settings.provider,
+        provider_kind=settings.provider_kind,
+        openai_configured=settings.openai_configured,
+        auth_required=bool(settings.api_token),
+    )
 
 
 @app.get("/api/demo-tasks")
-async def demo_tasks() -> dict:
+async def demo_tasks() -> DemoTasksResponse:
     """The curated tasks a visitor may run. The only runs the public demo accepts."""
-    return {
-        "mode": settings.mode,
-        "tasks": [task.describe() for task in demo_catalog()],
-    }
+    return DemoTasksResponse(
+        mode=settings.mode,
+        tasks=[DemoTaskInfo.model_validate(task.describe()) for task in demo_catalog()],
+    )
 
 
 @app.get("/api/config")
-async def config() -> dict:
+async def config() -> ConfigResponse:
     sample_files: list[str] = []
     if settings.sample_project.is_dir():
         sample_files = sorted(
@@ -151,7 +160,7 @@ async def config() -> dict:
         # Visitors see what the endpoint is (local or hosted, which models),
         # not where it is.
         described["base_url"] = None
-    return {
+    return ConfigResponse.model_validate({
         **described,
         "public_demo": {
             "enabled": settings.is_public_demo,
@@ -181,29 +190,30 @@ async def config() -> dict:
         },
         "sample_files": sample_files,
         "demo_fixture": not settings.openai_configured,
-    }
+    })
 
 
 @app.get("/api/provider/models")
-async def provider_models() -> dict:
+async def provider_models() -> ProviderModelsResponse:
     """List models from the configured endpoint. No inference, no cost."""
     # An open probe would let anyone make this server call its model endpoint.
     _public_demo_only_allows("the endpoint probe")
     provider, name, warning = resolve_provider("auto", settings)
     if not isinstance(provider, ProbeableProvider):
-        return {
-            "provider": name,
-            "kind": "demo",
-            "ok": True,
-            "detail": "demo fixture; no endpoint to probe",
-            "models": [],
-            "warning": warning,
-        }
+        return ProviderModelsResponse(
+            provider=name,
+            kind="demo",
+            ok=True,
+            detail="demo fixture; no endpoint to probe",
+            warning=warning,
+        )
     try:
         result = await provider.health()
     except ProviderError as exc:
-        return {"provider": name, "ok": False, "detail": str(exc), "models": []}
-    return {"provider": name, "kind": settings.provider_kind, **result}
+        return ProviderModelsResponse(provider=name, ok=False, detail=str(exc))
+    return ProviderModelsResponse.model_validate(
+        {"provider": name, "kind": settings.provider_kind, **result}
+    )
 
 
 @app.post("/api/runs", status_code=202)
@@ -250,9 +260,24 @@ async def create_run(
 
 
 @app.get("/api/runs")
-async def list_runs(limit: int = Query(default=25, ge=1, le=200)) -> dict:
-    records = _store().list_runs(limit)
-    return {"runs": [record.model_dump(mode="json") for record in records]}
+async def list_runs(
+    limit: int = Query(default=25, ge=1, le=200),
+    cursor: str | None = Query(
+        default=None,
+        description="next_cursor from the previous page, to fetch older runs",
+    ),
+) -> RunListResponse:
+    """Newest-first run history. Lightweight: no plan details, review text,
+    verification output, summary, or generated file contents; fetch
+    /api/runs/{run_id} for those."""
+    try:
+        records, next_cursor = _store().list_runs_page(limit, before=cursor)
+    except KeyError as exc:
+        raise HTTPException(status_code=400, detail=f"unknown cursor: {cursor}") from exc
+    return RunListResponse(
+        runs=[RunSummary.from_record(record) for record in records],
+        next_cursor=next_cursor,
+    )
 
 
 @app.get("/api/runs/{run_id}", response_model=RunDetail)
@@ -261,7 +286,7 @@ async def get_run(run_id: str) -> RunDetail:
 
 
 @app.post("/api/runs/{run_id}/cancel", status_code=202)
-async def cancel_run(run_id: str) -> dict:
+async def cancel_run(run_id: str) -> CancelResponse:
     # Without accounts, any visitor could cancel any other visitor's run.
     # Demo runs are short and bounded, so cancellation is simply off there.
     _public_demo_only_allows("cancelling runs")
@@ -269,7 +294,7 @@ async def cancel_run(run_id: str) -> dict:
     if record is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} not found")
     if _service().cancel(run_id):
-        return {"run_id": run_id, "status": "cancelling"}
+        return CancelResponse(run_id=run_id)
     if record.status not in {"queued", "running"}:
         raise HTTPException(
             status_code=409, detail=f"run {run_id} already finished: {record.status}"
@@ -290,16 +315,16 @@ async def get_run_events(
             "full trace. Poll with the previous response's last_seq."
         ),
     ),
-) -> dict:
+) -> RunEventsResponse:
     if _store().get_run(run_id) is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} not found")
     events = _store().get_events(run_id, after_seq=after_seq)
-    return {
-        "run_id": run_id,
-        "events": [event.model_dump(mode="json") for event in events],
+    return RunEventsResponse(
+        run_id=run_id,
+        events=events,
         # The cursor for the next poll: unchanged when nothing new arrived.
-        "last_seq": events[-1].seq if events else (after_seq or 0),
-    }
+        last_seq=events[-1].seq if events else (after_seq or 0),
+    )
 
 
 # Serve the built React dashboard when it exists, so one process can run the MVP.

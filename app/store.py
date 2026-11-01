@@ -256,12 +256,40 @@ class RunStore:
         return self._row_to_record(row)
 
     def list_runs(self, limit: int = 25) -> list[RunRecord]:
+        return self.list_runs_page(limit)[0]
+
+    def list_runs_page(
+        self, limit: int = 25, before: str | None = None
+    ) -> tuple[list[RunRecord], str | None]:
+        """Newest-first page of runs, plus the cursor for the next page.
+
+        Keyset pagination on ``(created_at, run_id)``: ``before`` is the run_id
+        of the last run already seen, so new runs arriving between requests
+        never shift or duplicate entries. Raises ``KeyError`` for an unknown
+        cursor.
+        """
         limit = max(1, min(limit, 200))
         with self._lock:
-            rows = self._conn.execute(
-                "SELECT * FROM runs ORDER BY created_at DESC LIMIT ?", (limit,)
-            ).fetchall()
-        return [self._row_to_record(row) for row in rows]
+            if before is None:
+                rows = self._conn.execute(
+                    "SELECT * FROM runs ORDER BY created_at DESC, run_id DESC LIMIT ?",
+                    (limit + 1,),
+                ).fetchall()
+            else:
+                anchor = self._conn.execute(
+                    "SELECT created_at FROM runs WHERE run_id = ?", (before,)
+                ).fetchone()
+                if anchor is None:
+                    raise KeyError(before)
+                rows = self._conn.execute(
+                    "SELECT * FROM runs "
+                    "WHERE created_at < ? OR (created_at = ? AND run_id < ?) "
+                    "ORDER BY created_at DESC, run_id DESC LIMIT ?",
+                    (anchor["created_at"], anchor["created_at"], before, limit + 1),
+                ).fetchall()
+        page = [self._row_to_record(row) for row in rows[:limit]]
+        next_cursor = page[-1].run_id if len(rows) > limit else None
+        return page, next_cursor
 
     def get_events(self, run_id: str, after_seq: int | None = None) -> list[TraceEvent]:
         """A run's events in ascending ``seq``; only those after ``after_seq`` if given."""

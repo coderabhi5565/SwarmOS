@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -10,6 +12,13 @@ from app.models import RunRecord, TraceEvent
 from tests.conftest import make_settings
 
 GOAL = "Implement tag normalization so the failing tests pass"
+SECRET_KEY = "sk-contract-test-secret-000"
+PRIVATE_URL = "http://10.20.30.40:11434/v1"
+PUBLIC = {
+    "mode": "public_demo",
+    "execution_sandbox": "restricted",
+    "code_policy_enabled": True,
+}
 
 
 @pytest.fixture
@@ -17,6 +26,137 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(main_module, "settings", make_settings(tmp_path))
     with TestClient(main_module.app) as test_client:
         yield test_client
+
+
+def client_with(tmp_path, monkeypatch, **overrides) -> TestClient:
+    monkeypatch.setattr(main_module, "settings", make_settings(tmp_path, **overrides))
+    return TestClient(main_module.app)
+
+
+# ----------------------------------------------------------------------
+# typed responses
+# ----------------------------------------------------------------------
+def test_every_api_response_is_a_named_schema():
+    spec = main_module.app.openapi()
+    for path, operations in spec["paths"].items():
+        if not (path.startswith("/api") or path == "/health"):
+            continue
+        for method, operation in operations.items():
+            success = next(code for code in operation["responses"] if code.startswith("2"))
+            schema = operation["responses"][success]["content"]["application/json"]["schema"]
+            assert "$ref" in schema, f"{method.upper()} {path} has an untyped response"
+
+
+def test_health_is_typed(client):
+    body = client.get("/health").json()
+    assert body["status"] == "ok"
+    assert body["mode"] == "local"
+    assert set(body) == {
+        "status", "service", "version", "mode", "provider_mode",
+        "provider_kind", "openai_configured", "auth_required",
+    }
+
+
+def test_demo_tasks_are_typed(client):
+    body = client.get("/api/demo-tasks").json()
+    pipeline = next(task for task in body["tasks"] if task["id"] == "sample_parallel_pipeline")
+    gamma = next(step for step in pipeline["steps"] if step["id"] == "document_change")
+    assert gamma["depends_on"] == ["inspect_tests", "draft_implementation"]
+    assert pipeline["limits"]["max_agent_calls"] == 10
+
+
+@pytest.mark.parametrize("public", [False, True])
+def test_config_never_exposes_the_api_key(tmp_path, monkeypatch, public):
+    overrides = {"base_url": PRIVATE_URL, "fast_model": "m", "api_key": SECRET_KEY}
+    if public:
+        overrides.update(PUBLIC)
+    with client_with(tmp_path, monkeypatch, **overrides) as client:
+        body = client.get("/api/config").json()
+    assert SECRET_KEY not in json.dumps(body)
+    assert body["auth_configured"] is True
+    if public:
+        assert body["base_url"] is None
+        assert PRIVATE_URL not in json.dumps(body)
+        assert body["public_demo"]["enabled"] is True
+    else:
+        assert body["base_url"] == PRIVATE_URL
+
+
+# ----------------------------------------------------------------------
+# run list
+# ----------------------------------------------------------------------
+def test_run_list_is_lightweight(client):
+    run = inline_run(client)["run"]
+    assert run["artifacts"]  # the full record does carry file contents
+
+    (listed,) = client.get("/api/runs").json()["runs"]
+    for heavy in ("artifacts", "plan", "review", "verification", "summary"):
+        assert heavy not in listed
+    assert listed["run_id"] == run["run_id"]
+    assert listed["changed_files"] == run["changed_files"]
+    assert listed["plan_step_count"] == len(run["plan"]["steps"])
+    assert listed["review_verdict"] == run["review"]["verdict"]
+    assert listed["verification_passed"] is True
+    assert listed["verification_diagnostic"] is False
+
+
+def seed_runs(store, count: int) -> list[str]:
+    ids = []
+    for index in range(count):
+        record = RunRecord(
+            run_id=f"run_{index:02d}",
+            goal=f"goal number {index}",
+            status="completed",
+            created_at=f"2026-11-01T10:00:{index:02d}+00:00",
+        )
+        store.save_run(record)
+        ids.append(record.run_id)
+    return ids[::-1]  # newest first
+
+
+def test_run_list_pages_newest_first_without_gaps_or_repeats(client):
+    expected = seed_runs(client.app.state.store, 5)
+
+    seen, cursor, pages = [], None, 0
+    while True:
+        params = {"limit": 2} | ({"cursor": cursor} if cursor else {})
+        body = client.get("/api/runs", params=params).json()
+        seen += [run["run_id"] for run in body["runs"]]
+        pages += 1
+        cursor = body["next_cursor"]
+        if cursor is None:
+            break
+
+    assert seen == expected
+    assert pages == 3
+
+
+def test_new_runs_do_not_shift_later_pages(client):
+    store = client.app.state.store
+    expected = seed_runs(store, 4)
+    first = client.get("/api/runs", params={"limit": 2}).json()
+
+    store.save_run(RunRecord(run_id="run_new", goal="arrived later", created_at="2026-11-01T11:00:00+00:00"))
+    second = client.get("/api/runs", params={"limit": 2, "cursor": first["next_cursor"]}).json()
+
+    assert [run["run_id"] for run in second["runs"]] == expected[2:]
+
+
+def test_ties_on_created_at_are_paged_stably(client):
+    store = client.app.state.store
+    for suffix in "abcd":
+        store.save_run(RunRecord(run_id=f"run_{suffix}", goal="same instant", created_at="2026-11-01T10:00:00+00:00"))
+    first = client.get("/api/runs", params={"limit": 2}).json()
+    second = client.get("/api/runs", params={"limit": 2, "cursor": first["next_cursor"]}).json()
+    ids = [run["run_id"] for run in first["runs"] + second["runs"]]
+    assert sorted(ids) == ["run_a", "run_b", "run_c", "run_d"]
+    assert len(set(ids)) == 4
+
+
+def test_run_list_rejects_bad_paging_input(client):
+    assert client.get("/api/runs", params={"cursor": "run_missing"}).status_code == 400
+    assert client.get("/api/runs", params={"limit": 0}).status_code == 422
+    assert client.get("/api/runs", params={"limit": 201}).status_code == 422
 
 
 def inline_run(client) -> dict:
