@@ -70,6 +70,7 @@ stateDiagram-v2
     advance --> review: all steps complete
     review --> verify: approve
     review --> dispatch: request_changes (bounded)
+    review --> finalize: review_invalid (evidence-less blockers)
     review --> escalate: revisions exhausted
     verify --> finalize: passed
     verify --> dispatch: repair (bounded)
@@ -89,6 +90,7 @@ stateDiagram-v2
 | advance | steps remain but none are ready | finalize |
 | advance | all steps complete | review |
 | review | `approve` | verify |
+| review | `request_changes` resting only on evidence-less blockers | finalize (`review_invalid`) |
 | review | `request_changes`, revisions left | `Send` revision |
 | review | `request_changes`, no revisions, escalation available | escalate |
 | verify | passed | finalize |
@@ -107,10 +109,44 @@ Steps are dispatched only when all of `depends_on` are complete, so every `Send`
 | Coder answers for a different step | Attempt fails; treated as invalid output |
 | Two independent steps write the same file | Both writes rejected as a conflict; retry/escalation or fail |
 | Reviewer requests changes | Revision rounds up to `max_revisions` |
+| Reviewer rejects only with evidence-less blockers | `review_invalid` (terminal): no revision, no escalation, diagnostic verification attached; never an approval |
 | Reviewer still rejects after the limit | `completed_with_findings` with a diagnostic verification result; the changes are not approved |
 | Verification fails | Repair rounds up to `max_retries`, then fail |
 | Ledger refuses a call | `budget_exceeded` or `limit_exceeded` |
 | Unexpected graph exception | `failed`, with the exception recorded in the trace |
+
+## Review evidence guard
+
+A small local model repeatedly rejected correct code with blockers that only
+restated the acceptance criteria (runs `run_478959ca3d86`, `run_9038fdabb1b9`).
+`app/review_evidence.py` checks the **shape** of each blocker's evidence before a
+rejection may dispatch a revision. It cannot judge whether a claim is true.
+
+A blocker is supported when its `message` has all of:
+
+| Evidence | Accepted forms |
+| --- | --- |
+| Code reference | `line N`, `file.py:N`, or a backticked expression (`sorted(x)`, `a == b`, `n = 0`); a bare path or name does not count |
+| Acceptance criterion | a criterion of 15+ characters appearing verbatim, an exact quote of any criterion, or a quoted excerpt of 3+ words |
+| Relevant file | `file` is absent or names a workspace file (`./` and `\` are normalised) |
+| Expected/actual | required only for runtime claims (`returns`, `fails`, `raises`, …): `expected … actual`, `returns X instead of Y`, `should return X but returns Y`, `expected X but got Y` |
+
+Quoted criterion text is not itself treated as a runtime claim.
+
+Routing (`Orchestrator._review`):
+
+- A `request_changes` review whose blockers are all unsupported, with no
+  supported finding, ends the run as `review_invalid`. A `failure` trace event
+  lists each blocker and its missing evidence.
+- `review_invalid` is terminal for now. It is not an approval, does not count as
+  a revision, never escalates, and keeps `verdict = request_changes`.
+- Verification stays independent. A diagnostic verification is attached for
+  ground truth and never changes the status.
+- Only blockers are validated. Major/minor/nit findings, and a rejection with no
+  findings, follow the normal revision path.
+
+Known limits: a fabricated finding with the right shape passes, and a genuine
+defect described without evidence ends the run without a repair round.
 
 ## Trust boundaries
 

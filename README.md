@@ -19,11 +19,12 @@ It runs fully offline with a deterministic demo fixture, and against local open-
 | SQLite runs and append-only trace | Implemented, tested |
 | Real pytest verification in a temp workspace | Implemented, tested |
 | Diagnostic verification on rejected runs | Real; recorded without changing the verdict |
-| OpenAI-compatible adapter (local first) | Implemented, **mock-tested only** |
+| Reviewer evidence guard (`review_invalid`) | Implemented, tested; checks evidence shape only, not truth |
+| OpenAI-compatible adapter (local first) | Implemented, mock-tested; used against local Ollama `qwen2.5-coder:1.5b` |
 | Role → model-profile routing, honest fallback | Implemented, tested |
 | React dashboard with provider/model provenance | Implemented, type-checked, built |
 | Benchmark harness (fixed / adaptive / multi-agent) | Implemented, demo-measured |
-| Live local-model end-to-end run | **Not yet performed** (no runtime installed here) |
+| Live local-model end-to-end run | Performed with `qwen2.5-coder:1.5b`; **no run has reached `completed` yet** (see PROJECT_STATUS.md) |
 | Kernel sandbox / network isolation | **Not implemented** |
 | Live repository checkout, commit, or push | **Not implemented** |
 | Multi-provider orchestration | **Not implemented** (one endpoint per run) |
@@ -274,8 +275,9 @@ docs/                  Architecture, providers, safety, audit
 
 ## Limitations
 
-- The adapter has not been run against a live model in this environment. Treat the
-  first real run as a validation step, not a formality.
+- Live runs so far used only `qwen2.5-coder:1.5b`. Its reviewer produced false
+  blockers, which the evidence guard now stops as `review_invalid`; no live run
+  has yet completed with an approved review and passing tests.
 - One endpoint per run. No cross-provider fallback, so this is not yet multi-provider
   orchestration.
 - Verification is contained by path checks, a filtered environment, a binary
