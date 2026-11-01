@@ -8,9 +8,17 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef } from "react";
+import {
+  initialState,
+  isTerminal,
+  reduce,
+  settleWithRecord,
+  type ExecutionState,
+  type RunSeed,
+} from "@/domain/execution";
 import { api } from "./client";
-import { emptyEventLog, mergeEvents, type EventLog } from "./eventLog";
-import type { RunDetail, RunRequest, RunStatus } from "./types";
+import type { RunDetail, RunRecord, RunRequest, RunStatus } from "./types";
 
 /** How often a live run is polled. Event polls are cheap (cursor-based). */
 export const LIVE_RUN_POLL_MS = 1_500;
@@ -29,7 +37,7 @@ export const queryKeys = {
   runs: (limit: number) => ["runs", { limit }] as const,
   allRuns: ["runs"] as const,
   run: (runId: string) => ["run", runId] as const,
-  runEvents: (runId: string) => ["run-events", runId] as const,
+  execution: (runId: string) => ["execution", runId] as const,
 };
 
 export function useHealth() {
@@ -66,28 +74,80 @@ export function useRun(runId: string | undefined) {
   });
 }
 
+/** The parts of a run record the execution reducer may use (see RunSeed). */
+export function runSeed(run: RunRecord): RunSeed {
+  return {
+    run_id: run.run_id,
+    goal: run.goal,
+    status: run.status,
+    plan: run.plan,
+    limits: run.limits,
+    provider: run.provider,
+    provider_kind: run.provider_kind,
+    model_policy: run.model_policy,
+    models_by_role: run.models_by_role,
+    created_at: run.created_at,
+  };
+}
+
 /**
- * A run's trace, fetched incrementally: each poll asks only for events after
- * the highest seq already held. Polling stops once run_finished has arrived,
- * or when the caller passes `live: false` (a run that crashed records a
- * failure but no run_finished, so the run's status is the other signal).
+ * When to poll a run's events again: while the record says the run is live
+ * and the trace has not reached run_finished. A terminal run is fetched once
+ * more when it ends (see useExecution), then never again.
  */
-export function useRunEvents(runId: string | undefined, { live = true }: { live?: boolean } = {}) {
+export function executionPollInterval(
+  status: RunStatus | undefined,
+  state: ExecutionState | undefined,
+): number | false {
+  return isLiveStatus(status) && !state?.outcome ? LIVE_EVENTS_POLL_MS : false;
+}
+
+/**
+ * A run's execution state, kept current by cursor polling. Each poll asks
+ * only for events after the state's lastSeq and folds them in through the
+ * execution reducer, so a repeated or overlapping page changes nothing.
+ * Components get normalised state; none of them sees raw events.
+ */
+export function useExecution(runId: string | undefined) {
   const client = useQueryClient();
-  return useQuery<EventLog>({
-    queryKey: queryKeys.runEvents(runId ?? ""),
+  const record = useRun(runId);
+  const run = record.data?.run;
+  const status = run?.status;
+  const key = queryKeys.execution(runId ?? "");
+
+  const trace = useQuery<ExecutionState>({
+    queryKey: key,
     queryFn: async () => {
       const id = runId as string;
-      const held = client.getQueryData<EventLog>(queryKeys.runEvents(id)) ?? emptyEventLog(id);
+      const held =
+        client.getQueryData<ExecutionState>(queryKeys.execution(id)) ??
+        initialState(run ? runSeed(run) : null);
       const page = await api.runEvents(id, held.lastSeq || undefined);
-      return mergeEvents(held, page);
+      return page.events.reduce(reduce, held);
     },
-    enabled: Boolean(runId),
-    // Keep accumulated events while a new page loads; never start over.
+    // The record seeds the state (goal, limits, plan for old traces).
+    enabled: Boolean(runId) && record.isSuccess,
     staleTime: Infinity,
-    refetchInterval: (query) =>
-      live && !query.state.data?.finished ? LIVE_EVENTS_POLL_MS : false,
+    refetchInterval: (query) => executionPollInterval(status, query.state.data),
   });
+
+  // When the run ends between polls, collect its final events once.
+  const previous = useRef(status);
+  const { refetch } = trace;
+  useEffect(() => {
+    if (isLiveStatus(previous.current) && isTerminal(status)) void refetch();
+    previous.current = status;
+  }, [status, refetch]);
+
+  // A terminal run whose trace never reached run_finished (for example one
+  // that crashed in the service) is closed from its record, never guessed.
+  const execution = useMemo(() => {
+    const state = trace.data;
+    if (!state || !run || state.outcome || !isTerminal(run.status) || trace.isFetching) return state;
+    return settleWithRecord({ ...state, seed: runSeed(run) });
+  }, [trace.data, trace.isFetching, run]);
+
+  return { record, trace, execution, live: isLiveStatus(status) };
 }
 
 export function useCreateRun() {

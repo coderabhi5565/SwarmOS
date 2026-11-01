@@ -3,45 +3,20 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/api/client";
-import { emptyEventLog, mergeEvents } from "@/api/eventLog";
-import { useRunEvents } from "@/api/queries";
+import { executionPollInterval, LIVE_EVENTS_POLL_MS, useExecution } from "@/api/queries";
 import { createQueryClient, retryDelay, shouldRetry } from "@/api/queryClient";
-import type { TraceEvent } from "@/api/types";
-
-function event(seq: number, kind: TraceEvent["kind"] = "warning"): TraceEvent {
-  return { event_id: `evt_${seq}`, run_id: "run_1", seq, at: "2026-11-01T00:00:00Z", kind, message: "", payload: {} };
-}
+import { initialState, replay } from "@/domain/execution";
+import { fixtures } from "@/domain/execution/fixtures";
+import { eventsPage, json, requestsTo, runDetailFrom, stubFetch } from "@/test/api";
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("mergeEvents", () => {
-  it("appends new events in seq order and advances the cursor", () => {
-    const log = mergeEvents(emptyEventLog("run_1"), { run_id: "run_1", events: [event(1), event(2)], last_seq: 2 });
-    const next = mergeEvents(log, { run_id: "run_1", events: [event(3)], last_seq: 3 });
-    expect(next.events.map((e) => e.seq)).toEqual([1, 2, 3]);
-    expect(next.lastSeq).toBe(3);
-    expect(next.finished).toBe(false);
-  });
-
-  it("ignores repeated or overlapping pages", () => {
-    const log = mergeEvents(emptyEventLog("run_1"), { run_id: "run_1", events: [event(1), event(2)], last_seq: 2 });
-    const again = mergeEvents(log, { run_id: "run_1", events: [event(2), event(1)], last_seq: 2 });
-    expect(again).toBe(log); // unchanged identity: no re-render for an empty page
-    const overlap = mergeEvents(log, { run_id: "run_1", events: [event(2), event(3)], last_seq: 3 });
-    expect(overlap.events.map((e) => e.seq)).toEqual([1, 2, 3]);
-  });
-
-  it("marks the log finished when run_finished arrives", () => {
-    const log = mergeEvents(emptyEventLog("run_1"), {
-      run_id: "run_1",
-      events: [event(1), event(2, "run_finished")],
-      last_seq: 2,
-    });
-    expect(log.finished).toBe(true);
-  });
-});
+function wrapper() {
+  const client = createQueryClient();
+  return ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
 
 describe("retry policy", () => {
   it("retries network failures and 5xx, never 4xx", () => {
@@ -58,30 +33,73 @@ describe("retry policy", () => {
   });
 });
 
-describe("useRunEvents", () => {
-  it("fetches the full trace, then only events after the cursor", async () => {
-    const pages = [
-      { run_id: "run_1", events: [event(1), event(2)], last_seq: 2 },
-      { run_id: "run_1", events: [event(3, "run_finished")], last_seq: 3 },
-    ];
-    const fetchMock = vi.fn(
-      async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify(pages.shift())),
+describe("executionPollInterval", () => {
+  const finished = replay(fixtures.demoPipelineCompleted.events);
+
+  it("polls only while the run is live and unfinished", () => {
+    expect(executionPollInterval("running", initialState())).toBe(LIVE_EVENTS_POLL_MS);
+    expect(executionPollInterval("queued", undefined)).toBe(LIVE_EVENTS_POLL_MS);
+    expect(executionPollInterval("completed", initialState())).toBe(false);
+    // run_finished arrived before the record caught up: stop anyway.
+    expect(executionPollInterval("running", finished)).toBe(false);
+  });
+});
+
+describe("useExecution", () => {
+  const fixture = fixtures.parallelOverlap;
+  const runId = fixture.run.run_id;
+  const split = 9; // events after this seq arrive on the second poll
+
+  it("folds cursor pages through the reducer, without reprocessing events", async () => {
+    let served = split;
+    const fetchMock = stubFetch((url) => {
+      if (url.pathname === `/api/runs/${runId}`) return json(runDetailFrom(fixture, { status: "running" }));
+      if (url.pathname === `/api/runs/${runId}/events`) {
+        const after = url.searchParams.get("after_seq");
+        const visible = fixture.events.filter((event) => event.seq <= served);
+        // The second page overlaps the first: a duplicate must change nothing.
+        const cursor = after === null ? null : Number(after) - 2;
+        return json(eventsPage(runId, visible, cursor));
+      }
+      return undefined;
+    });
+
+    const { result } = renderHook(() => useExecution(runId), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.execution?.lastSeq).toBe(split));
+    // At seq 9 alpha has finished and beta is still in flight.
+    const mid = result.current.execution!;
+    expect(mid.agents.coder.activeInvocationIds.map((id) => mid.invocations[id].stepId)).toEqual(["beta"]);
+    expect(requestsTo(fetchMock, `/api/runs/${runId}/events`)[0].search).toBe("");
+
+    served = fixture.events.length;
+    await result.current.trace.refetch();
+    await waitFor(() => expect(result.current.execution?.outcome?.status).toBe("completed"));
+
+    const polls = requestsTo(fetchMock, `/api/runs/${runId}/events`);
+    expect(polls[1].searchParams.get("after_seq")).toBe(String(split));
+    // Identical to replaying the trace once: nothing applied twice.
+    expect(result.current.execution).toEqual(replay(fixture.events, { seed: result.current.execution!.seed }));
+  });
+
+  it("closes a terminal run with no run_finished from its record", async () => {
+    const crashed = fixture.events.filter((event) => event.kind !== "run_finished");
+    stubFetch((url) => {
+      if (url.pathname === `/api/runs/${runId}`) return json(runDetailFrom(fixture, { status: "failed" }));
+      if (url.pathname === `/api/runs/${runId}/events`) return json(eventsPage(runId, crashed, null));
+      return undefined;
+    });
+    const { result } = renderHook(() => useExecution(runId), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.execution?.outcome).toMatchObject({ status: "failed", source: "record" }));
+    expect(result.current.execution?.agents.coder.activeInvocationIds).toEqual([]);
+    expect(result.current.live).toBe(false);
+  });
+
+  it("does not fetch events before the run record is known", async () => {
+    const fetchMock = stubFetch((url) =>
+      url.pathname === `/api/runs/${runId}` ? json({ detail: "run not found" }, 404) : undefined,
     );
-    vi.stubGlobal("fetch", fetchMock);
-
-    const client = createQueryClient();
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    );
-    const { result } = renderHook(() => useRunEvents("run_1", { live: false }), { wrapper });
-
-    await waitFor(() => expect(result.current.data?.lastSeq).toBe(2));
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/runs/run_1/events");
-
-    await result.current.refetch();
-    await waitFor(() => expect(result.current.data?.lastSeq).toBe(3));
-    expect(fetchMock.mock.calls[1][0]).toBe("/api/runs/run_1/events?after_seq=2");
-    expect(result.current.data?.events.map((e) => e.seq)).toEqual([1, 2, 3]);
-    expect(result.current.data?.finished).toBe(true);
+    const { result } = renderHook(() => useExecution(runId), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.record.isError).toBe(true));
+    expect(requestsTo(fetchMock, `/api/runs/${runId}/events`)).toEqual([]);
   });
 });

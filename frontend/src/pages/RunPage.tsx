@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router";
 import { ApiError } from "@/api/client";
-import { isLiveStatus, useRun, useRunEvents } from "@/api/queries";
+import { useRun } from "@/api/queries";
 import { RunDetail as LegacyRunDetail } from "@/components/RunDetail";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { RunDetail as LegacyRunDetailData } from "@/types";
@@ -14,8 +14,6 @@ import { ErrorLine } from "./OverviewPage";
 export function RunPage() {
   const { runId } = useParams();
   const run = useRun(runId);
-  const live = isLiveStatus(run.data?.run.status);
-  const events = useRunEvents(runId, { live });
 
   if (run.isPending) {
     return <Skeleton className="h-64 w-full" aria-label="Loading run" />;
@@ -34,11 +32,7 @@ export function RunPage() {
     return <ErrorLine error={run.error} />;
   }
 
-  const detail = {
-    run: run.data.run,
-    // Prefer the incrementally polled trace; fall back to the record's copy.
-    events: events.data?.events ?? run.data.events,
-  } as LegacyRunDetailData;
+  const detail = { run: run.data.run, events: run.data.events } as LegacyRunDetailData;
 
   return (
     <div className="legacy-ui">
