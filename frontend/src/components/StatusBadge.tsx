@@ -5,6 +5,7 @@ const LABELS: Record<RunStatus, string> = {
   running: "running",
   completed: "completed",
   completed_with_findings: "needs review",
+  review_invalid: "invalid review",
   failed: "failed",
   budget_exceeded: "budget exceeded",
   limit_exceeded: "limit exceeded",

@@ -3,6 +3,7 @@ export type RunStatus =
   | "running"
   | "completed"
   | "completed_with_findings"
+  | "review_invalid"
   | "failed"
   | "budget_exceeded"
   | "limit_exceeded";
@@ -166,13 +167,22 @@ export interface ComparisonState {
   runs: RunRecord[];
 }
 
-export const TERMINAL: RunStatus[] = [
-  "completed",
-  "completed_with_findings",
-  "failed",
-  "budget_exceeded",
-  "limit_exceeded",
-];
+// Every status must be classified, so a new backend status fails the type
+// check instead of leaving the dashboard polling a finished run forever.
+const IS_TERMINAL: Record<RunStatus, boolean> = {
+  queued: false,
+  running: false,
+  completed: true,
+  completed_with_findings: true,
+  review_invalid: true,
+  failed: true,
+  budget_exceeded: true,
+  limit_exceeded: true,
+};
+
+export const TERMINAL = (Object.keys(IS_TERMINAL) as RunStatus[]).filter(
+  (status) => IS_TERMINAL[status],
+);
 
 export function isTerminal(status: RunStatus): boolean {
   return TERMINAL.includes(status);
