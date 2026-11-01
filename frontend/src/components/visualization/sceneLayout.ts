@@ -6,7 +6,7 @@
 import type { VizModel, VizNode } from "@/domain/visualization";
 
 export const COLUMN_SPACING = 3;
-export const ROW_SPACING = 1.8;
+export const ROW_SPACING = 2.4;
 
 export type Vec3 = [number, number, number];
 
@@ -32,5 +32,5 @@ export function cameraDistance(model: VizModel): number {
   const rows = Math.max(1, ...model.waves.map((wave) => wave.stepIds.length));
   const width = model.columns * COLUMN_SPACING;
   const height = rows * ROW_SPACING;
-  return Math.max(8, width * 0.9, height * 1.6);
+  return Math.max(8, width * 0.65, height * 1.6);
 }

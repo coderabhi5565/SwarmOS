@@ -36,7 +36,7 @@ export function Scene3DView({ model, live, fallback }: { model: VizModel; live: 
   }
 
   return (
-    <div className="relative size-full">
+    <div className="relative isolate size-full">
       <SceneBoundary onError={(error) => setFailure(`the 3D scene could not start (${error.message}).`)}>
         <Suspense
           fallback={

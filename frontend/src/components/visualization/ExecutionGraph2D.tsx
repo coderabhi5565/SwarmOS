@@ -25,12 +25,12 @@ import { selectionFromNodeId, selectionNodeId, useViewStore } from "@/store/view
 import { edgeDescription, nodeBadges, nodeDescription, statusLabel, statusTone } from "./presentation";
 
 /** Grid spacing and fixed node sizes: layout never depends on measurement. */
-const COLUMN_WIDTH = 250;
-const ROW_HEIGHT = 124;
+const COLUMN_WIDTH = 270;
+const ROW_HEIGHT = 132;
 const SIZE: Record<VizNode["kind"], { width: number; height: number }> = {
-  agent: { width: 176, height: 76 },
-  step: { width: 200, height: 100 },
-  runner: { width: 184, height: 84 },
+  agent: { width: 196, height: 88 },
+  step: { width: 212, height: 112 },
+  runner: { width: 204, height: 88 },
 };
 
 type GraphNodeData = { node: VizNode; finished: boolean };
@@ -78,7 +78,7 @@ function Graph({ model, live }: { model: VizModel; live: boolean }) {
   );
 
   return (
-    <div className="execution-graph size-full" data-testid="execution-graph-2d">
+    <div className="size-full [--xy-background-color:transparent]" data-testid="execution-graph-2d">
       <ReactFlow<GraphNode, Edge>
         nodes={nodes}
         edges={edges}
@@ -231,7 +231,7 @@ function NodeFrame({
   return (
     <div
       className={cn(
-        "flex size-full flex-col gap-1.5 overflow-hidden border bg-card/90 px-3 py-2 text-left shadow-sm backdrop-blur transition-colors",
+        "flex size-full flex-col gap-1 overflow-hidden border bg-card/90 px-3 py-2 text-left shadow-sm backdrop-blur transition-colors",
         node.active ? "border-status-live/70 shadow-[0_0_0_3px] shadow-status-live/15" : "border-border",
         node.status === "failed" && "border-status-failed/60",
         selected && "ring-2 ring-ring",
@@ -244,23 +244,19 @@ function NodeFrame({
         <span className="truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{caption}</span>
         <span className="ml-auto shrink-0 text-muted-foreground">{icon}</span>
       </div>
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <span className="truncate text-sm font-medium" title={node.title ?? node.label}>
-          {node.label}
-        </span>
+      <span className="truncate text-sm font-medium" title={node.title ?? node.label}>
+        {node.label}
+      </span>
+      <div className="flex min-w-0 flex-wrap items-center gap-1 overflow-hidden">
         <ToneBadge tone={statusTone(node)} pulse={node.active}>
           {statusLabel(node, finished)}
         </ToneBadge>
+        {badges.map((badge) => (
+          <span key={badge} className="rounded border border-border px-1 font-mono text-[10px] leading-4 text-muted-foreground">
+            {badge}
+          </span>
+        ))}
       </div>
-      {badges.length > 0 && (
-        <div className="flex min-w-0 flex-wrap gap-1 overflow-hidden">
-          {badges.map((badge) => (
-            <span key={badge} className="rounded border border-border px-1 font-mono text-[10px] text-muted-foreground">
-              {badge}
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

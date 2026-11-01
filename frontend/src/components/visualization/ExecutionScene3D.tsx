@@ -7,14 +7,18 @@
  * camera changes. Continuous frames run only while the trace shows work
  * running and reduced motion is off, and then only to turn the running nodes.
  */
-import { Html, Line, OrbitControls, QuadraticBezierLine } from "@react-three/drei";
+import { Line, OrbitControls, QuadraticBezierLine } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { memo, useEffect, useMemo, useRef } from "react";
-import type { Group } from "three";
+import { memo, useEffect, useMemo, useRef, type RefObject } from "react";
+import { Vector3, type Group } from "three";
 import type { VizEdge, VizModel, VizNode } from "@/domain/visualization";
+import { cn } from "@/lib/utils";
 import { selectionFromNodeId, selectionNodeId, useViewStore } from "@/store/viewStore";
 import { SCENE_COLORS, statusLabel, statusTone } from "./presentation";
 import { cameraDistance, centroid, scenePositions, type Vec3 } from "./sceneLayout";
+
+/** A little above the grid, so the status rings read as rings. */
+const CAMERA_HEIGHT = 3.2;
 
 export interface ExecutionScene3DProps {
   model: VizModel;
@@ -32,30 +36,84 @@ export default function ExecutionScene3D({ model, live, reducedMotion, resetKey,
   const animate = !reducedMotion && model.nodes.some((node) => node.active);
   const clearSelection = useViewStore((state) => state.clearSelection);
 
+  const labels = useRef(new Map<string, HTMLDivElement>());
+
   return (
-    <Canvas
-      frameloop={animate ? "always" : "demand"}
-      dpr={[1, 1.5]}
-      gl={{ antialias: true, powerPreference: "low-power" }}
-      camera={{ position: [0, 0.6, distance], fov: 45, near: 0.1, far: 200 }}
-      onPointerMissed={clearSelection}
-      onCreated={({ gl }) => {
-        gl.domElement.addEventListener("webglcontextlost", (event) => {
-          event.preventDefault();
-          onContextLost();
-        });
-      }}
-      aria-hidden="true"
-      data-testid="execution-scene-3d"
-    >
-      <ambientLight intensity={0.55} />
-      <directionalLight position={[4, 6, 8]} intensity={1.1} />
-      <Edges model={model} positions={positions} />
-      <Nodes model={model} positions={positions} animate={animate} />
-      <OrbitControls makeDefault enableDamping={false} minDistance={3} maxDistance={distance * 2.5} />
-      <CameraRig model={model} positions={positions} distance={distance} follow={live} resetKey={resetKey} />
-    </Canvas>
+    <div className="relative size-full">
+      <Canvas
+        frameloop={animate ? "always" : "demand"}
+        dpr={[1, 1.5]}
+        gl={{ antialias: true, powerPreference: "low-power" }}
+        camera={{ position: [0, CAMERA_HEIGHT, distance], fov: 45, near: 0.1, far: 200 }}
+        onPointerMissed={clearSelection}
+        onCreated={({ gl }) => {
+          gl.domElement.addEventListener("webglcontextlost", (event) => {
+            event.preventDefault();
+            onContextLost();
+          });
+        }}
+        aria-hidden="true"
+        data-testid="execution-scene-3d"
+      >
+        <ambientLight intensity={0.55} />
+        <directionalLight position={[4, 6, 8]} intensity={1.1} />
+        <Edges model={model} positions={positions} />
+        <Nodes model={model} positions={positions} animate={animate} />
+        <OrbitControls makeDefault enableDamping={false} minDistance={3} maxDistance={distance * 2.5} />
+        <CameraRig model={model} positions={positions} distance={distance} follow={live} resetKey={resetKey} />
+        <LabelProjector positions={positions} labels={labels} />
+      </Canvas>
+      <Labels model={model} labels={labels} />
+    </div>
   );
+}
+
+/**
+ * Node labels as plain DOM over the canvas, moved by LabelProjector on each
+ * rendered frame. (Cheaper than a React root per label, and the text stays
+ * crisp at any zoom.)
+ */
+function Labels({ model, labels }: { model: VizModel; labels: RefObject<Map<string, HTMLDivElement>> }) {
+  const selectedId = useViewStore((state) => selectionNodeId(state.selection));
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+      {model.nodes.map((node) => (
+        <div
+          key={node.id}
+          ref={(element) => {
+            if (element) labels.current.set(node.id, element);
+            else labels.current.delete(node.id);
+          }}
+          // Hidden until the first frame places it; the projector's inline style wins.
+          className={cn(
+            "invisible absolute top-0 left-0 flex flex-col items-center whitespace-nowrap rounded-md border bg-background/85 px-1.5 py-0.5 font-mono text-[10px] leading-tight",
+            node.id === selectedId ? "border-ring" : "border-border",
+          )}
+        >
+          <span className="max-w-32 truncate text-foreground">{node.label}</span>
+          <span style={{ color: SCENE_COLORS[statusTone(node)] }}>{statusLabel(node, model.finished)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const LABEL_OFFSET = 1.15;
+
+function LabelProjector({ positions, labels }: { positions: Map<string, Vec3>; labels: RefObject<Map<string, HTMLDivElement>> }) {
+  const point = useMemo(() => new Vector3(), []);
+  useFrame(({ camera, size }) => {
+    for (const [id, element] of labels.current) {
+      const position = positions.get(id);
+      if (!position) continue;
+      point.set(position[0], position[1] - LABEL_OFFSET, position[2]).project(camera);
+      const x = (point.x * 0.5 + 0.5) * size.width;
+      const y = (-point.y * 0.5 + 0.5) * size.height;
+      element.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+      element.style.visibility = point.z > 1 ? "hidden" : "visible";
+    }
+  });
+  return null;
 }
 
 function Nodes({ model, positions, animate }: { model: VizModel; positions: Map<string, Vec3>; animate: boolean }) {
@@ -68,7 +126,6 @@ function Nodes({ model, positions, animate }: { model: VizModel; positions: Map<
           node={node}
           position={positions.get(node.id)!}
           selected={node.id === selectedId}
-          finished={model.finished}
           animate={animate && node.active}
         />
       ))}
@@ -80,13 +137,11 @@ const NodeEntity = memo(function NodeEntity({
   node,
   position,
   selected,
-  finished,
   animate,
 }: {
   node: VizNode;
   position: Vec3;
   selected: boolean;
-  finished: boolean;
   animate: boolean;
 }) {
   const spinner = useRef<Group>(null);
@@ -112,7 +167,7 @@ const NodeEntity = memo(function NodeEntity({
           <meshStandardMaterial
             color={color}
             emissive={color}
-            emissiveIntensity={node.active ? 0.65 : 0.08}
+            emissiveIntensity={node.active ? 0.65 : selected ? 0.35 : 0.08}
             transparent={faded}
             opacity={faded ? 0.35 : 1}
             roughness={0.5}
@@ -126,17 +181,6 @@ const NodeEntity = memo(function NodeEntity({
         <torusGeometry args={[0.62, selected ? 0.07 : 0.035, 8, 48]} />
         <meshBasicMaterial color={selected ? "#ffffff" : ring} />
       </mesh>
-      <Html center position={[0, -1.12, 0]} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
-        <div
-          aria-hidden="true"
-          className="flex flex-col items-center whitespace-nowrap rounded-md border border-border bg-background/80 px-1.5 py-0.5 font-mono text-[10px] leading-tight"
-        >
-          <span className="max-w-32 truncate text-foreground">{node.label}</span>
-          <span style={{ color: ring }}>
-            {statusLabel(node, finished)}
-          </span>
-        </div>
-      </Html>
     </group>
   );
 });
@@ -225,7 +269,7 @@ function CameraRig({
     .join(" ");
 
   useEffect(() => {
-    camera.position.set(0, 0.6, distance);
+    camera.position.set(0, CAMERA_HEIGHT, distance);
     const orbit = controls as unknown as { target: { set: (x: number, y: number, z: number) => void }; update: () => void } | null;
     orbit?.target.set(0, 0, 0);
     orbit?.update();

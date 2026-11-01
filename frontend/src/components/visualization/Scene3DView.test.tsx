@@ -97,7 +97,7 @@ describe("scene layout", () => {
   it("centres the columns on the origin and stacks rows downwards", () => {
     expect(scenePosition({ column: 0, row: 0 }, 5)).toEqual([-6, -0, 0]);
     expect(scenePosition({ column: 4, row: 0 }, 5)).toEqual([6, -0, 0]);
-    expect(scenePosition({ column: 1, row: 0.5 }, 5)).toEqual([-3, -0.9, 0]);
+    expect(scenePosition({ column: 1, row: 0.5 }, 5)).toEqual([-3, -1.2, 0]);
   });
 
   it("finds the centre of the running work", () => {
