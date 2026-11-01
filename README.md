@@ -206,6 +206,15 @@ Every run view renders the frontend execution model
 folded through a pure reducer, and anything a trace does not record is shown
 as unknown rather than invented.
 
+Run Detail and the console draw the execution as a graph
+(`src/domain/visualization` builds one model for both views): planner,
+coder steps by wave with their recorded dependencies, reviewer, and the
+deterministic verification runner, with revisions, repairs, retries and the
+escalated tier marked. The 2D graph (React Flow) needs no WebGL. The 3D
+scene (React Three Fiber) is downloaded only when chosen and WebGL is
+available; otherwise the 2D graph is shown with an explanation. Only work
+the trace shows running is animated, and never under reduced motion.
+
 API types are generated from the backend contract. After changing the API, run
 `npm run gen:api` in `frontend/` with the virtualenv active and commit
 `openapi.json` and `src/api/schema.d.ts`; a backend test fails if they drift.

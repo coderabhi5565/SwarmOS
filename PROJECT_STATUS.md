@@ -1,6 +1,6 @@
 # SwarmOS project status
 
-Last updated: 2026-11-01
+Last updated: 2026-11-02
 
 ## Scope
 
@@ -17,7 +17,7 @@ Milestones (revised 2026-11-01):
 - M3.1 frontend foundation ✅
 - M3.2 event reducer and replay engine ✅
 - M3.3 execution interface (new run, run detail, live console, history) ✅
-- M4 Three.js agent network
+- M4 visual execution engine (2D graph, lazy 3D scene) ✅
 - M5 integration
 - M6 benchmarks, docs, landing page
 - M7 security review, testing, free deployment
@@ -25,15 +25,15 @@ Milestones (revised 2026-11-01):
 
 ## Current milestone
 
-**M3.3 — Execution interface: complete** (on `main`; M3.2 pushed, M3.3 not yet pushed).
-Next: **M4 — agent network visualisation**, awaiting approval.
+**M4 — Visual execution engine: complete** (on `main`; M3.3 pushed, M4 not yet pushed).
+Next: **M5 — integration**, awaiting approval.
 
 ## Validation at the last milestone boundary
 
 | Check | Result |
 | --- | --- |
 | `python -m pytest` | 351 passed, 2 skipped (symlink test needs privilege on Windows; POSIX rlimit test is Linux-only) |
-| frontend `npm run typecheck` / `npm test` / `npm run build` | clean / 122 passed (16 files) / builds |
+| frontend `npm run typecheck` / `npm test` / `npm run build` | clean / 174 passed (20 files) / builds |
 | `ruff format --check` | not configured; the codebase has never been formatted (56/62 files would change before M3.0) |
 | `ruff check .` | clean |
 | `npx tsc --noEmit` (frontend) | clean |
@@ -44,6 +44,53 @@ Suite wall time varies a lot on this machine (80 s to 300 s for the same code).
 Most of it is real `pytest` subprocesses spawned by verification tests.
 
 ## Completed
+
+### M4 — visual execution engine
+
+- **Shared model** (`frontend/src/domain/visualization/`, framework-free):
+  `buildVizModel(state)` turns the normalised `ExecutionState` into nodes
+  and edges that both renderers draw.
+  - Stable ids: `agent:planner`, `step:<id>`, `agent:reviewer`,
+    `runner:verifier`. The deterministic grid (planner, one column per wave,
+    reviewer, verifier) never moves a node once the plan is known.
+  - Dependency edges only from recorded dependencies; with none recorded the
+    graph says so and draws none. Revision (reviewer → step) and repair
+    (verifier → step) edges carry counts; retries and the strong tier are
+    node badges.
+  - A node is active only between a lifecycle start event and its result,
+    so finished runs and pre-M3.0 traces never show activity.
+  - `reconcileVizModel` keeps unchanged node and edge objects (and the
+    whole model when a poll brings nothing new).
+- **2D graph** (React Flow): fixed node sizes and declared handles, so
+  layout and edges never depend on measurement; no dragging; pan, zoom and
+  fit; edge animation only for running work and never under reduced motion;
+  accessible node labels and keyboard selection. Fully usable without WebGL.
+- **3D scene** (React Three Fiber, drei): distinct shapes per role, the
+  verifier as a machine; status rings; feedback arcs. `frameloop="demand"`
+  (continuous frames only while work runs and motion is allowed), orbit
+  controls, camera reset, a focusable entity list for keyboard and
+  screen-reader users. Labels are DOM projected over the canvas.
+- **Lazy 3D:** `three`/R3F live only in the `ExecutionScene3D` chunk
+  (971 kB, 262 kB gzip), imported only after choosing 3D with WebGL
+  available. Missing WebGL, a failed start or a lost context fall back to
+  the 2D graph with an explanation. The entry chunk (120 kB, 41 kB gzip)
+  imports only the vendor chunks; React Flow is in the lazy
+  `ExecutionView` chunk (228 kB, 74 kB gzip) used by Run Detail and the
+  console. Vite warns about the 3D chunk's size; it is opt-in only.
+- **Shared view state** (Zustand): selection (now including the runner,
+  mapped to node ids), 2D/3D mode and follow-live. The view now starts in
+  2D for everyone (previously 3D unless reduced motion was requested).
+- **Integration:** Run Detail and the console render `ExecutionView` from
+  the execution state they already poll; no new data path. Every existing
+  panel stays. The details panel sits beside the graph only when the
+  view's container is wide enough.
+- **Visual check** (headless Edge, SwiftShader WebGL, scratch database,
+  demo provider): found and fixed truncated 2D labels, an empty planner
+  label in 3D (drei `Html` under React 19), and an unreadably small graph
+  in the console's narrower column. Verified the no-WebGL fallback and
+  that the 3D chunk is never requested without WebGL.
+- **Test infrastructure:** page tests got a 20 s timeout and preloaded
+  lazy pages (`885b2db`); they had timed out under heavy machine load.
 
 ### M3.3 — execution interface
 
