@@ -46,6 +46,33 @@ non-loopback bind unless both `SWARMOS_ALLOW_REMOTE_BIND=1` and
 authenticating proxy in front if remote access is genuinely required, and run the
 service in a container or VM with no secrets mounted.
 
+## Public demo mode (`SWARMOS_MODE=public_demo`)
+
+The free hosting tier this project targets cannot run containers inside the
+app, so there is no Docker or VM sandbox. The public demo instead layers
+restrictions so that no visitor input ever becomes executed code or a prompt:
+
+| Layer | What it does | Where |
+| --- | --- | --- |
+| Curated tasks only | Visitors pick a catalog task. No free-form goal, no seed files, no provider override, no inline (`wait=true`) runs | `RunService.check_public_demo`, `GET /api/demo-tasks` |
+| Static code policy | Every generated `.py` file is parsed before merge. Imports must come from an allowlist of side-effect-free stdlib modules. `eval`, `exec`, `open`, `__import__`, `getattr` and similar are refused, as is dunder attribute access (`__class__`, `__globals__`, …). A violation is a retryable step failure | `app/runtime/code_policy.py` |
+| Restricted test runner | `python -m pytest` is rewritten to `python -I sandbox_launcher.py`. Before any workspace code loads, the launcher installs a `sys.addaudithook` hook that refuses sockets, process creation, `ctypes`, writes outside the workspace, and reads outside the workspace and the Python installation. Temp files go into the workspace; plugin autoload is off | `app/runtime/sandbox_launcher.py` |
+| Resource limits (POSIX) | CPU seconds, 1 GiB address space, 16 MiB file size, 256 open files, no core dumps, plus the parent's wall-clock timeout | `apply_resource_limits` |
+| Abuse limits | Per-client sliding-window rate limit, global cap on concurrent runs; endpoint probe and cancellation are disabled; `base_url` is redacted from `/api/config` | `app/rate_limit.py`, `app/main.py` |
+| Fail closed | The API and `swarmos serve` refuse to start in `public_demo` if the sandbox or the code policy is off, or repository checkout is on | `Settings.startup_errors` |
+
+What this is **not**: kernel isolation. An audit hook does not stop native
+code, and a static policy can in principle be evaded. These layers are
+meaningful together because the demo never runs code derived from visitor
+input: the code is written by a model from prompts this server controls, for
+a fixed task, and must pass the policy before the hooked runner executes it.
+Do not enable `local` mode, free-form goals, or uploaded files on a public
+deployment.
+
+Validated so far: the launcher's escape tests pass on Windows
+(`tests/test_public_demo.py`). Linux, the deployment target, must be validated
+in CI before deploying.
+
 ## Repository workflow
 
 There is no live-repository workflow yet: no clone, branch, commit, push, or PR.

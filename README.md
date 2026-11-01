@@ -25,7 +25,8 @@ It runs fully offline with a deterministic demo fixture, and against local open-
 | React dashboard with provider/model provenance | Implemented, type-checked, built |
 | Benchmark harness (fixed / adaptive / multi-agent) | Implemented, demo-measured |
 | Live local-model end-to-end run | Performed with `qwen2.5-coder:1.5b`; **no run has reached `completed` yet** (see PROJECT_STATUS.md) |
-| Kernel sandbox / network isolation | **Not implemented** |
+| Restricted public demo mode (catalog tasks, code policy, audited test runner, rate limits) | Implemented, tested on Windows; Linux validation pending |
+| Kernel sandbox / network isolation | **Not implemented** (not available on the free hosting target; see [safety](docs/safety.md)) |
 | Live repository checkout, commit, or push | **Not implemented** |
 | Multi-provider orchestration | **Not implemented** (one endpoint per run) |
 
@@ -167,7 +168,8 @@ All four roles run the same graph under every policy; policies only change model
 | `GET` | `/api/runs` | Recent runs |
 | `GET` | `/api/runs/{id}` | Run record plus every trace event |
 | `GET` | `/api/runs/{id}/events` | Trace events only |
-| `POST` | `/api/runs/{id}/cancel` | Cancel an in-flight run (`202`; `404` unknown, `409` finished or not active here) |
+| `POST` | `/api/runs/{id}/cancel` | Cancel an in-flight run (`202`; `404` unknown, `409` finished or not active here; `403` in the public demo) |
+| `GET` | `/api/demo-tasks` | The curated task catalog (the only runs the public demo accepts) |
 
 Set `SWARMOS_API_TOKEN` to require `Authorization: Bearer <token>` on every `/api` route. The CLI refuses a non-loopback bind unless the token is set and `SWARMOS_ALLOW_REMOTE_BIND=1`.
 

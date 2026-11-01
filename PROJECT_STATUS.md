@@ -2,16 +2,34 @@
 
 Last updated: 2026-11-01
 
+## Scope
+
+Portfolio flagship, not commercial SaaS: a genuinely working orchestrator,
+publicly deployed for ₹0/month, with a premium React + Three.js UI driven by
+real backend events. No billing, organizations, or heavy infrastructure.
+
+Milestones (revised 2026-11-01):
+
+- M0 stabilize ✅
+- M1 orchestration and API reliability ✅
+- M2 restricted demo execution ✅ (Linux validation pending, in M7)
+- M3 frontend and design system
+- M4 Three.js agent network
+- M5 integration
+- M6 benchmarks, docs, landing page
+- M7 security review, testing, free deployment
+- M8 release
+
 ## Current milestone
 
-**M1 — Backend reliability: complete** (branch `m0-stabilize-review-guard`).
-Next: **M2 — Production execution infrastructure** (sandboxed verification).
+**M2 — Safe restricted demo execution: complete** (branch `m0-stabilize-review-guard`).
+Next: **M3 — Premium React frontend and design system.**
 
 ## Validation at the last milestone boundary
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest` | 248 passed, 1 skipped (symlink test; needs symlink privilege on Windows) |
+| `python -m pytest` | 287 passed, 2 skipped (symlink test needs privilege on Windows; POSIX rlimit test is Linux-only) |
 | `ruff check .` | clean |
 | `npx tsc --noEmit` (frontend) | clean |
 | `npm run build` (frontend) | builds |
@@ -21,6 +39,30 @@ Suite wall time varies a lot on this machine (80 s to 300 s for the same code).
 Most of it is real `pytest` subprocesses spawned by verification tests.
 
 ## Completed
+
+### M2 — restricted public demo execution
+
+Free hosting (Render free tier) cannot run containers inside the app, so
+there is no Docker sandbox. `SWARMOS_MODE=public_demo` layers these
+restrictions instead (details in `docs/safety.md`):
+
+- **Curated tasks only.** `GET /api/demo-tasks` lists them:
+  `sample_tag_normalization` (1 step) and `sample_parallel_pipeline` (2 waves,
+  with parallel steps).
+- **Static code policy** for generated code (`app/runtime/code_policy.py`).
+- **Restricted pytest launcher** with an audit hook and POSIX rlimits
+  (`app/runtime/sandbox_launcher.py`). `Workspace(sandbox="restricted")`
+  routes verification through it.
+- **Abuse limits:** per-client rate limit (`app/rate_limit.py`) and a cap on
+  concurrent runs. The endpoint probe, cancellation, and inline runs are
+  disabled, and `base_url` is redacted.
+- **Fails closed:** the app refuses to start if a safety layer is off
+  (`Settings.startup_errors`).
+- Configurable CORS origins for the deployed frontend.
+- Tests: `tests/test_public_demo.py` (40 items). Hostile tests prove that
+  network, subprocess, reads and listings outside the workspace, writes
+  outside it, and `ctypes` are refused. Both catalog tasks complete under the
+  public profile, including a real parallel wave.
 
 ### M1 — backend reliability
 
@@ -80,9 +122,17 @@ Most of it is real `pytest` subprocesses spawned by verification tests.
 
 ## Known issues (open)
 
-1. **Security (M2):** verification executes model-written code with
-   containment only: no sandbox, network, CPU or memory isolation. The API must
-   stay on loopback.
+1. **Blocks deployment (M7):** the restricted launcher has only been
+   validated on Windows. Run `tests/test_public_demo.py` on Linux in CI before
+   deploying; the read allowlist may need Linux system paths.
+1a. `local` mode still executes model-written code with containment only.
+    Never deploy it publicly.
+1b. The current dashboard posts free-form goals, so it gets 403 in
+    public_demo. The M3–M5 frontend must use the catalog.
+1c. The public demo needs a model. With no API key it uses the deterministic
+    fixture, which is clearly labelled. A free hosted OpenAI-compatible key
+    (e.g. Groq or OpenRouter free tier) is a credential decision for the user
+    at deployment.
 2. `RunRequest.metadata` is accepted but not persisted (M3, with benchmark
    endpoints).
 3. An escalated revision can exceed `max_revisions` (by design; to be
