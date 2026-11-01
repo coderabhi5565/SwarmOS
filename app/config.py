@@ -47,6 +47,11 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw in {"1", "true", "yes", "on"}
 
 
+def _public_demo() -> bool:
+    """Whether SWARMOS_MODE selects the restricted public demo profile."""
+    return os.getenv("SWARMOS_MODE", "local").strip().lower() == "public_demo"
+
+
 def _env_path(name: str, default: Path) -> Path:
     raw = os.getenv(name, "").strip()
     if not raw:
@@ -124,6 +129,36 @@ class Settings:
         "SWARMOS_ALLOWED_COMMANDS", "python,python3,py,pytest"
     ).strip()
     allow_repo_checkout: bool = _env_bool("SWARMOS_ALLOW_REPO_CHECKOUT", False)
+
+    # Deployment profile. "local" is the full developer tool. "public_demo" is
+    # the internet-facing portfolio demo: curated tasks only, generated code
+    # checked by a static policy, tests run under the restricted launcher, and
+    # per-client rate limits. The other defaults below follow this value.
+    mode: str = os.getenv("SWARMOS_MODE", "local").strip().lower()
+    execution_sandbox: str = field(
+        default_factory=lambda: os.getenv(
+            "SWARMOS_EXECUTION_SANDBOX", "restricted" if _public_demo() else "none"
+        ).strip().lower()
+    )
+    code_policy_enabled: bool = field(
+        default_factory=lambda: _env_bool("SWARMOS_CODE_POLICY", _public_demo())
+    )
+    # 0 means unlimited.
+    max_concurrent_runs: int = field(
+        default_factory=lambda: _env_int(
+            "SWARMOS_MAX_CONCURRENT_RUNS", 2 if _public_demo() else 0
+        )
+    )
+    runs_per_client_per_hour: int = field(
+        default_factory=lambda: _env_int(
+            "SWARMOS_RUNS_PER_CLIENT_PER_HOUR", 6 if _public_demo() else 0
+        )
+    )
+    # Only behind a proxy you control (e.g. Render) may X-Forwarded-For name
+    # the client; otherwise any caller could pick its own rate-limit bucket.
+    trust_proxy_headers: bool = _env_bool("SWARMOS_TRUST_PROXY_HEADERS", False)
+    # Extra allowed CORS origins, comma-separated (e.g. the deployed frontend).
+    cors_origins: str = os.getenv("SWARMOS_CORS_ORIGINS", "").strip()
 
     # API surface safety.
     api_token: str = os.getenv("SWARMOS_API_TOKEN", "").strip()
@@ -220,6 +255,38 @@ class Settings:
         return routing
 
     @property
+    def is_public_demo(self) -> bool:
+        return self.mode == "public_demo"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
+
+    def startup_errors(self) -> list[str]:
+        """Configuration that must stop the API from starting."""
+        errors: list[str] = []
+        if self.mode not in {"local", "public_demo"}:
+            errors.append(f"SWARMOS_MODE must be 'local' or 'public_demo', not {self.mode!r}")
+        if self.execution_sandbox not in {"none", "restricted"}:
+            errors.append(
+                "SWARMOS_EXECUTION_SANDBOX must be 'none' or 'restricted', "
+                f"not {self.execution_sandbox!r}"
+            )
+        if self.is_public_demo:
+            # The public demo never executes model-written code outside the
+            # restricted launcher, and never skips the static code policy.
+            if self.execution_enabled and self.execution_sandbox != "restricted":
+                errors.append(
+                    "public_demo requires SWARMOS_EXECUTION_SANDBOX=restricted "
+                    "(or SWARMOS_EXECUTION_ENABLED=0)"
+                )
+            if not self.code_policy_enabled:
+                errors.append("public_demo requires SWARMOS_CODE_POLICY=1")
+            if self.allow_repo_checkout:
+                errors.append("public_demo does not allow SWARMOS_ALLOW_REPO_CHECKOUT")
+        return errors
+
+    @property
     def allowed_command_set(self) -> set[str]:
         return {
             item.strip().lower()
@@ -230,6 +297,7 @@ class Settings:
     def describe(self) -> dict[str, object]:
         profiles = self.configured_profiles()
         return {
+            "mode": self.mode,
             "provider_mode": self.provider,
             "provider_kind": self.provider_kind,
             "openai_configured": self.openai_configured,

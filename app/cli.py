@@ -271,17 +271,28 @@ def _cmd_serve(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 2
-        if not settings.api_token:
+        if not settings.api_token and not settings.is_public_demo:
             print(
-                "refusing to bind a non-loopback address without SWARMOS_API_TOKEN; "
-                "the execution API would be unauthenticated",
+                "refusing to bind a non-loopback address without SWARMOS_API_TOKEN "
+                "or SWARMOS_MODE=public_demo; the execution API would be "
+                "unauthenticated and unrestricted",
                 file=sys.stderr,
             )
             return 2
-        print(
-            "WARNING: exposing the execution API on a non-loopback interface. "
-            "It can run project code in a temporary workspace."
-        )
+        errors = settings.startup_errors()
+        if errors:
+            print("refusing to start: " + "; ".join(errors), file=sys.stderr)
+            return 2
+        if settings.is_public_demo:
+            print(
+                "Public demo mode: catalog tasks only, code policy on, tests run "
+                "under the restricted launcher, per-client rate limits."
+            )
+        else:
+            print(
+                "WARNING: exposing the execution API on a non-loopback interface. "
+                "It can run project code in a temporary workspace."
+            )
 
     uvicorn.run("app.main:app", host=args.host, port=args.port, reload=args.reload)
     return 0

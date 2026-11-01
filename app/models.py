@@ -62,7 +62,7 @@ class RunRequest(BaseModel):
     limits: Limits = Field(default_factory=Limits)
     provider: Literal["auto", "demo", "openai"] = "auto"
     model_policy: Literal["config", "fast_only", "adaptive", "role_routed"] | None = None
-    demo_task: Literal["sample_tag_normalization"] | None = None
+    demo_task: Literal["sample_tag_normalization", "sample_parallel_pipeline"] | None = None
     metadata: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("files")

@@ -39,6 +39,14 @@ def _demo_limits(requested: Limits, recipe: Limits) -> Limits:
     )
 
 
+class PublicDemoError(ValueError):
+    """The request is not allowed in the restricted public demo."""
+
+
+class CapacityError(RuntimeError):
+    """Too many runs are already in flight."""
+
+
 @dataclass
 class _ActiveRun:
     task: asyncio.Task
@@ -86,7 +94,33 @@ class RunService:
             parallel_coding=requested.parallel_coding,
         )
 
+    def check_public_demo(self, request: RunRequest) -> None:
+        """In the public demo, visitors choose a catalog task and nothing else.
+
+        No free-form goal, no seed files, and no provider override: the code
+        the agents write is driven only by prompts this server controls.
+        """
+        if not self.settings.is_public_demo:
+            return
+        if request.demo_task is None:
+            raise PublicDemoError(
+                "the public demo runs catalog tasks only; choose one from /api/demo-tasks"
+            )
+        if request.files:
+            raise PublicDemoError("the public demo does not accept seed files")
+        if request.provider != "auto":
+            raise PublicDemoError("the public demo uses the server's provider")
+
+    def check_capacity(self) -> None:
+        limit = self.settings.max_concurrent_runs
+        if limit > 0 and len(self._active) >= limit:
+            raise CapacityError(
+                f"{len(self._active)} run(s) already in flight; the limit is {limit}"
+            )
+
     def prepare(self, request: RunRequest) -> tuple[RunRecord, Provider, str, DemoTask | None]:
+        self.check_public_demo(request)
+        self.check_capacity()
         demo = resolve_demo_task(request.demo_task) if request.demo_task else None
         if demo is not None and request.files:
             raise DemoTaskError(

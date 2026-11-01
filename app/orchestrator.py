@@ -50,6 +50,7 @@ from app.models import (
 )
 from app.providers.base import ModelUnavailableError
 from app.review_evidence import validate_review
+from app.runtime.code_policy import check_changes
 from app.runtime.limits import LimitExceeded
 from app.runtime.runtime import RunRuntime
 from app.runtime.workspace import Workspace
@@ -416,6 +417,25 @@ class Orchestrator:
                 )
             ]
             return updates
+        if self.runtime.settings.code_policy_enabled:
+            violations = check_changes(changes)
+            if violations:
+                self.runtime.emit(
+                    "failure",
+                    "Rejected generated code that violates the demo code policy",
+                    step_id=step.id,
+                    violations=[violation.describe() for violation in violations[:20]],
+                )
+                updates["failures"] = [
+                    StepFailure(
+                        step_id=step.id,
+                        stage="coding",
+                        error="code policy violation: "
+                        + "; ".join(v.describe() for v in violations[:5]),
+                        attempts=attempt,
+                    )
+                ]
+                return updates
         if len(changes) > _MAX_FILES_PER_STEP:
             updates["failures"] = [
                 StepFailure(

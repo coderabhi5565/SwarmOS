@@ -24,7 +24,11 @@ from pathlib import Path
 
 from app.models import FileChange, VerificationResult, safe_relative_path
 
+_SANDBOX_TMP = ".swarmos_tmp"
+_LAUNCHER = Path(__file__).resolve().parent / "sandbox_launcher.py"
+
 _SKIP_DIRS = {
+    _SANDBOX_TMP,
     ".git",
     "__pycache__",
     ".pytest_cache",
@@ -74,11 +78,15 @@ class Workspace:
         char_limit: int = 400_000,
         execution_enabled: bool = True,
         allowed_commands: set[str] | None = None,
+        sandbox: str = "none",
     ) -> None:
         self.root = root
         self.root.mkdir(parents=True, exist_ok=True)
         self.char_limit = char_limit
         self.execution_enabled = execution_enabled
+        # "none": the command runs as is (local development).
+        # "restricted": pytest runs under the audited sandbox launcher.
+        self.sandbox = sandbox
         self.allowed_commands = allowed_commands or {"python", "python3", "py", "pytest"}
         self.last_truncated = False
         # The verification process currently running, if any. Commands run on a
@@ -220,6 +228,7 @@ class Workspace:
             char_limit=self.char_limit,
             execution_enabled=self.execution_enabled,
             allowed_commands=set(self.allowed_commands),
+            sandbox=self.sandbox,
         )
 
     def destroy(self) -> None:
@@ -248,6 +257,11 @@ class Workspace:
             )
 
         env = self._safe_env()
+        if self.sandbox == "restricted":
+            restricted = self._restricted_argv(argv, timeout_seconds, env)
+            if isinstance(restricted, str):
+                return self._execution_failure(command, restricted)
+            argv = restricted
         started = time.perf_counter()
         timed_out = False
         try:
@@ -309,6 +323,38 @@ class Workspace:
             stderr_tail=_tail(stderr),
             workspace_files=self.file_list(),
         )
+
+    def _restricted_argv(
+        self, argv: list[str], timeout_seconds: int, env: dict[str, str]
+    ) -> list[str] | str:
+        """Rewrite ``python -m pytest ...`` to run under the sandbox launcher.
+
+        Returns the new argv, or the reason the command cannot run restricted.
+        Mutates ``env`` to point temp files into the workspace.
+        """
+        if len(argv) < 3 or Path(argv[0]).resolve() != Path(sys.executable).resolve() \
+                or argv[1:3] != ["-m", "pytest"]:
+            return "the restricted sandbox only runs `python -m pytest`"
+        root = str(self.root.resolve())
+        scratch = self.root / _SANDBOX_TMP
+        scratch.mkdir(parents=True, exist_ok=True)
+        for key in ("TMP", "TEMP", "TMPDIR"):
+            env[key] = str(scratch.resolve())
+        env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+        env["SWARMOS_SANDBOX_CPU_SECONDS"] = str(max(1, timeout_seconds) + 5)
+        return [
+            sys.executable,
+            "-I",
+            str(_LAUNCHER),
+            root,
+            *argv[3:],
+            "-p",
+            "no:cacheprovider",
+            "--rootdir",
+            root,
+            "--basetemp",
+            str((scratch / "pytest").resolve()),
+        ]
 
     def _execution_failure(self, command: str, message: str) -> VerificationResult:
         return VerificationResult(

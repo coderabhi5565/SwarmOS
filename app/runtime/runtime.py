@@ -69,6 +69,7 @@ class RunRuntime:
             char_limit=self.settings.snapshot_char_limit,
             execution_enabled=self.settings.execution_enabled,
             allowed_commands=self.settings.allowed_command_set,
+            sandbox=self.settings.execution_sandbox,
         )
 
     # ------------------------------------------------------------------
@@ -84,6 +85,7 @@ class RunRuntime:
             self.workspace.char_limit = self.settings.snapshot_char_limit
             self.workspace.execution_enabled = self.settings.execution_enabled
             self.workspace.allowed_commands = self.settings.allowed_command_set
+            self.workspace.sandbox = self.settings.execution_sandbox
         else:
             self.workspace.write(
                 "README.md",

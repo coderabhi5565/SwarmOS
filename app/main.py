@@ -11,16 +11,21 @@ from fastapi.staticfiles import StaticFiles
 
 from app import __version__
 from app.config import settings
-from app.demo_tasks import DemoTaskError
+from app.demo_tasks import DemoTaskError, demo_catalog
 from app.models import RunDetail, RunRequest
 from app.providers import resolve_provider
 from app.providers.base import ProbeableProvider, ProviderConfigError, ProviderError
-from app.service import RunService
+from app.rate_limit import SlidingWindowLimiter
+from app.service import CapacityError, PublicDemoError, RunService
 from app.store import RunStore
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    errors = settings.startup_errors()
+    if errors:
+        raise RuntimeError("refusing to start: " + "; ".join(errors))
+    app.state.limiter = SlidingWindowLimiter(settings.runs_per_client_per_hour)
     store = RunStore(settings.db_path)
     store.recover_interrupted("interrupted: the server stopped before this run finished")
     app.state.store = store
@@ -46,6 +51,7 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://localhost:4173",
         "http://127.0.0.1:4173",
+        *settings.cors_origin_list,
     ],
     allow_methods=["*"],
     allow_headers=["*"],
@@ -80,6 +86,27 @@ def _store() -> RunStore:
     return app.state.store
 
 
+def _client_key(request: Request) -> str:
+    """The rate-limit bucket for a caller.
+
+    X-Forwarded-For is only honoured behind a trusted proxy; otherwise a
+    caller could rotate the header to get a fresh bucket on every request.
+    """
+    if settings.trust_proxy_headers:
+        forwarded = request.headers.get("x-forwarded-for", "")
+        first = forwarded.split(",")[0].strip()
+        if first:
+            return first
+    return request.client.host if request.client else "unknown"
+
+
+def _public_demo_only_allows(feature: str) -> None:
+    if settings.is_public_demo:
+        raise HTTPException(
+            status_code=403, detail=f"{feature} is not available in the public demo"
+        )
+
+
 def _detail(run_id: str) -> RunDetail:
     record = _store().get_run(run_id)
     if record is None:
@@ -93,10 +120,20 @@ async def health() -> dict:
         "status": "ok",
         "service": "swarmos",
         "version": __version__,
+        "mode": settings.mode,
         "provider_mode": settings.provider,
         "provider_kind": settings.provider_kind,
         "openai_configured": settings.openai_configured,
         "auth_required": bool(settings.api_token),
+    }
+
+
+@app.get("/api/demo-tasks")
+async def demo_tasks() -> dict:
+    """The curated tasks a visitor may run. The only runs the public demo accepts."""
+    return {
+        "mode": settings.mode,
+        "tasks": [task.describe() for task in demo_catalog()],
     }
 
 
@@ -109,8 +146,20 @@ async def config() -> dict:
             for path in settings.sample_project.rglob("*")
             if path.is_file() and "__pycache__" not in path.parts
         )
+    described = settings.describe()
+    if settings.is_public_demo:
+        # Visitors see what the endpoint is (local or hosted, which models),
+        # not where it is.
+        described["base_url"] = None
     return {
-        **settings.describe(),
+        **described,
+        "public_demo": {
+            "enabled": settings.is_public_demo,
+            "execution_sandbox": settings.execution_sandbox,
+            "code_policy": settings.code_policy_enabled,
+            "max_concurrent_runs": settings.max_concurrent_runs,
+            "runs_per_client_per_hour": settings.runs_per_client_per_hour,
+        },
         "caps": {
             "max_agent_calls": settings.max_agent_calls,
             "max_budget_usd": settings.max_budget_usd,
@@ -138,6 +187,8 @@ async def config() -> dict:
 @app.get("/api/provider/models")
 async def provider_models() -> dict:
     """List models from the configured endpoint. No inference, no cost."""
+    # An open probe would let anyone make this server call its model endpoint.
+    _public_demo_only_allows("the endpoint probe")
     provider, name, warning = resolve_provider("auto", settings)
     if not isinstance(provider, ProbeableProvider):
         return {
@@ -158,10 +209,31 @@ async def provider_models() -> dict:
 @app.post("/api/runs", status_code=202)
 async def create_run(
     request: RunRequest,
+    http_request: Request,
     response: Response,
     wait: bool = Query(default=False, description="Execute inline instead of in the background"),
 ) -> RunDetail:
     service = _service()
+    if wait:
+        # An inline run holds a connection open for the whole run.
+        _public_demo_only_allows("wait=true")
+    try:
+        service.check_public_demo(request)
+        service.check_capacity()
+    except PublicDemoError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except CapacityError as exc:
+        raise HTTPException(
+            status_code=429, detail=str(exc), headers={"Retry-After": "30"}
+        ) from exc
+    # Only requests that would actually start a run count against the limit.
+    retry_after = http_request.app.state.limiter.acquire(_client_key(http_request))
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429,
+            detail=f"run limit reached for this client; retry in {retry_after}s",
+            headers={"Retry-After": str(retry_after)},
+        )
     try:
         if wait:
             record = await service.run_request(request)
@@ -172,6 +244,8 @@ async def create_run(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except DemoTaskError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except CapacityError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     return _detail(record.run_id)
 
 
@@ -188,6 +262,9 @@ async def get_run(run_id: str) -> RunDetail:
 
 @app.post("/api/runs/{run_id}/cancel", status_code=202)
 async def cancel_run(run_id: str) -> dict:
+    # Without accounts, any visitor could cancel any other visitor's run.
+    # Demo runs are short and bounded, so cancellation is simply off there.
+    _public_demo_only_allows("cancelling runs")
     record = _store().get_run(run_id)
     if record is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} not found")
