@@ -16,6 +16,8 @@ import { RoleDot, Unknown } from "@/components/execution/primitives";
 import { RunStatusBadge } from "@/components/run/RunStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PlaybackControls } from "@/components/playback/PlaybackControls";
+import { usePlayback } from "@/components/playback/usePlayback";
 import { ExecutionView } from "@/components/visualization/ExecutionView";
 import { useViewStore } from "@/store/viewStore";
 
@@ -23,6 +25,10 @@ import { useViewStore } from "@/store/viewStore";
 export function RunPage() {
   const { runId } = useParams();
   const { record, trace, execution, live, connection } = useExecution(runId);
+  // A replay position, if one is chosen, is drawn by every progress panel;
+  // the run's own state keeps updating underneath and is never replaced.
+  const playback = usePlayback(execution);
+  const shown = playback.displayed;
   // The graph's selection belongs to this run; another run starts unselected.
   const focusRun = useViewStore((state) => state.focusRun);
   useEffect(() => {
@@ -74,25 +80,26 @@ export function RunPage() {
           Could not refresh the trace: {trace.error.message}. Showing the last events received.
         </p>
       )}
-      {!execution ? (
+      {!execution || !shown ? (
         <Skeleton className="h-64 w-full" aria-label="Loading trace" />
       ) : (
         <>
           <RunOutcome state={execution} recordStatus={run.status} />
-          <ExecutionView state={execution} live={live} />
-          <AgentRoster state={execution} />
-          <PlanWaves state={execution} />
+          <PlaybackControls execution={execution} view={playback} live={live} />
+          <ExecutionView state={shown} live={live && !playback.replaying} replaying={playback.replaying} />
+          <AgentRoster state={shown} />
+          <PlanWaves state={shown} />
           <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-            <ExecutionTimeline events={execution.log} live={live} />
+            <ExecutionTimeline events={shown.log} live={live && !playback.replaying} />
             <div className="space-y-4">
-              <ReviewRounds state={execution} />
-              <VerificationRuns state={execution} />
+              <ReviewRounds state={shown} />
+              <VerificationRuns state={shown} />
             </div>
           </div>
-          <InvocationTable state={execution} />
+          <InvocationTable state={shown} />
           <div className="grid gap-4 lg:grid-cols-2">
-            <UsagePanel state={execution} />
-            <IssuesPanel state={execution} />
+            <UsagePanel state={shown} />
+            <IssuesPanel state={shown} />
           </div>
         </>
       )}

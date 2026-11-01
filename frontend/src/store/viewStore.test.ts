@@ -78,3 +78,37 @@ describe("selection node ids", () => {
     expect(selectionFromNodeId("agent:coder")).toBeNull();
   });
 });
+
+describe("playback", () => {
+  it("enters replay paused at a position, plays, pauses and leaves", () => {
+    const store = useViewStore.getState;
+    expect(store().playback).toBeNull();
+    store().seek(4);
+    expect(store().playback).toEqual({ index: 4, playing: false });
+    store().play();
+    expect(store().playback).toEqual({ index: 4, playing: true });
+    store().pause();
+    expect(store().playback).toEqual({ index: 4, playing: false });
+    store().play(0);
+    expect(store().playback).toEqual({ index: 0, playing: true });
+    store().exitPlayback();
+    expect(store().playback).toBeNull();
+  });
+
+  it("keeps the position when the view mode changes, and drops it for another run", () => {
+    const store = useViewStore.getState;
+    store().focusRun("run_a");
+    store().seek(7);
+    store().setPlaybackSpeed(2);
+    store().setViewMode("3d");
+    expect(store().playback).toEqual({ index: 7, playing: false });
+    store().focusRun("run_b");
+    expect(store().playback).toBeNull();
+    expect(store().playbackSpeed).toBe(2);
+  });
+
+  it("does not start a replay by pausing", () => {
+    useViewStore.getState().pause();
+    expect(useViewStore.getState().playback).toBeNull();
+  });
+});

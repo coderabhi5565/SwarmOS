@@ -1,7 +1,8 @@
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Health, RunRecord } from "@/api/types";
 import { fixtures, type TraceFixture } from "@/domain/execution/fixtures";
+import { useViewStore } from "@/store/viewStore";
 import { eventsPage, json, runDetailFrom, stubFetch } from "@/test/api";
 import { renderAt } from "@/test/render";
 
@@ -75,6 +76,31 @@ describe("run detail", () => {
     // The trace and the other panels stay on the page.
     expect(screen.getByRole("region", { name: "Verification" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Model calls" })).toBeInTheDocument();
+  });
+
+  it("replays the run: every progress panel shows the chosen point, the outcome stays real", async () => {
+    const fixture = fixtures.reviewRevisionCompleted;
+    useViewStore.setState({ playback: null });
+    serve(fixture);
+    renderAt(`/runs/${fixture.run.run_id}`);
+
+    const total = fixture.events.length;
+    expect(await screen.findByText(`${total} events, in sequence order.`)).toBeInTheDocument();
+    expect(screen.getByText("latest state")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("slider", { name: "Playback position" }), { target: { value: "6" } });
+    expect(screen.getByText("7 events, in sequence order.")).toBeInTheDocument();
+    expect(screen.getByText("replay frame")).toBeInTheDocument();
+    // After seq 7 the reviewer is mid-call and nothing has been verified yet.
+    const graph = screen.getByTestId("execution-graph-2d");
+    expect(within(graph).getByRole("group", { name: /^Reviewer agent: running/ })).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Verification" })).getByText("No verification has run.")).toBeInTheDocument();
+    // The outcome panel describes the run itself, not the replay position.
+    expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show latest" }));
+    expect(screen.getByText(`${total} events, in sequence order.`)).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Verification" })).getByText("passed")).toBeInTheDocument();
   });
 
   it("shows dependencies and marks unreported usage as unknown", async () => {

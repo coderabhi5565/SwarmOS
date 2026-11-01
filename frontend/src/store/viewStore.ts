@@ -21,6 +21,19 @@ export type Selection =
 
 export type ViewMode = "3d" | "2d";
 
+export const PLAYBACK_SPEEDS = [0.5, 1, 2, 4] as const;
+export type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number];
+
+/**
+ * A replay position: the frame index into the run's replay (one frame per
+ * event). The views show the state after that event. Null means no replay:
+ * the run as it is now, live or finished.
+ */
+export interface Playback {
+  index: number;
+  playing: boolean;
+}
+
 export interface ViewState {
   /** The run the selection belongs to; another run starts unselected. */
   runId: string | null;
@@ -28,12 +41,22 @@ export interface ViewState {
   viewMode: ViewMode;
   /** Keep the views on the newest event while a run is live. */
   followLive: boolean;
+  /** Replay of the focused run, if any. Never touches the run's own state. */
+  playback: Playback | null;
+  playbackSpeed: PlaybackSpeed;
 
   focusRun: (runId: string) => void;
   select: (selection: Selection) => void;
   clearSelection: () => void;
   setViewMode: (mode: ViewMode) => void;
   setFollowLive: (follow: boolean) => void;
+  /** Show the state after frame `index`, paused (enters replay). */
+  seek: (index: number) => void;
+  play: (fromIndex?: number) => void;
+  pause: () => void;
+  /** Leave replay: back to the run as it is now. */
+  exitPlayback: () => void;
+  setPlaybackSpeed: (speed: PlaybackSpeed) => void;
 }
 
 export const useViewStore = create<ViewState>()((set) => ({
@@ -43,13 +66,25 @@ export const useViewStore = create<ViewState>()((set) => ({
   // only downloaded once someone opts into it.
   viewMode: "2d",
   followLive: true,
+  playback: null,
+  playbackSpeed: 1,
 
   focusRun: (runId) =>
-    set((state) => (state.runId === runId ? state : { runId, selection: null, followLive: true })),
+    set((state) =>
+      state.runId === runId ? state : { runId, selection: null, followLive: true, playback: null },
+    ),
   select: (selection) => set((state) => (sameSelection(state.selection, selection) ? state : { selection })),
   clearSelection: () => set({ selection: null }),
   setViewMode: (viewMode) => set({ viewMode }),
   setFollowLive: (followLive) => set({ followLive }),
+  seek: (index) => set({ playback: { index: Math.max(0, Math.floor(index)), playing: false } }),
+  play: (fromIndex) =>
+    set((state) => ({
+      playback: { index: Math.max(0, Math.floor(fromIndex ?? state.playback?.index ?? 0)), playing: true },
+    })),
+  pause: () => set((state) => (state.playback ? { playback: { ...state.playback, playing: false } } : state)),
+  exitPlayback: () => set({ playback: null }),
+  setPlaybackSpeed: (playbackSpeed) => set({ playbackSpeed }),
 }));
 
 /** The visualisation node id a selection points at (see domain/visualization). */
