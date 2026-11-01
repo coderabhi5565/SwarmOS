@@ -280,14 +280,25 @@ async def cancel_run(run_id: str) -> dict:
 
 
 @app.get("/api/runs/{run_id}/events")
-async def get_run_events(run_id: str) -> dict:
+async def get_run_events(
+    run_id: str,
+    after_seq: int | None = Query(
+        default=None,
+        ge=0,
+        description=(
+            "Return only events with seq greater than this cursor. Omit for the "
+            "full trace. Poll with the previous response's last_seq."
+        ),
+    ),
+) -> dict:
     if _store().get_run(run_id) is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} not found")
+    events = _store().get_events(run_id, after_seq=after_seq)
     return {
         "run_id": run_id,
-        "events": [
-            event.model_dump(mode="json") for event in _store().get_events(run_id)
-        ],
+        "events": [event.model_dump(mode="json") for event in events],
+        # The cursor for the next poll: unchanged when nothing new arrived.
+        "last_seq": events[-1].seq if events else (after_seq or 0),
     }
 
 

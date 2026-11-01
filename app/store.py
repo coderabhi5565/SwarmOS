@@ -263,10 +263,12 @@ class RunStore:
             ).fetchall()
         return [self._row_to_record(row) for row in rows]
 
-    def get_events(self, run_id: str) -> list[TraceEvent]:
+    def get_events(self, run_id: str, after_seq: int | None = None) -> list[TraceEvent]:
+        """A run's events in ascending ``seq``; only those after ``after_seq`` if given."""
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM trace_events WHERE run_id = ? ORDER BY seq ASC", (run_id,)
+                "SELECT * FROM trace_events WHERE run_id = ? AND seq > ? ORDER BY seq ASC",
+                (run_id, -1 if after_seq is None else after_seq),
             ).fetchall()
         return [
             TraceEvent(
