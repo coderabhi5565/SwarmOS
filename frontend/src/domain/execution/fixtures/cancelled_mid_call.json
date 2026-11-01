@@ -1,0 +1,93 @@
+{
+  "name": "cancelled_mid_call",
+  "description": "Cancelled while the planner call is in flight: the agent_started has no completion, and run_finished closes the run.",
+  "source": "recorded: current backend RunService, scripted model replies",
+  "run": {
+    "run_id": "run_88edec7368ba",
+    "created_at": "2026-11-01T17:26:17.354501+00:00",
+    "goal": "Create the three output files",
+    "status": "cancelled",
+    "provider": "scripted",
+    "provider_kind": "unknown",
+    "model_policy": "config",
+    "models_by_role": {},
+    "limits": {
+      "max_agent_calls": 12,
+      "max_budget_usd": 0.25,
+      "max_wall_seconds": 120,
+      "max_retries": 2,
+      "max_revisions": 1,
+      "max_escalations": 1,
+      "parallel_coding": true
+    },
+    "plan": null
+  },
+  "events": [
+    {
+      "event_id": "evt_2650d5675246",
+      "seq": 1,
+      "at": "2026-11-01T17:26:17.374309+00:00",
+      "kind": "run_started",
+      "message": "Run started",
+      "payload": {
+        "goal": "Create the three output files",
+        "provider": "scripted",
+        "provider_warning": null,
+        "limits": {
+          "max_agent_calls": 12,
+          "max_budget_usd": 0.25,
+          "max_wall_seconds": 120,
+          "max_retries": 2,
+          "max_revisions": 1,
+          "max_escalations": 1,
+          "parallel_coding": true
+        },
+        "files": [
+          "tests/test_ok.py"
+        ],
+        "snapshot_truncated": false
+      }
+    },
+    {
+      "event_id": "evt_31586b7318c4",
+      "seq": 2,
+      "at": "2026-11-01T17:26:17.376334+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching the planner",
+      "payload": {
+        "decision": "plan",
+        "reason": "Every run starts with a typed plan.",
+        "tier": "fast"
+      }
+    },
+    {
+      "event_id": "evt_65874e4950a4",
+      "seq": 3,
+      "at": "2026-11-01T17:26:17.377115+00:00",
+      "kind": "agent_started",
+      "message": "planner started",
+      "payload": {
+        "invocation_id": "inv_fda74e5b12cd",
+        "role": "planner",
+        "step_id": null,
+        "attempt": 1,
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "started_at": "2026-11-01T17:26:17.377071+00:00"
+      }
+    },
+    {
+      "event_id": "evt_e2d65e67519d",
+      "seq": 4,
+      "at": "2026-11-01T17:26:17.378197+00:00",
+      "kind": "run_finished",
+      "message": "Run finished: cancelled (cancelled on request)",
+      "payload": {
+        "status": "cancelled",
+        "error": "cancelled on request"
+      }
+    }
+  ]
+}

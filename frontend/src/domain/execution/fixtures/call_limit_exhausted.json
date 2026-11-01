@@ -1,0 +1,630 @@
+{
+  "name": "call_limit_exhausted",
+  "description": "Planning and three coding calls use the whole call budget; the reviewer call is refused and the run ends limit_exceeded.",
+  "source": "recorded: current backend, scripted model replies",
+  "run": {
+    "run_id": "run_e7e32e22f85f",
+    "created_at": "2026-11-01T17:26:16.961321+00:00",
+    "goal": "Create the three output files",
+    "status": "limit_exceeded",
+    "provider": "scripted",
+    "provider_kind": "unknown",
+    "model_policy": "config",
+    "models_by_role": {
+      "planner": "demo-fast",
+      "coder": "demo-fast",
+      "reviewer": "demo-fast",
+      "verifier": "deterministic-subprocess"
+    },
+    "limits": {
+      "max_agent_calls": 4,
+      "max_budget_usd": 0.25,
+      "max_wall_seconds": 120,
+      "max_retries": 2,
+      "max_revisions": 1,
+      "max_escalations": 1,
+      "parallel_coding": true
+    },
+    "plan": {
+      "steps": [
+        {
+          "id": "alpha",
+          "title": "Create alpha",
+          "detail": "Write out/alpha.txt",
+          "acceptance_criteria": [
+            "out/alpha.txt exists"
+          ],
+          "depends_on": [],
+          "target_files": [
+            "out/alpha.txt"
+          ]
+        },
+        {
+          "id": "beta",
+          "title": "Create beta",
+          "detail": "Write out/beta.txt",
+          "acceptance_criteria": [
+            "out/beta.txt exists"
+          ],
+          "depends_on": [],
+          "target_files": [
+            "out/beta.txt"
+          ]
+        },
+        {
+          "id": "gamma",
+          "title": "Create gamma",
+          "detail": "Write out/gamma.txt",
+          "acceptance_criteria": [
+            "out/gamma.txt exists"
+          ],
+          "depends_on": [
+            "alpha",
+            "beta"
+          ],
+          "target_files": [
+            "out/gamma.txt"
+          ]
+        }
+      ],
+      "assumptions": [
+        "the sample workspace is the target"
+      ]
+    }
+  },
+  "events": [
+    {
+      "event_id": "evt_15779d622dc4",
+      "seq": 1,
+      "at": "2026-11-01T17:26:16.978491+00:00",
+      "kind": "run_started",
+      "message": "Run started",
+      "payload": {
+        "goal": "Create the three output files",
+        "provider": "scripted",
+        "provider_warning": null,
+        "limits": {
+          "max_agent_calls": 4,
+          "max_budget_usd": 0.25,
+          "max_wall_seconds": 120,
+          "max_retries": 2,
+          "max_revisions": 1,
+          "max_escalations": 1,
+          "parallel_coding": true
+        },
+        "files": [
+          "tests/test_ok.py"
+        ],
+        "snapshot_truncated": false
+      }
+    },
+    {
+      "event_id": "evt_c0a2923e7154",
+      "seq": 2,
+      "at": "2026-11-01T17:26:16.979465+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching the planner",
+      "payload": {
+        "decision": "plan",
+        "reason": "Every run starts with a typed plan.",
+        "tier": "fast"
+      }
+    },
+    {
+      "event_id": "evt_a740624989bd",
+      "seq": 3,
+      "at": "2026-11-01T17:26:16.979594+00:00",
+      "kind": "agent_started",
+      "message": "planner started",
+      "payload": {
+        "invocation_id": "inv_45e8d1269412",
+        "role": "planner",
+        "step_id": null,
+        "attempt": 1,
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "started_at": "2026-11-01T17:26:16.979554+00:00"
+      }
+    },
+    {
+      "event_id": "evt_f6acbbe424d4",
+      "seq": 4,
+      "at": "2026-11-01T17:26:16.979809+00:00",
+      "kind": "agent_invocation",
+      "message": "planner succeeded",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_45e8d1269412",
+          "run_id": "run_e7e32e22f85f",
+          "role": "planner",
+          "step_id": null,
+          "provider": "scripted",
+          "model": "demo-fast",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-11-01T17:26:16.979554+00:00",
+          "finished_at": "2026-11-01T17:26:16.979669+00:00",
+          "latency_ms": 1,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "usage_available": false,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "invocation_id": "inv_45e8d1269412",
+        "role": "planner",
+        "step_id": null,
+        "status": "succeeded",
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 1,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "usage_available": false,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "plan",
+          "steps": [
+            "alpha",
+            "beta",
+            "gamma"
+          ],
+          "step_count": 3,
+          "assumptions": [
+            "the sample workspace is the target"
+          ]
+        }
+      }
+    },
+    {
+      "event_id": "evt_22d75e64ce8d",
+      "seq": 5,
+      "at": "2026-11-01T17:26:16.980475+00:00",
+      "kind": "routing_decision",
+      "message": "Plan accepted with 3 step(s)",
+      "payload": {
+        "decision": "plan_accepted",
+        "steps": [
+          "alpha",
+          "beta",
+          "gamma"
+        ],
+        "waves": [
+          [
+            "alpha",
+            "beta"
+          ],
+          [
+            "gamma"
+          ]
+        ],
+        "assumptions": [
+          "the sample workspace is the target"
+        ],
+        "plan": {
+          "steps": [
+            {
+              "id": "alpha",
+              "title": "Create alpha",
+              "detail": "Write out/alpha.txt",
+              "acceptance_criteria": [
+                "out/alpha.txt exists"
+              ],
+              "depends_on": [],
+              "target_files": [
+                "out/alpha.txt"
+              ]
+            },
+            {
+              "id": "beta",
+              "title": "Create beta",
+              "detail": "Write out/beta.txt",
+              "acceptance_criteria": [
+                "out/beta.txt exists"
+              ],
+              "depends_on": [],
+              "target_files": [
+                "out/beta.txt"
+              ]
+            },
+            {
+              "id": "gamma",
+              "title": "Create gamma",
+              "detail": "Write out/gamma.txt",
+              "acceptance_criteria": [
+                "out/gamma.txt exists"
+              ],
+              "depends_on": [
+                "alpha",
+                "beta"
+              ],
+              "target_files": [
+                "out/gamma.txt"
+              ]
+            }
+          ],
+          "assumptions": [
+            "the sample workspace is the target"
+          ]
+        }
+      }
+    },
+    {
+      "event_id": "evt_9c09ae8108cd",
+      "seq": 6,
+      "at": "2026-11-01T17:26:16.980809+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching 2 coding step(s)",
+      "payload": {
+        "decision": "dispatch_coding",
+        "reason": "steps with no unresolved dependencies",
+        "mode": "initial",
+        "revision_round": 0,
+        "steps": [
+          "alpha",
+          "beta"
+        ],
+        "parallel": true,
+        "tier": "fast",
+        "attempts": {
+          "alpha": 1,
+          "beta": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_f1e3ecc2acfe",
+      "seq": 7,
+      "at": "2026-11-01T17:26:16.983057+00:00",
+      "kind": "agent_started",
+      "message": "coder started for alpha",
+      "payload": {
+        "invocation_id": "inv_857197bac0b5",
+        "role": "coder",
+        "step_id": "alpha",
+        "attempt": 1,
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "started_at": "2026-11-01T17:26:16.983010+00:00"
+      }
+    },
+    {
+      "event_id": "evt_0a637ab5923c",
+      "seq": 8,
+      "at": "2026-11-01T17:26:16.983228+00:00",
+      "kind": "agent_invocation",
+      "message": "coder succeeded for alpha",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_857197bac0b5",
+          "run_id": "run_e7e32e22f85f",
+          "role": "coder",
+          "step_id": "alpha",
+          "provider": "scripted",
+          "model": "demo-fast",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-11-01T17:26:16.983010+00:00",
+          "finished_at": "2026-11-01T17:26:16.983134+00:00",
+          "latency_ms": 1,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "usage_available": false,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "invocation_id": "inv_857197bac0b5",
+        "role": "coder",
+        "step_id": "alpha",
+        "status": "succeeded",
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 1,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "usage_available": false,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "coding",
+          "step_id": "alpha",
+          "summary": "wrote out/alpha.txt",
+          "rationale": "scripted",
+          "changes": [
+            "out/alpha.txt"
+          ],
+          "change_count": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_8a913bb9ed2d",
+      "seq": 9,
+      "at": "2026-11-01T17:26:16.986778+00:00",
+      "kind": "agent_started",
+      "message": "coder started for beta",
+      "payload": {
+        "invocation_id": "inv_09fc3903dcc5",
+        "role": "coder",
+        "step_id": "beta",
+        "attempt": 1,
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "started_at": "2026-11-01T17:26:16.986733+00:00"
+      }
+    },
+    {
+      "event_id": "evt_63ecaa09208b",
+      "seq": 10,
+      "at": "2026-11-01T17:26:16.986947+00:00",
+      "kind": "agent_invocation",
+      "message": "coder succeeded for beta",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_09fc3903dcc5",
+          "run_id": "run_e7e32e22f85f",
+          "role": "coder",
+          "step_id": "beta",
+          "provider": "scripted",
+          "model": "demo-fast",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-11-01T17:26:16.986733+00:00",
+          "finished_at": "2026-11-01T17:26:16.986857+00:00",
+          "latency_ms": 1,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "usage_available": false,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "invocation_id": "inv_09fc3903dcc5",
+        "role": "coder",
+        "step_id": "beta",
+        "status": "succeeded",
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 1,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "usage_available": false,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "coding",
+          "step_id": "beta",
+          "summary": "wrote out/beta.txt",
+          "rationale": "scripted",
+          "changes": [
+            "out/beta.txt"
+          ],
+          "change_count": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_898a2f04c26a",
+      "seq": 11,
+      "at": "2026-11-01T17:26:16.993337+00:00",
+      "kind": "routing_decision",
+      "message": "Merged 2 file change(s) into the workspace",
+      "payload": {
+        "decision": "merge_wave",
+        "applied": 2,
+        "conflicts": [],
+        "accepted_steps": [
+          "alpha",
+          "beta"
+        ],
+        "rejected_steps": [],
+        "files": [
+          "out/alpha.txt",
+          "out/beta.txt"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_f9e5834712b3",
+      "seq": 12,
+      "at": "2026-11-01T17:26:16.993698+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching 1 coding step(s)",
+      "payload": {
+        "decision": "dispatch_coding",
+        "reason": "next dependency wave",
+        "mode": "initial",
+        "revision_round": 0,
+        "steps": [
+          "gamma"
+        ],
+        "parallel": false,
+        "tier": "fast",
+        "attempts": {
+          "gamma": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_addcb658523c",
+      "seq": 13,
+      "at": "2026-11-01T17:26:16.997827+00:00",
+      "kind": "agent_started",
+      "message": "coder started for gamma",
+      "payload": {
+        "invocation_id": "inv_6d44f5083bcf",
+        "role": "coder",
+        "step_id": "gamma",
+        "attempt": 1,
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "started_at": "2026-11-01T17:26:16.997775+00:00"
+      }
+    },
+    {
+      "event_id": "evt_2c5100570bbb",
+      "seq": 14,
+      "at": "2026-11-01T17:26:16.998042+00:00",
+      "kind": "agent_invocation",
+      "message": "coder succeeded for gamma",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_6d44f5083bcf",
+          "run_id": "run_e7e32e22f85f",
+          "role": "coder",
+          "step_id": "gamma",
+          "provider": "scripted",
+          "model": "demo-fast",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-11-01T17:26:16.997775+00:00",
+          "finished_at": "2026-11-01T17:26:16.997928+00:00",
+          "latency_ms": 1,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "usage_available": false,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "invocation_id": "inv_6d44f5083bcf",
+        "role": "coder",
+        "step_id": "gamma",
+        "status": "succeeded",
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 1,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "usage_available": false,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "coding",
+          "step_id": "gamma",
+          "summary": "wrote out/gamma.txt",
+          "rationale": "scripted",
+          "changes": [
+            "out/gamma.txt"
+          ],
+          "change_count": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_b17bc0a1c2ae",
+      "seq": 15,
+      "at": "2026-11-01T17:26:17.003221+00:00",
+      "kind": "routing_decision",
+      "message": "Merged 1 file change(s) into the workspace",
+      "payload": {
+        "decision": "merge_wave",
+        "applied": 1,
+        "conflicts": [],
+        "accepted_steps": [
+          "gamma"
+        ],
+        "rejected_steps": [],
+        "files": [
+          "out/gamma.txt"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_c14b01a758e2",
+      "seq": 16,
+      "at": "2026-11-01T17:26:17.005839+00:00",
+      "kind": "budget",
+      "message": "Call refused: agent call limit of 4 reached",
+      "payload": {
+        "role": "reviewer",
+        "step_id": null,
+        "reason": "agent call limit of 4 reached",
+        "category": "limit_exceeded",
+        "ledger": {
+          "max_usd": 0.25,
+          "spent_usd": 0.0,
+          "reserved_usd": 0.0,
+          "remaining_usd": 0.25,
+          "max_calls": 4,
+          "calls": 4,
+          "denied": 1,
+          "monetary_enforced": false,
+          "elapsed_seconds": 0.044,
+          "remaining_seconds": 119.956
+        }
+      }
+    },
+    {
+      "event_id": "evt_584e405ca1fe",
+      "seq": 17,
+      "at": "2026-11-01T17:26:17.007122+00:00",
+      "kind": "run_finished",
+      "message": "Run finished: limit_exceeded",
+      "payload": {
+        "status": "limit_exceeded",
+        "error": "agent call limit of 4 reached",
+        "summary": "Status: limit_exceeded\nPlan: 3 step(s); completed 3/3\nSteps: alpha, beta, gamma\nReview: not reached\nVerification: not run\nError: agent call limit of 4 reached\nProvider: scripted; policy: config\nModels: planner=demo-fast, coder=demo-fast, re…",
+        "verification": null,
+        "cost_usd": 0.0,
+        "agent_calls": 4,
+        "ledger": {
+          "max_usd": 0.25,
+          "spent_usd": 0.0,
+          "reserved_usd": 0.0,
+          "remaining_usd": 0.25,
+          "max_calls": 4,
+          "calls": 4,
+          "denied": 1,
+          "monetary_enforced": false,
+          "elapsed_seconds": 0.046,
+          "remaining_seconds": 119.954
+        },
+        "escalated": false
+      }
+    }
+  ]
+}

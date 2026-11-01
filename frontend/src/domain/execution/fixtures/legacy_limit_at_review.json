@@ -1,0 +1,648 @@
+{
+  "name": "legacy_limit_at_review",
+  "description": "Historical local-model run run_43bb974fc487 (qwen2.5-coder:1.5b), recorded before the M3.0 event contract.",
+  "source": "historical: local SQLite run history",
+  "run": {
+    "run_id": "run_43bb974fc487",
+    "created_at": "2026-10-27T01:52:36.779325+00:00",
+    "goal": "Implement tag normalization so the failing tests pass",
+    "status": "limit_exceeded",
+    "provider": "openai-compatible:local",
+    "provider_kind": "local",
+    "model_policy": "adaptive",
+    "models_by_role": {
+      "planner": "qwen2.5-coder:1.5b",
+      "coder": "qwen2.5-coder:1.5b",
+      "reviewer": "qwen2.5-coder:1.5b",
+      "verifier": "deterministic-subprocess"
+    },
+    "limits": {
+      "max_agent_calls": 8,
+      "max_budget_usd": 0.0,
+      "max_wall_seconds": 120,
+      "max_retries": 1,
+      "max_revisions": 1,
+      "max_escalations": 0,
+      "parallel_coding": true
+    },
+    "plan": {
+      "steps": [
+        {
+          "id": "normalize_tags",
+          "title": "Normalize tags in the database",
+          "detail": "Update the tags in the database to ensure consistency",
+          "acceptance_criteria": [
+            "All tags in the database are normalized"
+          ],
+          "depends_on": [],
+          "target_files": [
+            "database.py"
+          ]
+        },
+        {
+          "id": "update_tests",
+          "title": "Update tests to use normalized tags",
+          "detail": "Modify the tests to use the normalized tags instead of the old ones",
+          "acceptance_criteria": [
+            "All tests pass with the normalized tags"
+          ],
+          "depends_on": [
+            "normalize_tags"
+          ],
+          "target_files": [
+            "tests.py"
+          ]
+        }
+      ],
+      "assumptions": [
+        "The database and tests are properly configured and accessible"
+      ]
+    }
+  },
+  "events": [
+    {
+      "event_id": "evt_6f713ec90dbc",
+      "seq": 1,
+      "at": "2026-10-27T01:52:36.806270+00:00",
+      "kind": "run_started",
+      "message": "Run started",
+      "payload": {
+        "goal": "Implement tag normalization so the failing tests pass",
+        "provider": "openai-compatible:local",
+        "provider_warning": "No API key configured. This is expected for local inference; hosted endpoints will reject it.",
+        "limits": {
+          "max_agent_calls": 8,
+          "max_budget_usd": 0.0,
+          "max_wall_seconds": 120,
+          "max_retries": 1,
+          "max_revisions": 1,
+          "max_escalations": 0,
+          "parallel_coding": true
+        },
+        "files": [
+          "README.md",
+          "target.py",
+          "tests/test_target.py"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_0a6726b69850",
+      "seq": 2,
+      "at": "2026-10-27T01:52:36.814991+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching the planner",
+      "payload": {
+        "decision": "plan",
+        "reason": "Every run starts with a typed plan.",
+        "tier": "fast"
+      }
+    },
+    {
+      "event_id": "evt_869ae21cbe14",
+      "seq": 3,
+      "at": "2026-10-27T01:52:55.731633+00:00",
+      "kind": "agent_invocation",
+      "message": "planner succeeded",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_15028bf12780",
+          "run_id": "run_43bb974fc487",
+          "role": "planner",
+          "step_id": null,
+          "provider": "openai-compatible:local",
+          "model": "qwen2.5-coder:1.5b",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-10-27T01:52:36.815848+00:00",
+          "finished_at": "2026-10-27T01:52:55.730644+00:00",
+          "latency_ms": 18914,
+          "input_tokens": 281,
+          "output_tokens": 171,
+          "usage_available": true,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "role": "planner",
+        "step_id": null,
+        "status": "succeeded",
+        "provider": "openai-compatible:local",
+        "model": "qwen2.5-coder:1.5b",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 18914,
+        "input_tokens": 281,
+        "output_tokens": 171,
+        "usage_available": true,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "plan",
+          "steps": [
+            "normalize_tags",
+            "update_tests"
+          ],
+          "step_count": 2,
+          "assumptions": [
+            "The database and tests are properly configured and accessible"
+          ]
+        }
+      }
+    },
+    {
+      "event_id": "evt_a5429e223b6c",
+      "seq": 4,
+      "at": "2026-10-27T01:52:55.735640+00:00",
+      "kind": "routing_decision",
+      "message": "Plan accepted with 2 step(s)",
+      "payload": {
+        "decision": "plan_accepted",
+        "steps": [
+          "normalize_tags",
+          "update_tests"
+        ],
+        "waves": [
+          [
+            "normalize_tags"
+          ],
+          [
+            "update_tests"
+          ]
+        ],
+        "assumptions": [
+          "The database and tests are properly configured and accessible"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_64a767ae339f",
+      "seq": 5,
+      "at": "2026-10-27T01:52:55.739632+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching 1 coding step(s)",
+      "payload": {
+        "decision": "dispatch_coding",
+        "reason": "steps with no unresolved dependencies",
+        "mode": "initial",
+        "revision_round": 0,
+        "steps": [
+          "normalize_tags"
+        ],
+        "parallel": false,
+        "tier": "fast",
+        "attempts": {
+          "normalize_tags": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_10c02b1d46e0",
+      "seq": 6,
+      "at": "2026-10-27T01:53:19.691967+00:00",
+      "kind": "agent_invocation",
+      "message": "coder succeeded for normalize_tags",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_86e62e3f0921",
+          "run_id": "run_43bb974fc487",
+          "role": "coder",
+          "step_id": "normalize_tags",
+          "provider": "openai-compatible:local",
+          "model": "qwen2.5-coder:1.5b",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-10-27T01:52:55.749613+00:00",
+          "finished_at": "2026-10-27T01:53:19.691373+00:00",
+          "latency_ms": 23941,
+          "input_tokens": 781,
+          "output_tokens": 247,
+          "usage_available": true,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "role": "coder",
+        "step_id": "normalize_tags",
+        "status": "succeeded",
+        "provider": "openai-compatible:local",
+        "model": "qwen2.5-coder:1.5b",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 23941,
+        "input_tokens": 781,
+        "output_tokens": 247,
+        "usage_available": true,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "coding",
+          "step_id": "normalize_tags",
+          "summary": "Implement tag normalization in the database to ensure consistency",
+          "rationale": "The goal is to ensure that all tags in the database are normalized, which is necessary for the failing tests to pass. This involves updating the `normalize_tags` function in `database.py` to handle the expected behavior described in `tests/…",
+          "changes": [
+            "database.py"
+          ],
+          "change_count": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_cf6ae713ecb3",
+      "seq": 7,
+      "at": "2026-10-27T01:53:19.713437+00:00",
+      "kind": "routing_decision",
+      "message": "Merged 1 file change(s) into the workspace",
+      "payload": {
+        "decision": "merge_wave",
+        "applied": 1,
+        "conflicts": [],
+        "accepted_steps": [
+          "normalize_tags"
+        ],
+        "rejected_steps": [],
+        "files": [
+          "database.py"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_4c8d49522681",
+      "seq": 8,
+      "at": "2026-10-27T01:53:19.715533+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching 1 coding step(s)",
+      "payload": {
+        "decision": "dispatch_coding",
+        "reason": "next dependency wave",
+        "mode": "initial",
+        "revision_round": 0,
+        "steps": [
+          "update_tests"
+        ],
+        "parallel": false,
+        "tier": "fast",
+        "attempts": {
+          "update_tests": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_e9a0220d84a2",
+      "seq": 9,
+      "at": "2026-10-27T01:53:40.554663+00:00",
+      "kind": "agent_invocation",
+      "message": "coder succeeded for update_tests",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_bebd774121fb",
+          "run_id": "run_43bb974fc487",
+          "role": "coder",
+          "step_id": "update_tests",
+          "provider": "openai-compatible:local",
+          "model": "qwen2.5-coder:1.5b",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-10-27T01:53:19.722398+00:00",
+          "finished_at": "2026-10-27T01:53:40.554508+00:00",
+          "latency_ms": 20831,
+          "input_tokens": 888,
+          "output_tokens": 207,
+          "usage_available": true,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "role": "coder",
+        "step_id": "update_tests",
+        "status": "succeeded",
+        "provider": "openai-compatible:local",
+        "model": "qwen2.5-coder:1.5b",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 20831,
+        "input_tokens": 888,
+        "output_tokens": 207,
+        "usage_available": true,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "coding",
+          "step_id": "update_tests",
+          "summary": "Update tests to use normalized tags",
+          "rationale": "The tests need to be updated to use the normalized tags instead of the old ones. This ensures that the tests pass with the normalized tags.",
+          "changes": [
+            "tests/test_target.py"
+          ],
+          "change_count": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_040ef16fd7b1",
+      "seq": 10,
+      "at": "2026-10-27T01:53:40.564808+00:00",
+      "kind": "routing_decision",
+      "message": "Merged 1 file change(s) into the workspace",
+      "payload": {
+        "decision": "merge_wave",
+        "applied": 1,
+        "conflicts": [],
+        "accepted_steps": [
+          "update_tests"
+        ],
+        "rejected_steps": [],
+        "files": [
+          "tests/test_target.py"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_e0087ed592ff",
+      "seq": 11,
+      "at": "2026-10-27T01:54:16.689475+00:00",
+      "kind": "agent_invocation",
+      "message": "reviewer succeeded",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_1707075e1d75",
+          "run_id": "run_43bb974fc487",
+          "role": "reviewer",
+          "step_id": null,
+          "provider": "openai-compatible:local",
+          "model": "qwen2.5-coder:1.5b",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-10-27T01:53:40.570559+00:00",
+          "finished_at": "2026-10-27T01:54:16.689035+00:00",
+          "latency_ms": 36118,
+          "input_tokens": 1239,
+          "output_tokens": 317,
+          "usage_available": true,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "role": "reviewer",
+        "step_id": null,
+        "status": "succeeded",
+        "provider": "openai-compatible:local",
+        "model": "qwen2.5-coder:1.5b",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 36118,
+        "input_tokens": 1239,
+        "output_tokens": 317,
+        "usage_available": true,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "review",
+          "verdict": "request_changes",
+          "rationale": "The changes to `database.py` and `tests/test_target.py` do not fully normalize the tags as required by the acceptance criteria. The `normalize_tags` function does not handle the case where tags are already normalized, which could lead to in…",
+          "findings": [
+            {
+              "severity": "minor",
+              "step_id": "normalize_tags",
+              "file": "database.py",
+              "message": "The `normalize_tags` function does not handle the case where tags are already normalized."
+            },
+            {
+              "severity": "minor",
+              "step_id": "normalize_tags",
+              "file": "database.py",
+              "message": "The `normalize_tags` function does not handle the case where tags are empty or contain only whitespace."
+            },
+            {
+              "severity": "minor",
+              "step_id": "update_tests",
+              "file": "tests/test_target.py",
+              "message": "The `normalize_tags` function does not handle the case where tags are already normalized."
+            },
+            {
+              "severity": "minor",
+              "step_id": "update_tests",
+              "file": "tests/test_target.py",
+              "message": "The `normalize_tags` function does not handle the case where tags are empty or contain only whitespace."
+            }
+          ],
+          "finding_count": 4
+        }
+      }
+    },
+    {
+      "event_id": "evt_e62227ede1b2",
+      "seq": 12,
+      "at": "2026-10-27T01:54:16.690792+00:00",
+      "kind": "revision",
+      "message": "Review requested changes",
+      "payload": {
+        "findings": [
+          {
+            "severity": "minor",
+            "step_id": "normalize_tags",
+            "file": "database.py",
+            "message": "The `normalize_tags` function does not handle the case where tags are already normalized."
+          },
+          {
+            "severity": "minor",
+            "step_id": "normalize_tags",
+            "file": "database.py",
+            "message": "The `normalize_tags` function does not handle the case where tags are empty or contain only whitespace."
+          },
+          {
+            "severity": "minor",
+            "step_id": "update_tests",
+            "file": "tests/test_target.py",
+            "message": "The `normalize_tags` function does not handle the case where tags are already normalized."
+          },
+          {
+            "severity": "minor",
+            "step_id": "update_tests",
+            "file": "tests/test_target.py",
+            "message": "The `normalize_tags` function does not handle the case where tags are empty or contain only whitespace."
+          }
+        ],
+        "review_rejection": 1,
+        "steps": [
+          "normalize_tags",
+          "update_tests"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_5f598b30926f",
+      "seq": 13,
+      "at": "2026-10-27T01:54:16.692337+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching 1 coding step(s)",
+      "payload": {
+        "decision": "dispatch_coding",
+        "reason": "review requested changes",
+        "mode": "revision",
+        "revision_round": 1,
+        "steps": [
+          "normalize_tags"
+        ],
+        "parallel": false,
+        "tier": "fast",
+        "attempts": {
+          "normalize_tags": 2
+        }
+      }
+    },
+    {
+      "event_id": "evt_ebeebe23edd5",
+      "seq": 14,
+      "at": "2026-10-27T01:54:38.664829+00:00",
+      "kind": "agent_invocation",
+      "message": "coder succeeded for normalize_tags",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_b380eb1a0e2a",
+          "run_id": "run_43bb974fc487",
+          "role": "coder",
+          "step_id": "normalize_tags",
+          "provider": "openai-compatible:local",
+          "model": "qwen2.5-coder:1.5b",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 2,
+          "status": "succeeded",
+          "started_at": "2026-10-27T01:54:16.700198+00:00",
+          "finished_at": "2026-10-27T01:54:38.664507+00:00",
+          "latency_ms": 21964,
+          "input_tokens": 931,
+          "output_tokens": 202,
+          "usage_available": true,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "role": "coder",
+        "step_id": "normalize_tags",
+        "status": "succeeded",
+        "provider": "openai-compatible:local",
+        "model": "qwen2.5-coder:1.5b",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 2,
+        "latency_ms": 21964,
+        "input_tokens": 931,
+        "output_tokens": 202,
+        "usage_available": true,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "coding",
+          "step_id": "normalize_tags",
+          "summary": "Implement tag normalization to ensure consistent tags in the database",
+          "rationale": "The `normalize_tags` function is responsible for normalizing tags in the database. It should handle cases where tags are empty or contain only whitespace, which are common issues in the database. This change ensures that the database remain…",
+          "changes": [
+            "database.py"
+          ],
+          "change_count": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_7cb93a7fd37a",
+      "seq": 15,
+      "at": "2026-10-27T01:54:38.680204+00:00",
+      "kind": "routing_decision",
+      "message": "Merged 1 file change(s) into the workspace",
+      "payload": {
+        "decision": "merge_wave",
+        "applied": 1,
+        "conflicts": [],
+        "accepted_steps": [
+          "normalize_tags"
+        ],
+        "rejected_steps": [],
+        "files": [
+          "database.py"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_406e9da07bd7",
+      "seq": 16,
+      "at": "2026-10-27T01:54:38.684979+00:00",
+      "kind": "budget",
+      "message": "Call refused: wall-clock limit of 120s exceeded",
+      "payload": {
+        "role": "reviewer",
+        "step_id": null,
+        "reason": "wall-clock limit of 120s exceeded",
+        "category": "limit_exceeded",
+        "ledger": {
+          "max_usd": 0.0,
+          "spent_usd": 0.0,
+          "reserved_usd": 0.0,
+          "remaining_usd": 0.0,
+          "max_calls": 8,
+          "calls": 5,
+          "denied": 1,
+          "monetary_enforced": false,
+          "elapsed_seconds": 121.901,
+          "remaining_seconds": 0.0
+        }
+      }
+    },
+    {
+      "event_id": "evt_8010223106a7",
+      "seq": 17,
+      "at": "2026-10-27T01:54:38.687916+00:00",
+      "kind": "run_finished",
+      "message": "Run finished: limit_exceeded",
+      "payload": {
+        "status": "limit_exceeded",
+        "error": "wall-clock limit of 120s exceeded",
+        "summary": "Status: limit_exceeded\nPlan: 2 step(s); completed 2/2\nSteps: normalize_tags, update_tests\nReview: request_changes\nVerification: not run\nError: wall-clock limit of 120s exceeded\nProvider: openai-compatible:local; policy: adaptive\nModels: pla…",
+        "verification": null,
+        "cost_usd": 0.0,
+        "agent_calls": 5,
+        "ledger": {
+          "max_usd": 0.0,
+          "spent_usd": 0.0,
+          "reserved_usd": 0.0,
+          "remaining_usd": 0.0,
+          "max_calls": 8,
+          "calls": 5,
+          "denied": 1,
+          "monetary_enforced": false,
+          "elapsed_seconds": 121.904,
+          "remaining_seconds": 0.0
+        },
+        "escalated": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,731 @@
+{
+  "name": "retry_escalation",
+  "description": "The fast model returns unparseable output twice (attempt and bounded retry); escalation to the strong tier succeeds.",
+  "source": "recorded: current backend, scripted model replies",
+  "run": {
+    "run_id": "run_1f7536414eb5",
+    "created_at": "2026-11-01T17:26:15.551842+00:00",
+    "goal": "Create the three output files",
+    "status": "completed",
+    "provider": "scripted",
+    "provider_kind": "local",
+    "model_policy": "config",
+    "models_by_role": {
+      "planner": "fast-model",
+      "coder": "fast-model",
+      "reviewer": "fast-model",
+      "verifier": "deterministic-subprocess"
+    },
+    "limits": {
+      "max_agent_calls": 12,
+      "max_budget_usd": 0.25,
+      "max_wall_seconds": 120,
+      "max_retries": 1,
+      "max_revisions": 1,
+      "max_escalations": 1,
+      "parallel_coding": true
+    },
+    "plan": {
+      "steps": [
+        {
+          "id": "alpha",
+          "title": "Create alpha",
+          "detail": "Write out/alpha.txt",
+          "acceptance_criteria": [
+            "out/alpha.txt exists"
+          ],
+          "depends_on": [],
+          "target_files": [
+            "out/alpha.txt"
+          ]
+        }
+      ],
+      "assumptions": [
+        "the sample workspace is the target"
+      ]
+    }
+  },
+  "events": [
+    {
+      "event_id": "evt_490df63c40c0",
+      "seq": 1,
+      "at": "2026-11-01T17:26:15.568515+00:00",
+      "kind": "run_started",
+      "message": "Run started",
+      "payload": {
+        "goal": "Create the three output files",
+        "provider": "scripted",
+        "provider_warning": null,
+        "limits": {
+          "max_agent_calls": 12,
+          "max_budget_usd": 0.25,
+          "max_wall_seconds": 120,
+          "max_retries": 1,
+          "max_revisions": 1,
+          "max_escalations": 1,
+          "parallel_coding": true
+        },
+        "files": [
+          "tests/test_ok.py"
+        ],
+        "snapshot_truncated": false
+      }
+    },
+    {
+      "event_id": "evt_e28545f6d181",
+      "seq": 2,
+      "at": "2026-11-01T17:26:15.569461+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching the planner",
+      "payload": {
+        "decision": "plan",
+        "reason": "Every run starts with a typed plan.",
+        "tier": "fast"
+      }
+    },
+    {
+      "event_id": "evt_e8c78e22627e",
+      "seq": 3,
+      "at": "2026-11-01T17:26:15.569558+00:00",
+      "kind": "agent_started",
+      "message": "planner started",
+      "payload": {
+        "invocation_id": "inv_c588af312a2b",
+        "role": "planner",
+        "step_id": null,
+        "attempt": 1,
+        "provider": "scripted",
+        "model": "fast-model",
+        "profile": "fast",
+        "tier": "fast",
+        "started_at": "2026-11-01T17:26:15.569522+00:00"
+      }
+    },
+    {
+      "event_id": "evt_878c0a274ad7",
+      "seq": 4,
+      "at": "2026-11-01T17:26:15.569753+00:00",
+      "kind": "agent_invocation",
+      "message": "planner succeeded",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_c588af312a2b",
+          "run_id": "run_1f7536414eb5",
+          "role": "planner",
+          "step_id": null,
+          "provider": "scripted",
+          "model": "fast-model",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-11-01T17:26:15.569522+00:00",
+          "finished_at": "2026-11-01T17:26:15.569623+00:00",
+          "latency_ms": 1,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "usage_available": false,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "invocation_id": "inv_c588af312a2b",
+        "role": "planner",
+        "step_id": null,
+        "status": "succeeded",
+        "provider": "scripted",
+        "model": "fast-model",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 1,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "usage_available": false,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "plan",
+          "steps": [
+            "alpha"
+          ],
+          "step_count": 1,
+          "assumptions": [
+            "the sample workspace is the target"
+          ]
+        }
+      }
+    },
+    {
+      "event_id": "evt_bdd33d29a499",
+      "seq": 5,
+      "at": "2026-11-01T17:26:15.570382+00:00",
+      "kind": "routing_decision",
+      "message": "Plan accepted with 1 step(s)",
+      "payload": {
+        "decision": "plan_accepted",
+        "steps": [
+          "alpha"
+        ],
+        "waves": [
+          [
+            "alpha"
+          ]
+        ],
+        "assumptions": [
+          "the sample workspace is the target"
+        ],
+        "plan": {
+          "steps": [
+            {
+              "id": "alpha",
+              "title": "Create alpha",
+              "detail": "Write out/alpha.txt",
+              "acceptance_criteria": [
+                "out/alpha.txt exists"
+              ],
+              "depends_on": [],
+              "target_files": [
+                "out/alpha.txt"
+              ]
+            }
+          ],
+          "assumptions": [
+            "the sample workspace is the target"
+          ]
+        }
+      }
+    },
+    {
+      "event_id": "evt_b47b2e1ec964",
+      "seq": 6,
+      "at": "2026-11-01T17:26:15.570690+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching 1 coding step(s)",
+      "payload": {
+        "decision": "dispatch_coding",
+        "reason": "steps with no unresolved dependencies",
+        "mode": "initial",
+        "revision_round": 0,
+        "steps": [
+          "alpha"
+        ],
+        "parallel": false,
+        "tier": "fast",
+        "attempts": {
+          "alpha": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_9f4da95b03e1",
+      "seq": 7,
+      "at": "2026-11-01T17:26:15.572817+00:00",
+      "kind": "agent_started",
+      "message": "coder started for alpha",
+      "payload": {
+        "invocation_id": "inv_84b6c4593059",
+        "role": "coder",
+        "step_id": "alpha",
+        "attempt": 1,
+        "provider": "scripted",
+        "model": "fast-model",
+        "profile": "fast",
+        "tier": "fast",
+        "started_at": "2026-11-01T17:26:15.572778+00:00"
+      }
+    },
+    {
+      "event_id": "evt_e0bfcd2d06fe",
+      "seq": 8,
+      "at": "2026-11-01T17:26:15.572970+00:00",
+      "kind": "agent_invocation",
+      "message": "coder failed for alpha",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_84b6c4593059",
+          "run_id": "run_1f7536414eb5",
+          "role": "coder",
+          "step_id": "alpha",
+          "provider": "scripted",
+          "model": "fast-model",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "failed",
+          "started_at": "2026-11-01T17:26:15.572778+00:00",
+          "finished_at": "2026-11-01T17:26:15.572872+00:00",
+          "latency_ms": 1,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "usage_available": false,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": "response contained no JSON object",
+          "error_class": "invalid_response"
+        },
+        "invocation_id": "inv_84b6c4593059",
+        "role": "coder",
+        "step_id": "alpha",
+        "status": "failed",
+        "provider": "scripted",
+        "model": "fast-model",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 1,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "usage_available": false,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": "invalid_response",
+        "error": "response contained no JSON object",
+        "output_summary": {}
+      }
+    },
+    {
+      "event_id": "evt_ac41d0c0f219",
+      "seq": 9,
+      "at": "2026-11-01T17:26:15.573008+00:00",
+      "kind": "failure",
+      "message": "coder returned unparseable output",
+      "payload": {
+        "error": "response contained no JSON object",
+        "error_class": "invalid_response",
+        "role": "coder",
+        "step_id": "alpha",
+        "attempt": 1
+      }
+    },
+    {
+      "event_id": "evt_aa3ca842d306",
+      "seq": 10,
+      "at": "2026-11-01T17:26:15.575107+00:00",
+      "kind": "routing_decision",
+      "message": "Merged 0 file change(s) into the workspace",
+      "payload": {
+        "decision": "merge_wave",
+        "applied": 0,
+        "conflicts": [],
+        "accepted_steps": [],
+        "rejected_steps": [],
+        "files": []
+      }
+    },
+    {
+      "event_id": "evt_f9fdd870560c",
+      "seq": 11,
+      "at": "2026-11-01T17:26:15.575413+00:00",
+      "kind": "retry",
+      "message": "Retrying 1 failed step(s)",
+      "payload": {
+        "scope": "steps",
+        "steps": [
+          "alpha"
+        ],
+        "attempts": {
+          "alpha": 2
+        },
+        "max_retries": 1
+      }
+    },
+    {
+      "event_id": "evt_253fcbf74e05",
+      "seq": 12,
+      "at": "2026-11-01T17:26:15.575468+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching 1 coding step(s)",
+      "payload": {
+        "decision": "dispatch_coding",
+        "reason": "bounded retry after a coding failure",
+        "mode": "retry",
+        "revision_round": 0,
+        "steps": [
+          "alpha"
+        ],
+        "parallel": false,
+        "tier": "fast",
+        "attempts": {
+          "alpha": 2
+        }
+      }
+    },
+    {
+      "event_id": "evt_76a5477fe14b",
+      "seq": 13,
+      "at": "2026-11-01T17:26:15.577456+00:00",
+      "kind": "agent_started",
+      "message": "coder started for alpha",
+      "payload": {
+        "invocation_id": "inv_d4ce8fb41b7b",
+        "role": "coder",
+        "step_id": "alpha",
+        "attempt": 2,
+        "provider": "scripted",
+        "model": "fast-model",
+        "profile": "fast",
+        "tier": "fast",
+        "started_at": "2026-11-01T17:26:15.577410+00:00"
+      }
+    },
+    {
+      "event_id": "evt_4ca9fced38e8",
+      "seq": 14,
+      "at": "2026-11-01T17:26:15.577638+00:00",
+      "kind": "agent_invocation",
+      "message": "coder failed for alpha",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_d4ce8fb41b7b",
+          "run_id": "run_1f7536414eb5",
+          "role": "coder",
+          "step_id": "alpha",
+          "provider": "scripted",
+          "model": "fast-model",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 2,
+          "status": "failed",
+          "started_at": "2026-11-01T17:26:15.577410+00:00",
+          "finished_at": "2026-11-01T17:26:15.577528+00:00",
+          "latency_ms": 1,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "usage_available": false,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": "response contained no JSON object",
+          "error_class": "invalid_response"
+        },
+        "invocation_id": "inv_d4ce8fb41b7b",
+        "role": "coder",
+        "step_id": "alpha",
+        "status": "failed",
+        "provider": "scripted",
+        "model": "fast-model",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 2,
+        "latency_ms": 1,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "usage_available": false,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": "invalid_response",
+        "error": "response contained no JSON object",
+        "output_summary": {}
+      }
+    },
+    {
+      "event_id": "evt_d44cc4102bbd",
+      "seq": 15,
+      "at": "2026-11-01T17:26:15.577680+00:00",
+      "kind": "failure",
+      "message": "coder returned unparseable output",
+      "payload": {
+        "error": "response contained no JSON object",
+        "error_class": "invalid_response",
+        "role": "coder",
+        "step_id": "alpha",
+        "attempt": 2
+      }
+    },
+    {
+      "event_id": "evt_263337a6d8c3",
+      "seq": 16,
+      "at": "2026-11-01T17:26:15.579475+00:00",
+      "kind": "routing_decision",
+      "message": "Merged 0 file change(s) into the workspace",
+      "payload": {
+        "decision": "merge_wave",
+        "applied": 0,
+        "conflicts": [],
+        "accepted_steps": [],
+        "rejected_steps": [],
+        "files": []
+      }
+    },
+    {
+      "event_id": "evt_dc56dd8e8f15",
+      "seq": 17,
+      "at": "2026-11-01T17:26:15.580266+00:00",
+      "kind": "escalation",
+      "message": "Escalating to the strong model (round 1)",
+      "payload": {
+        "from_tier": "fast",
+        "to_tier": "strong",
+        "available": true,
+        "round": 1,
+        "model": "strong-model",
+        "unresolved": [
+          "alpha"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_0ddaebdf6ae3",
+      "seq": 18,
+      "at": "2026-11-01T17:26:15.580519+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching 1 coding step(s)",
+      "payload": {
+        "decision": "dispatch_coding",
+        "reason": "escalated retry",
+        "mode": "retry",
+        "revision_round": 0,
+        "steps": [
+          "alpha"
+        ],
+        "parallel": false,
+        "tier": "strong",
+        "attempts": {
+          "alpha": 3
+        }
+      }
+    },
+    {
+      "event_id": "evt_93fadb674025",
+      "seq": 19,
+      "at": "2026-11-01T17:26:15.582314+00:00",
+      "kind": "agent_started",
+      "message": "coder started for alpha",
+      "payload": {
+        "invocation_id": "inv_c5191b8c8fa5",
+        "role": "coder",
+        "step_id": "alpha",
+        "attempt": 3,
+        "provider": "scripted",
+        "model": "strong-model",
+        "profile": "strong",
+        "tier": "strong",
+        "started_at": "2026-11-01T17:26:15.582268+00:00"
+      }
+    },
+    {
+      "event_id": "evt_35d6acf6b932",
+      "seq": 20,
+      "at": "2026-11-01T17:26:15.582475+00:00",
+      "kind": "agent_invocation",
+      "message": "coder succeeded for alpha",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_c5191b8c8fa5",
+          "run_id": "run_1f7536414eb5",
+          "role": "coder",
+          "step_id": "alpha",
+          "provider": "scripted",
+          "model": "strong-model",
+          "profile": "strong",
+          "model_tier": "strong",
+          "attempt": 3,
+          "status": "succeeded",
+          "started_at": "2026-11-01T17:26:15.582268+00:00",
+          "finished_at": "2026-11-01T17:26:15.582378+00:00",
+          "latency_ms": 1,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "usage_available": false,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "invocation_id": "inv_c5191b8c8fa5",
+        "role": "coder",
+        "step_id": "alpha",
+        "status": "succeeded",
+        "provider": "scripted",
+        "model": "strong-model",
+        "profile": "strong",
+        "tier": "strong",
+        "attempt": 3,
+        "latency_ms": 1,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "usage_available": false,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "coding",
+          "step_id": "alpha",
+          "summary": "wrote out/alpha.txt",
+          "rationale": "scripted",
+          "changes": [
+            "out/alpha.txt"
+          ],
+          "change_count": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_01a55e3e7446",
+      "seq": 21,
+      "at": "2026-11-01T17:26:15.586886+00:00",
+      "kind": "routing_decision",
+      "message": "Merged 1 file change(s) into the workspace",
+      "payload": {
+        "decision": "merge_wave",
+        "applied": 1,
+        "conflicts": [],
+        "accepted_steps": [
+          "alpha"
+        ],
+        "rejected_steps": [],
+        "files": [
+          "out/alpha.txt"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_92a1f0aaa251",
+      "seq": 22,
+      "at": "2026-11-01T17:26:15.588567+00:00",
+      "kind": "agent_started",
+      "message": "reviewer started",
+      "payload": {
+        "invocation_id": "inv_00dde0858ad3",
+        "role": "reviewer",
+        "step_id": null,
+        "attempt": 1,
+        "provider": "scripted",
+        "model": "strong-model",
+        "profile": "strong",
+        "tier": "strong",
+        "started_at": "2026-11-01T17:26:15.588527+00:00"
+      }
+    },
+    {
+      "event_id": "evt_b64ba4b54498",
+      "seq": 23,
+      "at": "2026-11-01T17:26:15.588729+00:00",
+      "kind": "agent_invocation",
+      "message": "reviewer succeeded",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_00dde0858ad3",
+          "run_id": "run_1f7536414eb5",
+          "role": "reviewer",
+          "step_id": null,
+          "provider": "scripted",
+          "model": "strong-model",
+          "profile": "strong",
+          "model_tier": "strong",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-11-01T17:26:15.588527+00:00",
+          "finished_at": "2026-11-01T17:26:15.588643+00:00",
+          "latency_ms": 1,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "usage_available": false,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "invocation_id": "inv_00dde0858ad3",
+        "role": "reviewer",
+        "step_id": null,
+        "status": "succeeded",
+        "provider": "scripted",
+        "model": "strong-model",
+        "profile": "strong",
+        "tier": "strong",
+        "attempt": 1,
+        "latency_ms": 1,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "usage_available": false,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "review",
+          "verdict": "approve",
+          "rationale": "scripted review",
+          "findings": [],
+          "finding_count": 0
+        }
+      }
+    },
+    {
+      "event_id": "evt_a8444b7a9f4e",
+      "seq": 24,
+      "at": "2026-11-01T17:26:15.589751+00:00",
+      "kind": "verification_started",
+      "message": "Verification started",
+      "payload": {
+        "verification_id": "ver_b2e2b9233219",
+        "role": "verifier",
+        "runner": "deterministic_subprocess",
+        "command": "python -m pytest -q",
+        "timeout_seconds": 60,
+        "attempt": 1,
+        "diagnostic": false
+      }
+    },
+    {
+      "event_id": "evt_f150a2e4ef61",
+      "seq": 25,
+      "at": "2026-11-01T17:26:16.954923+00:00",
+      "kind": "verification",
+      "message": "Verification passed",
+      "payload": {
+        "verification_id": "ver_b2e2b9233219",
+        "role": "verifier",
+        "diagnostic": false,
+        "passed": true,
+        "command": "<path> -m pytest -q",
+        "exit_code": 0,
+        "tests_passed": 1,
+        "tests_failed": 0,
+        "duration_ms": 1362,
+        "stdout_tail": ".                                                                        [100%]\n1 passed in 0.01s",
+        "stderr_tail": "",
+        "attempt": 1
+      }
+    },
+    {
+      "event_id": "evt_b06a6fc09a0f",
+      "seq": 26,
+      "at": "2026-11-01T17:26:16.955941+00:00",
+      "kind": "run_finished",
+      "message": "Run finished: completed",
+      "payload": {
+        "status": "completed",
+        "error": null,
+        "summary": "Status: completed\nPlan: 1 step(s); completed 1/1\nSteps: alpha\nReview: approve\nVerification: passed (1 passed, 0 failed, exit 0)\nProvider: scripted; policy: config\nModels: planner=fast-model, coder=fast-model, reviewer=fast-model, verifier=d…",
+        "verification": {
+          "diagnostic": false,
+          "passed": true,
+          "exit_code": 0,
+          "tests_passed": 1,
+          "tests_failed": 0
+        },
+        "cost_usd": 0.0,
+        "agent_calls": 5,
+        "ledger": {
+          "max_usd": 0.25,
+          "spent_usd": 0.0,
+          "reserved_usd": 0.0,
+          "remaining_usd": 0.25,
+          "max_calls": 12,
+          "calls": 5,
+          "denied": 0,
+          "monetary_enforced": false,
+          "elapsed_seconds": 1.404,
+          "remaining_seconds": 118.596
+        },
+        "escalated": true
+      }
+    }
+  ]
+}

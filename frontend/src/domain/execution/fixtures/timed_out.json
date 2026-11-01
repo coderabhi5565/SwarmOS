@@ -1,0 +1,189 @@
+{
+  "name": "timed_out",
+  "description": "The run deadline arrives while the planner call is in flight; the call is abandoned and the run ends timed_out.",
+  "source": "recorded: current backend, scripted model replies",
+  "run": {
+    "run_id": "run_c099ef7d7354",
+    "created_at": "2026-11-01T17:26:17.012557+00:00",
+    "goal": "Create the three output files",
+    "status": "timed_out",
+    "provider": "scripted",
+    "provider_kind": "unknown",
+    "model_policy": "config",
+    "models_by_role": {
+      "planner": "demo-fast",
+      "coder": "demo-fast",
+      "reviewer": "demo-fast",
+      "verifier": "deterministic-subprocess"
+    },
+    "limits": {
+      "max_agent_calls": 12,
+      "max_budget_usd": 0.25,
+      "max_wall_seconds": 120,
+      "max_retries": 2,
+      "max_revisions": 1,
+      "max_escalations": 1,
+      "parallel_coding": true
+    },
+    "plan": null
+  },
+  "events": [
+    {
+      "event_id": "evt_2407d17a2387",
+      "seq": 1,
+      "at": "2026-11-01T17:26:17.036366+00:00",
+      "kind": "run_started",
+      "message": "Run started",
+      "payload": {
+        "goal": "Create the three output files",
+        "provider": "scripted",
+        "provider_warning": null,
+        "limits": {
+          "max_agent_calls": 12,
+          "max_budget_usd": 0.25,
+          "max_wall_seconds": 120,
+          "max_retries": 2,
+          "max_revisions": 1,
+          "max_escalations": 1,
+          "parallel_coding": true
+        },
+        "files": [
+          "tests/test_ok.py"
+        ],
+        "snapshot_truncated": false
+      }
+    },
+    {
+      "event_id": "evt_dac56c8cdb3c",
+      "seq": 2,
+      "at": "2026-11-01T17:26:17.037721+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching the planner",
+      "payload": {
+        "decision": "plan",
+        "reason": "Every run starts with a typed plan.",
+        "tier": "fast"
+      }
+    },
+    {
+      "event_id": "evt_3d17e62495fa",
+      "seq": 3,
+      "at": "2026-11-01T17:26:17.037828+00:00",
+      "kind": "agent_started",
+      "message": "planner started",
+      "payload": {
+        "invocation_id": "inv_5b6856cfaed0",
+        "role": "planner",
+        "step_id": null,
+        "attempt": 1,
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "started_at": "2026-11-01T17:26:17.037789+00:00"
+      }
+    },
+    {
+      "event_id": "evt_72e0eea3c62f",
+      "seq": 4,
+      "at": "2026-11-01T17:26:17.326716+00:00",
+      "kind": "agent_invocation",
+      "message": "planner failed",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_5b6856cfaed0",
+          "run_id": "run_c099ef7d7354",
+          "role": "planner",
+          "step_id": null,
+          "provider": "scripted",
+          "model": "demo-fast",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "failed",
+          "started_at": "2026-11-01T17:26:17.037789+00:00",
+          "finished_at": "2026-11-01T17:26:17.326485+00:00",
+          "latency_ms": 288,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "usage_available": false,
+          "structured_mode": null,
+          "cost_usd": 0.0,
+          "error": "abandoned: the run's wall-clock limit was reached mid-call",
+          "error_class": "timeout"
+        },
+        "invocation_id": "inv_5b6856cfaed0",
+        "role": "planner",
+        "step_id": null,
+        "status": "failed",
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 288,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "usage_available": false,
+        "structured_mode": null,
+        "cost_usd": 0.0,
+        "error_class": "timeout",
+        "error": "abandoned: the run's wall-clock limit was reached mid-call",
+        "output_summary": {}
+      }
+    },
+    {
+      "event_id": "evt_49c1dd864794",
+      "seq": 5,
+      "at": "2026-11-01T17:26:17.326795+00:00",
+      "kind": "budget",
+      "message": "Call abandoned: wall-clock limit of 120s exceeded during a planner call",
+      "payload": {
+        "role": "planner",
+        "step_id": null,
+        "reason": "wall-clock limit of 120s exceeded during a planner call",
+        "category": "timed_out",
+        "ledger": {
+          "max_usd": 0.25,
+          "spent_usd": 0.0,
+          "reserved_usd": 0.0,
+          "remaining_usd": 0.25,
+          "max_calls": 12,
+          "calls": 1,
+          "denied": 0,
+          "monetary_enforced": false,
+          "elapsed_seconds": 120.014,
+          "remaining_seconds": 0.0
+        }
+      }
+    },
+    {
+      "event_id": "evt_86ceba088f40",
+      "seq": 6,
+      "at": "2026-11-01T17:26:17.328270+00:00",
+      "kind": "run_finished",
+      "message": "Run finished: timed_out",
+      "payload": {
+        "status": "timed_out",
+        "error": "wall-clock limit of 120s exceeded during a planner call",
+        "summary": "Status: timed_out\nPlan: not produced\nReview: not reached\nVerification: not run\nError: wall-clock limit of 120s exceeded during a planner call\nProvider: scripted; policy: config\nModels: planner=demo-fast, coder=demo-fast, reviewer=demo-fast,…",
+        "verification": null,
+        "cost_usd": 0.0,
+        "agent_calls": 1,
+        "ledger": {
+          "max_usd": 0.25,
+          "spent_usd": 0.0,
+          "reserved_usd": 0.0,
+          "remaining_usd": 0.25,
+          "max_calls": 12,
+          "calls": 1,
+          "denied": 0,
+          "monetary_enforced": false,
+          "elapsed_seconds": 120.016,
+          "remaining_seconds": 0.0
+        },
+        "escalated": false
+      }
+    }
+  ]
+}

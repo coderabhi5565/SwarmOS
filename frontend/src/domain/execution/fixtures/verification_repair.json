@@ -1,0 +1,631 @@
+{
+  "name": "verification_repair",
+  "description": "Approved code fails verification; a repair round fixes it and verification passes.",
+  "source": "recorded: current backend, scripted model replies",
+  "run": {
+    "run_id": "run_40eddfcd847a",
+    "created_at": "2026-11-01T17:26:12.719410+00:00",
+    "goal": "Implement normalize_tags in target.py so the three tests in tests/test_target.py pass.",
+    "status": "completed",
+    "provider": "scripted",
+    "provider_kind": "unknown",
+    "model_policy": "config",
+    "models_by_role": {
+      "planner": "skipped (demo recipe)",
+      "coder": "demo-fast",
+      "reviewer": "demo-fast",
+      "verifier": "deterministic-subprocess"
+    },
+    "limits": {
+      "max_agent_calls": 6,
+      "max_budget_usd": 0.25,
+      "max_wall_seconds": 120,
+      "max_retries": 1,
+      "max_revisions": 1,
+      "max_escalations": 0,
+      "parallel_coding": true
+    },
+    "plan": {
+      "steps": [
+        {
+          "id": "draft_implementation",
+          "title": "Implement normalize_tags in target.py",
+          "detail": "Implement normalize_tags in target.py. It must trim whitespace, lowercase, drop empty entries, deduplicate, and sort ascending. You MUST return sorted(...): return sorted({tag.strip().lower() for tag in tags if tag.strip()}). Do NOT return …",
+          "acceptance_criteria": [
+            "python -m pytest -q reports 3 passed",
+            "tests/test_target.py is unchanged",
+            "normalize_tags trims, lowercases, drops blanks, deduplicates, and sorts",
+            "the returned list is sorted ascending, not merely deduplicated"
+          ],
+          "depends_on": [],
+          "target_files": [
+            "target.py"
+          ]
+        }
+      ],
+      "assumptions": [
+        "The workspace is the bundled sample project.",
+        "The three tests in tests/test_target.py are the acceptance criteria."
+      ]
+    }
+  },
+  "events": [
+    {
+      "event_id": "evt_4e2d267db51b",
+      "seq": 1,
+      "at": "2026-11-01T17:26:12.745064+00:00",
+      "kind": "run_started",
+      "message": "Run started",
+      "payload": {
+        "goal": "Implement normalize_tags in target.py so the three tests in tests/test_target.py pass.",
+        "provider": "scripted",
+        "provider_warning": null,
+        "limits": {
+          "max_agent_calls": 6,
+          "max_budget_usd": 0.25,
+          "max_wall_seconds": 120,
+          "max_retries": 1,
+          "max_revisions": 1,
+          "max_escalations": 0,
+          "parallel_coding": true
+        },
+        "files": [
+          "README.md",
+          "target.py",
+          "tests/test_target.py"
+        ],
+        "snapshot_truncated": false
+      }
+    },
+    {
+      "event_id": "evt_b07932f3c872",
+      "seq": 2,
+      "at": "2026-11-01T17:26:12.746448+00:00",
+      "kind": "routing_decision",
+      "message": "Plan supplied by the demo task recipe; planner model skipped",
+      "payload": {
+        "decision": "plan_seeded",
+        "steps": [
+          "draft_implementation"
+        ],
+        "waves": [
+          [
+            "draft_implementation"
+          ]
+        ],
+        "assumptions": [
+          "The workspace is the bundled sample project.",
+          "The three tests in tests/test_target.py are the acceptance criteria."
+        ],
+        "plan": {
+          "steps": [
+            {
+              "id": "draft_implementation",
+              "title": "Implement normalize_tags in target.py",
+              "detail": "Implement normalize_tags in target.py. It must trim whitespace, lowercase, drop empty entries, deduplicate, and sort ascending. You MUST return sorted(...): return sorted({tag.strip().lower() for tag in tags if tag.strip()}). Do NOT return …",
+              "acceptance_criteria": [
+                "python -m pytest -q reports 3 passed",
+                "tests/test_target.py is unchanged",
+                "normalize_tags trims, lowercases, drops blanks, deduplicates, and sorts",
+                "the returned list is sorted ascending, not merely deduplicated"
+              ],
+              "depends_on": [],
+              "target_files": [
+                "target.py"
+              ]
+            }
+          ],
+          "assumptions": [
+            "The workspace is the bundled sample project.",
+            "The three tests in tests/test_target.py are the acceptance criteria."
+          ]
+        },
+        "planner_skipped": true,
+        "recipe": "sample_tag_normalization"
+      }
+    },
+    {
+      "event_id": "evt_bc77500e6bb8",
+      "seq": 3,
+      "at": "2026-11-01T17:26:12.748025+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching 1 coding step(s)",
+      "payload": {
+        "decision": "dispatch_coding",
+        "reason": "steps with no unresolved dependencies",
+        "mode": "initial",
+        "revision_round": 0,
+        "steps": [
+          "draft_implementation"
+        ],
+        "parallel": false,
+        "tier": "fast",
+        "attempts": {
+          "draft_implementation": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_42ac44ede841",
+      "seq": 4,
+      "at": "2026-11-01T17:26:12.752648+00:00",
+      "kind": "agent_started",
+      "message": "coder started for draft_implementation",
+      "payload": {
+        "invocation_id": "inv_1cff168a51e6",
+        "role": "coder",
+        "step_id": "draft_implementation",
+        "attempt": 1,
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "started_at": "2026-11-01T17:26:12.752579+00:00"
+      }
+    },
+    {
+      "event_id": "evt_fb80a0e9d334",
+      "seq": 5,
+      "at": "2026-11-01T17:26:12.752930+00:00",
+      "kind": "agent_invocation",
+      "message": "coder succeeded for draft_implementation",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_1cff168a51e6",
+          "run_id": "run_40eddfcd847a",
+          "role": "coder",
+          "step_id": "draft_implementation",
+          "provider": "scripted",
+          "model": "demo-fast",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-11-01T17:26:12.752579+00:00",
+          "finished_at": "2026-11-01T17:26:12.752781+00:00",
+          "latency_ms": 1,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "usage_available": false,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "invocation_id": "inv_1cff168a51e6",
+        "role": "coder",
+        "step_id": "draft_implementation",
+        "status": "succeeded",
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 1,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "usage_available": false,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "coding",
+          "step_id": "draft_implementation",
+          "summary": "wrote target.py",
+          "rationale": "scripted",
+          "changes": [
+            "target.py"
+          ],
+          "change_count": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_1b6e29654dcc",
+      "seq": 6,
+      "at": "2026-11-01T17:26:12.758925+00:00",
+      "kind": "routing_decision",
+      "message": "Merged 1 file change(s) into the workspace",
+      "payload": {
+        "decision": "merge_wave",
+        "applied": 1,
+        "conflicts": [],
+        "accepted_steps": [
+          "draft_implementation"
+        ],
+        "rejected_steps": [],
+        "files": [
+          "target.py"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_ae26c4118086",
+      "seq": 7,
+      "at": "2026-11-01T17:26:12.761292+00:00",
+      "kind": "agent_started",
+      "message": "reviewer started",
+      "payload": {
+        "invocation_id": "inv_9943bb2388e9",
+        "role": "reviewer",
+        "step_id": null,
+        "attempt": 1,
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "started_at": "2026-11-01T17:26:12.761236+00:00"
+      }
+    },
+    {
+      "event_id": "evt_3140d0b423a2",
+      "seq": 8,
+      "at": "2026-11-01T17:26:12.761501+00:00",
+      "kind": "agent_invocation",
+      "message": "reviewer succeeded",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_9943bb2388e9",
+          "run_id": "run_40eddfcd847a",
+          "role": "reviewer",
+          "step_id": null,
+          "provider": "scripted",
+          "model": "demo-fast",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-11-01T17:26:12.761236+00:00",
+          "finished_at": "2026-11-01T17:26:12.761396+00:00",
+          "latency_ms": 1,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "usage_available": false,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "invocation_id": "inv_9943bb2388e9",
+        "role": "reviewer",
+        "step_id": null,
+        "status": "succeeded",
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 1,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "usage_available": false,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "review",
+          "verdict": "approve",
+          "rationale": "scripted review",
+          "findings": [],
+          "finding_count": 0
+        }
+      }
+    },
+    {
+      "event_id": "evt_e3fbad191cc9",
+      "seq": 9,
+      "at": "2026-11-01T17:26:12.762336+00:00",
+      "kind": "verification_started",
+      "message": "Verification started",
+      "payload": {
+        "verification_id": "ver_3aa8b4ecd449",
+        "role": "verifier",
+        "runner": "deterministic_subprocess",
+        "command": "python -m pytest -q",
+        "timeout_seconds": 60,
+        "attempt": 1,
+        "diagnostic": false
+      }
+    },
+    {
+      "event_id": "evt_fd5ea7f8a2c2",
+      "seq": 10,
+      "at": "2026-11-01T17:26:14.221178+00:00",
+      "kind": "verification",
+      "message": "Verification failed",
+      "payload": {
+        "verification_id": "ver_3aa8b4ecd449",
+        "role": "verifier",
+        "diagnostic": false,
+        "passed": false,
+        "command": "<path> -m pytest -q",
+        "exit_code": 1,
+        "tests_passed": 2,
+        "tests_failed": 1,
+        "duration_ms": 1456,
+        "stdout_tail": "F..                                                                      [100%]\n================================== FAILURES ===================================\n______________________ test_trims_lowercases_and_dedupes ______________________\n…",
+        "stderr_tail": "",
+        "attempt": 1
+      }
+    },
+    {
+      "event_id": "evt_e3de5ce7825a",
+      "seq": 11,
+      "at": "2026-11-01T17:26:14.221237+00:00",
+      "kind": "failure",
+      "message": "Verification reported failing tests",
+      "payload": {
+        "error": "verification failed: 1 test(s) failed, exit code 1",
+        "error_class": "verification_failed",
+        "role": "verifier",
+        "attempt": 1,
+        "exit_code": 1,
+        "tests_failed": 1,
+        "stdout_tail": "F..                                                                      [100%]\n================================== FAILURES ===================================\n______________________ test_trims_lowercases_and_dedupes ______________________\n…",
+        "stderr_tail": ""
+      }
+    },
+    {
+      "event_id": "evt_a8ec9ac5ad2a",
+      "seq": 12,
+      "at": "2026-11-01T17:26:14.221706+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching 1 coding step(s)",
+      "payload": {
+        "decision": "dispatch_coding",
+        "reason": "verification failed; repairing the touched files",
+        "mode": "repair",
+        "revision_round": 0,
+        "steps": [
+          "draft_implementation"
+        ],
+        "parallel": false,
+        "tier": "fast",
+        "attempts": {
+          "draft_implementation": 2
+        }
+      }
+    },
+    {
+      "event_id": "evt_95eb543d708d",
+      "seq": 13,
+      "at": "2026-11-01T17:26:14.226298+00:00",
+      "kind": "agent_started",
+      "message": "coder started for draft_implementation",
+      "payload": {
+        "invocation_id": "inv_df80037f717b",
+        "role": "coder",
+        "step_id": "draft_implementation",
+        "attempt": 2,
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "started_at": "2026-11-01T17:26:14.226218+00:00"
+      }
+    },
+    {
+      "event_id": "evt_1f51069331fc",
+      "seq": 14,
+      "at": "2026-11-01T17:26:14.226614+00:00",
+      "kind": "agent_invocation",
+      "message": "coder succeeded for draft_implementation",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_df80037f717b",
+          "run_id": "run_40eddfcd847a",
+          "role": "coder",
+          "step_id": "draft_implementation",
+          "provider": "scripted",
+          "model": "demo-fast",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 2,
+          "status": "succeeded",
+          "started_at": "2026-11-01T17:26:14.226218+00:00",
+          "finished_at": "2026-11-01T17:26:14.226453+00:00",
+          "latency_ms": 1,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "usage_available": false,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "invocation_id": "inv_df80037f717b",
+        "role": "coder",
+        "step_id": "draft_implementation",
+        "status": "succeeded",
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 2,
+        "latency_ms": 1,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "usage_available": false,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "coding",
+          "step_id": "draft_implementation",
+          "summary": "wrote target.py",
+          "rationale": "scripted",
+          "changes": [
+            "target.py"
+          ],
+          "change_count": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_dd819b41b804",
+      "seq": 15,
+      "at": "2026-11-01T17:26:14.233119+00:00",
+      "kind": "routing_decision",
+      "message": "Merged 1 file change(s) into the workspace",
+      "payload": {
+        "decision": "merge_wave",
+        "applied": 1,
+        "conflicts": [],
+        "accepted_steps": [
+          "draft_implementation"
+        ],
+        "rejected_steps": [],
+        "files": [
+          "target.py"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_4176dd4dc4f9",
+      "seq": 16,
+      "at": "2026-11-01T17:26:14.235837+00:00",
+      "kind": "agent_started",
+      "message": "reviewer started",
+      "payload": {
+        "invocation_id": "inv_20ec4050f117",
+        "role": "reviewer",
+        "step_id": null,
+        "attempt": 1,
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "started_at": "2026-11-01T17:26:14.235775+00:00"
+      }
+    },
+    {
+      "event_id": "evt_3e8689df5d23",
+      "seq": 17,
+      "at": "2026-11-01T17:26:14.236061+00:00",
+      "kind": "agent_invocation",
+      "message": "reviewer succeeded",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_20ec4050f117",
+          "run_id": "run_40eddfcd847a",
+          "role": "reviewer",
+          "step_id": null,
+          "provider": "scripted",
+          "model": "demo-fast",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-11-01T17:26:14.235775+00:00",
+          "finished_at": "2026-11-01T17:26:14.235954+00:00",
+          "latency_ms": 1,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "usage_available": false,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "invocation_id": "inv_20ec4050f117",
+        "role": "reviewer",
+        "step_id": null,
+        "status": "succeeded",
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 1,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "usage_available": false,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "review",
+          "verdict": "approve",
+          "rationale": "scripted review",
+          "findings": [],
+          "finding_count": 0
+        }
+      }
+    },
+    {
+      "event_id": "evt_7ff20d2b9edb",
+      "seq": 18,
+      "at": "2026-11-01T17:26:14.236857+00:00",
+      "kind": "verification_started",
+      "message": "Verification started",
+      "payload": {
+        "verification_id": "ver_5cff1d92fe3b",
+        "role": "verifier",
+        "runner": "deterministic_subprocess",
+        "command": "python -m pytest -q",
+        "timeout_seconds": 60,
+        "attempt": 2,
+        "diagnostic": false
+      }
+    },
+    {
+      "event_id": "evt_9e44f59cd984",
+      "seq": 19,
+      "at": "2026-11-01T17:26:15.545818+00:00",
+      "kind": "verification",
+      "message": "Verification passed",
+      "payload": {
+        "verification_id": "ver_5cff1d92fe3b",
+        "role": "verifier",
+        "diagnostic": false,
+        "passed": true,
+        "command": "<path> -m pytest -q",
+        "exit_code": 0,
+        "tests_passed": 3,
+        "tests_failed": 0,
+        "duration_ms": 1306,
+        "stdout_tail": "...                                                                      [100%]\n3 passed in 0.01s",
+        "stderr_tail": "",
+        "attempt": 2
+      }
+    },
+    {
+      "event_id": "evt_9b29a47a7d69",
+      "seq": 20,
+      "at": "2026-11-01T17:26:15.546770+00:00",
+      "kind": "run_finished",
+      "message": "Run finished: completed",
+      "payload": {
+        "status": "completed",
+        "error": null,
+        "summary": "Status: completed\nPlan: 1 step(s); completed 1/1\nSteps: draft_implementation\nReview: approve\nVerification: passed (3 passed, 0 failed, exit 0)\nProvider: scripted; policy: config\nModels: planner=skipped (demo recipe), coder=demo-fast, review…",
+        "verification": {
+          "diagnostic": false,
+          "passed": true,
+          "exit_code": 0,
+          "tests_passed": 3,
+          "tests_failed": 0
+        },
+        "cost_usd": 0.0,
+        "agent_calls": 4,
+        "ledger": {
+          "max_usd": 0.25,
+          "spent_usd": 0.0,
+          "reserved_usd": 0.0,
+          "remaining_usd": 0.25,
+          "max_calls": 6,
+          "calls": 4,
+          "denied": 0,
+          "monetary_enforced": false,
+          "elapsed_seconds": 2.827,
+          "remaining_seconds": 117.173
+        },
+        "escalated": false
+      }
+    }
+  ]
+}

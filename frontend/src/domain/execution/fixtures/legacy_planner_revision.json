@@ -1,0 +1,489 @@
+{
+  "name": "legacy_planner_revision",
+  "description": "Historical local-model run run_37204d26ec8b (qwen2.5-coder:1.5b), recorded before the M3.0 event contract.",
+  "source": "historical: local SQLite run history",
+  "run": {
+    "run_id": "run_37204d26ec8b",
+    "created_at": "2026-10-26T15:16:12.916574+00:00",
+    "goal": "Implement tag normalization so the failing tests pass",
+    "status": "completed_with_findings",
+    "provider": "openai-compatible:local",
+    "provider_kind": "local",
+    "model_policy": "adaptive",
+    "models_by_role": {
+      "planner": "qwen2.5-coder:1.5b",
+      "coder": "qwen2.5-coder:1.5b",
+      "reviewer": "qwen2.5-coder:1.5b",
+      "verifier": "deterministic-subprocess"
+    },
+    "limits": {
+      "max_agent_calls": 8,
+      "max_budget_usd": 0.0,
+      "max_wall_seconds": 120,
+      "max_retries": 1,
+      "max_revisions": 1,
+      "max_escalations": 0,
+      "parallel_coding": true
+    },
+    "plan": {
+      "steps": [
+        {
+          "id": "normalize_tags",
+          "title": "Normalize tags in the test files",
+          "detail": "Replace all tags with a standardized format",
+          "acceptance_criteria": [
+            "All failing tests pass after normalization"
+          ],
+          "depends_on": [],
+          "target_files": [
+            "**/test_*.py"
+          ]
+        }
+      ],
+      "assumptions": [
+        "The test files are in a standard directory structure"
+      ]
+    }
+  },
+  "events": [
+    {
+      "event_id": "evt_459108ac8839",
+      "seq": 1,
+      "at": "2026-10-26T15:16:12.995812+00:00",
+      "kind": "run_started",
+      "message": "Run started",
+      "payload": {
+        "goal": "Implement tag normalization so the failing tests pass",
+        "provider": "openai-compatible:local",
+        "provider_warning": "No API key configured. This is expected for local inference; hosted endpoints will reject it.",
+        "limits": {
+          "max_agent_calls": 8,
+          "max_budget_usd": 0.0,
+          "max_wall_seconds": 120,
+          "max_retries": 1,
+          "max_revisions": 1,
+          "max_escalations": 0,
+          "parallel_coding": true
+        },
+        "files": [
+          "README.md",
+          "target.py",
+          "tests/test_target.py"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_a4ed94096dad",
+      "seq": 2,
+      "at": "2026-10-26T15:16:13.010793+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching the planner",
+      "payload": {
+        "decision": "plan",
+        "reason": "Every run starts with a typed plan.",
+        "tier": "fast"
+      }
+    },
+    {
+      "event_id": "evt_05dc5c56bc29",
+      "seq": 3,
+      "at": "2026-10-26T15:16:27.592517+00:00",
+      "kind": "agent_invocation",
+      "message": "planner succeeded",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_e61fbe047c1a",
+          "run_id": "run_37204d26ec8b",
+          "role": "planner",
+          "step_id": null,
+          "provider": "openai-compatible:local",
+          "model": "qwen2.5-coder:1.5b",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-10-26T15:16:13.012380+00:00",
+          "finished_at": "2026-10-26T15:16:27.591365+00:00",
+          "latency_ms": 14578,
+          "input_tokens": 281,
+          "output_tokens": 97,
+          "usage_available": true,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "role": "planner",
+        "step_id": null,
+        "status": "succeeded",
+        "provider": "openai-compatible:local",
+        "model": "qwen2.5-coder:1.5b",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 14578,
+        "input_tokens": 281,
+        "output_tokens": 97,
+        "usage_available": true,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null
+      }
+    },
+    {
+      "event_id": "evt_34eaf8093a3e",
+      "seq": 4,
+      "at": "2026-10-26T15:16:27.597644+00:00",
+      "kind": "routing_decision",
+      "message": "Plan accepted with 1 step(s)",
+      "payload": {
+        "decision": "plan_accepted",
+        "steps": [
+          "normalize_tags"
+        ],
+        "waves": [
+          [
+            "normalize_tags"
+          ]
+        ],
+        "assumptions": [
+          "The test files are in a standard directory structure"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_70480dc98d5c",
+      "seq": 5,
+      "at": "2026-10-26T15:16:27.601627+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching 1 coding step(s)",
+      "payload": {
+        "decision": "dispatch_coding",
+        "reason": "steps with no unresolved dependencies",
+        "steps": [
+          "normalize_tags"
+        ],
+        "parallel": false,
+        "tier": "fast",
+        "attempts": {
+          "normalize_tags": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_b4149c00fd66",
+      "seq": 6,
+      "at": "2026-10-26T15:16:51.180394+00:00",
+      "kind": "agent_invocation",
+      "message": "coder succeeded for normalize_tags",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_5113d36efc44",
+          "run_id": "run_37204d26ec8b",
+          "role": "coder",
+          "step_id": "normalize_tags",
+          "provider": "openai-compatible:local",
+          "model": "qwen2.5-coder:1.5b",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-10-26T15:16:27.614824+00:00",
+          "finished_at": "2026-10-26T15:16:51.180126+00:00",
+          "latency_ms": 23565,
+          "input_tokens": 782,
+          "output_tokens": 201,
+          "usage_available": true,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "role": "coder",
+        "step_id": "normalize_tags",
+        "status": "succeeded",
+        "provider": "openai-compatible:local",
+        "model": "qwen2.5-coder:1.5b",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 23565,
+        "input_tokens": 782,
+        "output_tokens": 201,
+        "usage_available": true,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null
+      }
+    },
+    {
+      "event_id": "evt_827610c182c3",
+      "seq": 7,
+      "at": "2026-10-26T15:16:51.219319+00:00",
+      "kind": "routing_decision",
+      "message": "Merged 1 file change(s) into the workspace",
+      "payload": {
+        "decision": "merge_wave",
+        "applied": 1,
+        "conflicts": [],
+        "accepted_steps": [
+          "normalize_tags"
+        ],
+        "rejected_steps": [],
+        "files": [
+          "target.py"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_9dc40607e26a",
+      "seq": 8,
+      "at": "2026-10-26T15:17:08.759002+00:00",
+      "kind": "agent_invocation",
+      "message": "reviewer succeeded",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_e9828d0d529d",
+          "run_id": "run_37204d26ec8b",
+          "role": "reviewer",
+          "step_id": null,
+          "provider": "openai-compatible:local",
+          "model": "qwen2.5-coder:1.5b",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-10-26T15:16:51.224952+00:00",
+          "finished_at": "2026-10-26T15:17:08.758482+00:00",
+          "latency_ms": 17533,
+          "input_tokens": 878,
+          "output_tokens": 109,
+          "usage_available": true,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "role": "reviewer",
+        "step_id": null,
+        "status": "succeeded",
+        "provider": "openai-compatible:local",
+        "model": "qwen2.5-coder:1.5b",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 17533,
+        "input_tokens": 878,
+        "output_tokens": 109,
+        "usage_available": true,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null
+      }
+    },
+    {
+      "event_id": "evt_b754d7ded3e0",
+      "seq": 9,
+      "at": "2026-10-26T15:17:08.773039+00:00",
+      "kind": "revision",
+      "message": "Review requested changes",
+      "payload": {
+        "findings": [
+          {
+            "severity": "blocker",
+            "step_id": "normalize_tags",
+            "file": "target.py",
+            "message": "The `normalize_tags` function does not return the expected behavior as described in `tests/test_target.py`."
+          }
+        ],
+        "round": 1,
+        "steps": [
+          "normalize_tags"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_c60c993cbdab",
+      "seq": 10,
+      "at": "2026-10-26T15:17:08.775192+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching 1 coding step(s)",
+      "payload": {
+        "decision": "dispatch_coding",
+        "reason": "review requested changes",
+        "steps": [
+          "normalize_tags"
+        ],
+        "parallel": false,
+        "tier": "fast",
+        "attempts": {
+          "normalize_tags": 2
+        }
+      }
+    },
+    {
+      "event_id": "evt_f91cd97e6f6e",
+      "seq": 11,
+      "at": "2026-10-26T15:17:25.605788+00:00",
+      "kind": "agent_invocation",
+      "message": "coder succeeded for normalize_tags",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_977e0409a2b5",
+          "run_id": "run_37204d26ec8b",
+          "role": "coder",
+          "step_id": "normalize_tags",
+          "provider": "openai-compatible:local",
+          "model": "qwen2.5-coder:1.5b",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 2,
+          "status": "succeeded",
+          "started_at": "2026-10-26T15:17:08.785938+00:00",
+          "finished_at": "2026-10-26T15:17:25.605546+00:00",
+          "latency_ms": 16819,
+          "input_tokens": 830,
+          "output_tokens": 183,
+          "usage_available": true,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "role": "coder",
+        "step_id": "normalize_tags",
+        "status": "succeeded",
+        "provider": "openai-compatible:local",
+        "model": "qwen2.5-coder:1.5b",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 2,
+        "latency_ms": 16819,
+        "input_tokens": 830,
+        "output_tokens": 183,
+        "usage_available": true,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null
+      }
+    },
+    {
+      "event_id": "evt_b82e61b4f670",
+      "seq": 12,
+      "at": "2026-10-26T15:17:25.648053+00:00",
+      "kind": "routing_decision",
+      "message": "Merged 1 file change(s) into the workspace",
+      "payload": {
+        "decision": "merge_wave",
+        "applied": 1,
+        "conflicts": [],
+        "accepted_steps": [
+          "normalize_tags"
+        ],
+        "rejected_steps": [],
+        "files": [
+          "target.py"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_7f5445679905",
+      "seq": 13,
+      "at": "2026-10-26T15:17:41.824646+00:00",
+      "kind": "agent_invocation",
+      "message": "reviewer succeeded",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_0642b2dc2289",
+          "run_id": "run_37204d26ec8b",
+          "role": "reviewer",
+          "step_id": null,
+          "provider": "openai-compatible:local",
+          "model": "qwen2.5-coder:1.5b",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-10-26T15:17:25.654428+00:00",
+          "finished_at": "2026-10-26T15:17:41.824400+00:00",
+          "latency_ms": 16169,
+          "input_tokens": 982,
+          "output_tokens": 135,
+          "usage_available": true,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "role": "reviewer",
+        "step_id": null,
+        "status": "succeeded",
+        "provider": "openai-compatible:local",
+        "model": "qwen2.5-coder:1.5b",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 16169,
+        "input_tokens": 982,
+        "output_tokens": 135,
+        "usage_available": true,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null
+      }
+    },
+    {
+      "event_id": "evt_c7c0f1f3c761",
+      "seq": 14,
+      "at": "2026-10-26T15:17:41.826836+00:00",
+      "kind": "revision",
+      "message": "Review requested changes",
+      "payload": {
+        "findings": [
+          {
+            "severity": "blocker",
+            "step_id": "normalize_tags",
+            "file": "target.py",
+            "message": "The `normalize_tags` function does not handle the case where the input is an empty list, which is required by the acceptance criteria."
+          }
+        ],
+        "round": 2,
+        "steps": [
+          "normalize_tags"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_abb7d617b593",
+      "seq": 15,
+      "at": "2026-10-26T15:17:41.831536+00:00",
+      "kind": "run_finished",
+      "message": "Run finished: completed_with_findings",
+      "payload": {
+        "status": "completed_with_findings",
+        "error": null,
+        "summary": "Status: completed_with_findings\nPlan: 1 step(s); completed 1/1\nSteps: normalize_tags\nReview: request_changes\nVerification: not run\nProvider: openai-compatible:local; policy: adaptive\nModels: planner=qwen2.5-coder:1.5b, coder=qwen2.5-coder:1…",
+        "cost_usd": 0.0,
+        "agent_calls": 5,
+        "ledger": {
+          "max_usd": 0.0,
+          "spent_usd": 0.0,
+          "reserved_usd": 0.0,
+          "remaining_usd": 0.0,
+          "max_calls": 8,
+          "calls": 5,
+          "denied": 0,
+          "monetary_enforced": false,
+          "elapsed_seconds": 88.909,
+          "remaining_seconds": 31.091
+        },
+        "escalated": false
+      }
+    }
+  ]
+}

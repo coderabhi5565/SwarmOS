@@ -1,0 +1,515 @@
+{
+  "name": "legacy_false_blocker",
+  "description": "Historical local-model run run_9038fdabb1b9 (qwen2.5-coder:1.5b), recorded before the M3.0 event contract.",
+  "source": "historical: local SQLite run history",
+  "run": {
+    "run_id": "run_9038fdabb1b9",
+    "created_at": "2026-10-27T03:06:11.074863+00:00",
+    "goal": "Implement normalize_tags in target.py so the three tests in tests/test_target.py pass.",
+    "status": "completed_with_findings",
+    "provider": "openai-compatible:local",
+    "provider_kind": "local",
+    "model_policy": "config",
+    "models_by_role": {
+      "planner": "skipped (demo recipe)",
+      "coder": "qwen2.5-coder:1.5b",
+      "reviewer": "qwen2.5-coder:1.5b",
+      "verifier": "deterministic-subprocess"
+    },
+    "limits": {
+      "max_agent_calls": 6,
+      "max_budget_usd": 0.25,
+      "max_wall_seconds": 120,
+      "max_retries": 0,
+      "max_revisions": 1,
+      "max_escalations": 0,
+      "parallel_coding": true
+    },
+    "plan": {
+      "steps": [
+        {
+          "id": "draft_implementation",
+          "title": "Implement normalize_tags in target.py",
+          "detail": "Implement normalize_tags in target.py. It must trim whitespace, lowercase, drop empty entries, deduplicate, and sort ascending. You MUST return sorted(...): return sorted({tag.strip().lower() for tag in tags if tag.strip()}). Do NOT return …",
+          "acceptance_criteria": [
+            "python -m pytest -q reports 3 passed",
+            "tests/test_target.py is unchanged",
+            "normalize_tags trims, lowercases, drops blanks, deduplicates, and sorts",
+            "the returned list is sorted ascending, not merely deduplicated"
+          ],
+          "depends_on": [],
+          "target_files": [
+            "target.py"
+          ]
+        }
+      ],
+      "assumptions": [
+        "The workspace is the bundled sample project.",
+        "The three tests in tests/test_target.py are the acceptance criteria."
+      ]
+    }
+  },
+  "events": [
+    {
+      "event_id": "evt_b933aae64ac8",
+      "seq": 1,
+      "at": "2026-10-27T03:06:11.136959+00:00",
+      "kind": "run_started",
+      "message": "Run started",
+      "payload": {
+        "goal": "Implement normalize_tags in target.py so the three tests in tests/test_target.py pass.",
+        "provider": "openai-compatible:local",
+        "provider_warning": "No API key configured. This is expected for local inference; hosted endpoints will reject it.",
+        "limits": {
+          "max_agent_calls": 6,
+          "max_budget_usd": 0.25,
+          "max_wall_seconds": 120,
+          "max_retries": 0,
+          "max_revisions": 1,
+          "max_escalations": 0,
+          "parallel_coding": true
+        },
+        "files": [
+          "README.md",
+          "target.py",
+          "tests/test_target.py"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_e037518609b3",
+      "seq": 2,
+      "at": "2026-10-27T03:06:11.149909+00:00",
+      "kind": "routing_decision",
+      "message": "Plan supplied by the demo task recipe; planner model skipped",
+      "payload": {
+        "decision": "plan_seeded",
+        "planner_skipped": true,
+        "recipe": "sample_tag_normalization",
+        "steps": [
+          "draft_implementation"
+        ],
+        "waves": [
+          [
+            "draft_implementation"
+          ]
+        ],
+        "assumptions": [
+          "The workspace is the bundled sample project.",
+          "The three tests in tests/test_target.py are the acceptance criteria."
+        ]
+      }
+    },
+    {
+      "event_id": "evt_f9ee08706e8f",
+      "seq": 3,
+      "at": "2026-10-27T03:06:11.156144+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching 1 coding step(s)",
+      "payload": {
+        "decision": "dispatch_coding",
+        "reason": "steps with no unresolved dependencies",
+        "mode": "initial",
+        "revision_round": 0,
+        "steps": [
+          "draft_implementation"
+        ],
+        "parallel": false,
+        "tier": "fast",
+        "attempts": {
+          "draft_implementation": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_20afc466c845",
+      "seq": 4,
+      "at": "2026-10-27T03:06:46.502926+00:00",
+      "kind": "agent_invocation",
+      "message": "coder succeeded for draft_implementation",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_1e56969c1ce3",
+          "run_id": "run_9038fdabb1b9",
+          "role": "coder",
+          "step_id": "draft_implementation",
+          "provider": "openai-compatible:local",
+          "model": "qwen2.5-coder:1.5b",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-10-27T03:06:11.170509+00:00",
+          "finished_at": "2026-10-27T03:06:46.499141+00:00",
+          "latency_ms": 35326,
+          "input_tokens": 1220,
+          "output_tokens": 207,
+          "usage_available": true,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "role": "coder",
+        "step_id": "draft_implementation",
+        "status": "succeeded",
+        "provider": "openai-compatible:local",
+        "model": "qwen2.5-coder:1.5b",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 35326,
+        "input_tokens": 1220,
+        "output_tokens": 207,
+        "usage_available": true,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "coding",
+          "step_id": "draft_implementation",
+          "summary": "Implement normalize_tags in target.py to pass the three tests in tests/test_target.py.",
+          "rationale": "The goal is to implement the `normalize_tags` function in `target.py` to pass the three tests in `tests/test_target.py`. The function should trim whitespace, lowercase, drop empty entries, deduplicate, and sort the tags. The changes are lim…",
+          "changes": [
+            "target.py"
+          ],
+          "change_count": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_ceb71821d469",
+      "seq": 5,
+      "at": "2026-10-27T03:06:46.542341+00:00",
+      "kind": "routing_decision",
+      "message": "Merged 1 file change(s) into the workspace",
+      "payload": {
+        "decision": "merge_wave",
+        "applied": 1,
+        "conflicts": [],
+        "accepted_steps": [
+          "draft_implementation"
+        ],
+        "rejected_steps": [],
+        "files": [
+          "target.py"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_fcfd88bc05a1",
+      "seq": 6,
+      "at": "2026-10-27T03:07:14.661851+00:00",
+      "kind": "agent_invocation",
+      "message": "reviewer succeeded",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_9c785649d66b",
+          "run_id": "run_9038fdabb1b9",
+          "role": "reviewer",
+          "step_id": null,
+          "provider": "openai-compatible:local",
+          "model": "qwen2.5-coder:1.5b",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-10-27T03:06:46.551447+00:00",
+          "finished_at": "2026-10-27T03:07:14.661052+00:00",
+          "latency_ms": 28108,
+          "input_tokens": 1527,
+          "output_tokens": 129,
+          "usage_available": true,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "role": "reviewer",
+        "step_id": null,
+        "status": "succeeded",
+        "provider": "openai-compatible:local",
+        "model": "qwen2.5-coder:1.5b",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 28108,
+        "input_tokens": 1527,
+        "output_tokens": 129,
+        "usage_available": true,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "review",
+          "verdict": "request_changes",
+          "rationale": "The implementation in `target.py` does not pass the tests in `tests/test_target.py`. The `normalize_tags` function does not sort the list correctly.",
+          "findings": [
+            {
+              "severity": "blocker",
+              "step_id": "draft_implementation",
+              "file": "target.py",
+              "message": "The function does not sort the list correctly. The expected output is [\"fastapi\", \"python\"], but the actual output is [\"python\", \"fastapi\"]."
+            }
+          ],
+          "finding_count": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_0c9ea79941d2",
+      "seq": 7,
+      "at": "2026-10-27T03:07:14.663874+00:00",
+      "kind": "revision",
+      "message": "Review requested changes",
+      "payload": {
+        "findings": [
+          {
+            "severity": "blocker",
+            "step_id": "draft_implementation",
+            "file": "target.py",
+            "message": "The function does not sort the list correctly. The expected output is [\"fastapi\", \"python\"], but the actual output is [\"python\", \"fastapi\"]."
+          }
+        ],
+        "review_rejection": 1,
+        "steps": [
+          "draft_implementation"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_94cb804a36d3",
+      "seq": 8,
+      "at": "2026-10-27T03:07:14.666446+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching 1 coding step(s)",
+      "payload": {
+        "decision": "dispatch_coding",
+        "reason": "review requested changes",
+        "mode": "revision",
+        "revision_round": 1,
+        "steps": [
+          "draft_implementation"
+        ],
+        "parallel": false,
+        "tier": "fast",
+        "attempts": {
+          "draft_implementation": 2
+        }
+      }
+    },
+    {
+      "event_id": "evt_edc63f696cba",
+      "seq": 9,
+      "at": "2026-10-27T03:07:33.606425+00:00",
+      "kind": "agent_invocation",
+      "message": "coder succeeded for draft_implementation",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_4b5df8068e54",
+          "run_id": "run_9038fdabb1b9",
+          "role": "coder",
+          "step_id": "draft_implementation",
+          "provider": "openai-compatible:local",
+          "model": "qwen2.5-coder:1.5b",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 2,
+          "status": "succeeded",
+          "started_at": "2026-10-27T03:07:14.678091+00:00",
+          "finished_at": "2026-10-27T03:07:33.606121+00:00",
+          "latency_ms": 18927,
+          "input_tokens": 1284,
+          "output_tokens": 181,
+          "usage_available": true,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "role": "coder",
+        "step_id": "draft_implementation",
+        "status": "succeeded",
+        "provider": "openai-compatible:local",
+        "model": "qwen2.5-coder:1.5b",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 2,
+        "latency_ms": 18927,
+        "input_tokens": 1284,
+        "output_tokens": 181,
+        "usage_available": true,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "coding",
+          "step_id": "draft_implementation",
+          "summary": "Implement normalize_tags in target.py to sort the list correctly.",
+          "rationale": "The function does not sort the list correctly. The expected output is [\"fastapi\", \"python\"], but the actual output is [\"python\", \"fastapi\"]. This change ensures that the function returns the sorted list as expected.",
+          "changes": [
+            "target.py"
+          ],
+          "change_count": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_e5510e1666ba",
+      "seq": 10,
+      "at": "2026-10-27T03:07:33.622011+00:00",
+      "kind": "routing_decision",
+      "message": "Merged 1 file change(s) into the workspace",
+      "payload": {
+        "decision": "merge_wave",
+        "applied": 1,
+        "conflicts": [],
+        "accepted_steps": [
+          "draft_implementation"
+        ],
+        "rejected_steps": [],
+        "files": [
+          "target.py"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_a67a28e3e6b4",
+      "seq": 11,
+      "at": "2026-10-27T03:07:57.444012+00:00",
+      "kind": "agent_invocation",
+      "message": "reviewer succeeded",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_b033ddf4dad6",
+          "run_id": "run_9038fdabb1b9",
+          "role": "reviewer",
+          "step_id": null,
+          "provider": "openai-compatible:local",
+          "model": "qwen2.5-coder:1.5b",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-10-27T03:07:33.628640+00:00",
+          "finished_at": "2026-10-27T03:07:57.443736+00:00",
+          "latency_ms": 23814,
+          "input_tokens": 1632,
+          "output_tokens": 177,
+          "usage_available": true,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "role": "reviewer",
+        "step_id": null,
+        "status": "succeeded",
+        "provider": "openai-compatible:local",
+        "model": "qwen2.5-coder:1.5b",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 23814,
+        "input_tokens": 1632,
+        "output_tokens": 177,
+        "usage_available": true,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "review",
+          "verdict": "request_changes",
+          "rationale": "The implementation in `target.py` does not pass the acceptance criteria. The tests in `tests/test_target.py` expect the `normalize_tags` function to trim whitespace, lowercase, drop empty entries, deduplicate, and sort ascending. However, t…",
+          "findings": [
+            {
+              "severity": "blocker",
+              "step_id": "draft_implementation",
+              "file": "target.py",
+              "message": "The implementation in `target.py` does not pass the acceptance criteria. The tests in `tests/test_target.py` expect the `normalize_tags` function to trim whitespace, lowercase, drop empty entries, deduplicate, and sort ascending. However, t…"
+            }
+          ],
+          "finding_count": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_6c06c459b11a",
+      "seq": 12,
+      "at": "2026-10-27T03:07:57.445899+00:00",
+      "kind": "revision",
+      "message": "Review requested changes",
+      "payload": {
+        "findings": [
+          {
+            "severity": "blocker",
+            "step_id": "draft_implementation",
+            "file": "target.py",
+            "message": "The implementation in `target.py` does not pass the acceptance criteria. The tests in `tests/test_target.py` expect the `normalize_tags` function to trim whitespace, lowercase, drop empty entries, deduplicate, and sort ascending. However, t…"
+          }
+        ],
+        "review_rejection": 2,
+        "steps": [
+          "draft_implementation"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_4c555775d3be",
+      "seq": 13,
+      "at": "2026-10-27T03:08:00.724046+00:00",
+      "kind": "verification",
+      "message": "Diagnostic verification passed (reviewer did not approve; status unchanged)",
+      "payload": {
+        "role": "verifier",
+        "diagnostic": true,
+        "passed": true,
+        "command": "<path> -m pytest -q",
+        "exit_code": 0,
+        "tests_passed": 3,
+        "tests_failed": 0,
+        "duration_ms": 3264,
+        "stdout_tail": "...                                                                      [100%]\n3 passed in 0.04s",
+        "stderr_tail": ""
+      }
+    },
+    {
+      "event_id": "evt_6fbf3b7542bf",
+      "seq": 14,
+      "at": "2026-10-27T03:08:00.726564+00:00",
+      "kind": "run_finished",
+      "message": "Run finished: completed_with_findings",
+      "payload": {
+        "status": "completed_with_findings",
+        "error": null,
+        "summary": "Status: completed_with_findings\nPlan: 1 step(s); completed 1/1\nSteps: draft_implementation\nReview: request_changes\nVerification (diagnostic): passed (3 passed, 0 failed, exit 0)\nDiagnostic verification does not change the review verdict.\nPr…",
+        "verification": {
+          "diagnostic": true,
+          "passed": true,
+          "exit_code": 0,
+          "tests_passed": 3,
+          "tests_failed": 0
+        },
+        "cost_usd": 0.0,
+        "agent_calls": 4,
+        "ledger": {
+          "max_usd": 0.25,
+          "spent_usd": 0.0,
+          "reserved_usd": 0.0,
+          "remaining_usd": 0.25,
+          "max_calls": 6,
+          "calls": 4,
+          "denied": 0,
+          "monetary_enforced": false,
+          "elapsed_seconds": 109.645,
+          "remaining_seconds": 10.355
+        },
+        "escalated": false
+      }
+    }
+  ]
+}

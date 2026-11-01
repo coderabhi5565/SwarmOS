@@ -1,0 +1,426 @@
+{
+  "name": "review_invalid",
+  "description": "A blocker with no evidence ends the run as review_invalid; a diagnostic verification records that the tests pass.",
+  "source": "recorded: current backend, scripted model replies",
+  "run": {
+    "run_id": "run_cefb5aa36ce2",
+    "created_at": "2026-11-01T17:26:11.402579+00:00",
+    "goal": "Implement normalize_tags in target.py so the three tests in tests/test_target.py pass.",
+    "status": "review_invalid",
+    "provider": "scripted",
+    "provider_kind": "unknown",
+    "model_policy": "config",
+    "models_by_role": {
+      "planner": "skipped (demo recipe)",
+      "coder": "demo-fast",
+      "reviewer": "demo-fast",
+      "verifier": "deterministic-subprocess"
+    },
+    "limits": {
+      "max_agent_calls": 6,
+      "max_budget_usd": 0.25,
+      "max_wall_seconds": 120,
+      "max_retries": 0,
+      "max_revisions": 1,
+      "max_escalations": 0,
+      "parallel_coding": true
+    },
+    "plan": {
+      "steps": [
+        {
+          "id": "draft_implementation",
+          "title": "Implement normalize_tags in target.py",
+          "detail": "Implement normalize_tags in target.py. It must trim whitespace, lowercase, drop empty entries, deduplicate, and sort ascending. You MUST return sorted(...): return sorted({tag.strip().lower() for tag in tags if tag.strip()}). Do NOT return …",
+          "acceptance_criteria": [
+            "python -m pytest -q reports 3 passed",
+            "tests/test_target.py is unchanged",
+            "normalize_tags trims, lowercases, drops blanks, deduplicates, and sorts",
+            "the returned list is sorted ascending, not merely deduplicated"
+          ],
+          "depends_on": [],
+          "target_files": [
+            "target.py"
+          ]
+        }
+      ],
+      "assumptions": [
+        "The workspace is the bundled sample project.",
+        "The three tests in tests/test_target.py are the acceptance criteria."
+      ]
+    }
+  },
+  "events": [
+    {
+      "event_id": "evt_880102952941",
+      "seq": 1,
+      "at": "2026-11-01T17:26:11.425955+00:00",
+      "kind": "run_started",
+      "message": "Run started",
+      "payload": {
+        "goal": "Implement normalize_tags in target.py so the three tests in tests/test_target.py pass.",
+        "provider": "scripted",
+        "provider_warning": null,
+        "limits": {
+          "max_agent_calls": 6,
+          "max_budget_usd": 0.25,
+          "max_wall_seconds": 120,
+          "max_retries": 0,
+          "max_revisions": 1,
+          "max_escalations": 0,
+          "parallel_coding": true
+        },
+        "files": [
+          "README.md",
+          "target.py",
+          "tests/test_target.py"
+        ],
+        "snapshot_truncated": false
+      }
+    },
+    {
+      "event_id": "evt_7f07973c5a95",
+      "seq": 2,
+      "at": "2026-11-01T17:26:11.427066+00:00",
+      "kind": "routing_decision",
+      "message": "Plan supplied by the demo task recipe; planner model skipped",
+      "payload": {
+        "decision": "plan_seeded",
+        "steps": [
+          "draft_implementation"
+        ],
+        "waves": [
+          [
+            "draft_implementation"
+          ]
+        ],
+        "assumptions": [
+          "The workspace is the bundled sample project.",
+          "The three tests in tests/test_target.py are the acceptance criteria."
+        ],
+        "plan": {
+          "steps": [
+            {
+              "id": "draft_implementation",
+              "title": "Implement normalize_tags in target.py",
+              "detail": "Implement normalize_tags in target.py. It must trim whitespace, lowercase, drop empty entries, deduplicate, and sort ascending. You MUST return sorted(...): return sorted({tag.strip().lower() for tag in tags if tag.strip()}). Do NOT return …",
+              "acceptance_criteria": [
+                "python -m pytest -q reports 3 passed",
+                "tests/test_target.py is unchanged",
+                "normalize_tags trims, lowercases, drops blanks, deduplicates, and sorts",
+                "the returned list is sorted ascending, not merely deduplicated"
+              ],
+              "depends_on": [],
+              "target_files": [
+                "target.py"
+              ]
+            }
+          ],
+          "assumptions": [
+            "The workspace is the bundled sample project.",
+            "The three tests in tests/test_target.py are the acceptance criteria."
+          ]
+        },
+        "planner_skipped": true,
+        "recipe": "sample_tag_normalization"
+      }
+    },
+    {
+      "event_id": "evt_7245d777cf51",
+      "seq": 3,
+      "at": "2026-11-01T17:26:11.428276+00:00",
+      "kind": "routing_decision",
+      "message": "Dispatching 1 coding step(s)",
+      "payload": {
+        "decision": "dispatch_coding",
+        "reason": "steps with no unresolved dependencies",
+        "mode": "initial",
+        "revision_round": 0,
+        "steps": [
+          "draft_implementation"
+        ],
+        "parallel": false,
+        "tier": "fast",
+        "attempts": {
+          "draft_implementation": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_3630bc14e5f7",
+      "seq": 4,
+      "at": "2026-11-01T17:26:11.432199+00:00",
+      "kind": "agent_started",
+      "message": "coder started for draft_implementation",
+      "payload": {
+        "invocation_id": "inv_152e45dd6459",
+        "role": "coder",
+        "step_id": "draft_implementation",
+        "attempt": 1,
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "started_at": "2026-11-01T17:26:11.432152+00:00"
+      }
+    },
+    {
+      "event_id": "evt_e1e1f90ad03d",
+      "seq": 5,
+      "at": "2026-11-01T17:26:11.432415+00:00",
+      "kind": "agent_invocation",
+      "message": "coder succeeded for draft_implementation",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_152e45dd6459",
+          "run_id": "run_cefb5aa36ce2",
+          "role": "coder",
+          "step_id": "draft_implementation",
+          "provider": "scripted",
+          "model": "demo-fast",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-11-01T17:26:11.432152+00:00",
+          "finished_at": "2026-11-01T17:26:11.432288+00:00",
+          "latency_ms": 1,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "usage_available": false,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "invocation_id": "inv_152e45dd6459",
+        "role": "coder",
+        "step_id": "draft_implementation",
+        "status": "succeeded",
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 1,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "usage_available": false,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "coding",
+          "step_id": "draft_implementation",
+          "summary": "wrote target.py",
+          "rationale": "scripted",
+          "changes": [
+            "target.py"
+          ],
+          "change_count": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_88b7902a812b",
+      "seq": 6,
+      "at": "2026-11-01T17:26:11.437331+00:00",
+      "kind": "routing_decision",
+      "message": "Merged 1 file change(s) into the workspace",
+      "payload": {
+        "decision": "merge_wave",
+        "applied": 1,
+        "conflicts": [],
+        "accepted_steps": [
+          "draft_implementation"
+        ],
+        "rejected_steps": [],
+        "files": [
+          "target.py"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_65811d63f578",
+      "seq": 7,
+      "at": "2026-11-01T17:26:11.439154+00:00",
+      "kind": "agent_started",
+      "message": "reviewer started",
+      "payload": {
+        "invocation_id": "inv_fc2b2c8b6a0a",
+        "role": "reviewer",
+        "step_id": null,
+        "attempt": 1,
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "started_at": "2026-11-01T17:26:11.439108+00:00"
+      }
+    },
+    {
+      "event_id": "evt_29e21edcd35a",
+      "seq": 8,
+      "at": "2026-11-01T17:26:11.439346+00:00",
+      "kind": "agent_invocation",
+      "message": "reviewer succeeded",
+      "payload": {
+        "invocation": {
+          "invocation_id": "inv_fc2b2c8b6a0a",
+          "run_id": "run_cefb5aa36ce2",
+          "role": "reviewer",
+          "step_id": null,
+          "provider": "scripted",
+          "model": "demo-fast",
+          "profile": "fast",
+          "model_tier": "fast",
+          "attempt": 1,
+          "status": "succeeded",
+          "started_at": "2026-11-01T17:26:11.439108+00:00",
+          "finished_at": "2026-11-01T17:26:11.439242+00:00",
+          "latency_ms": 1,
+          "input_tokens": 10,
+          "output_tokens": 10,
+          "usage_available": false,
+          "structured_mode": "json_object",
+          "cost_usd": 0.0,
+          "error": null,
+          "error_class": null
+        },
+        "invocation_id": "inv_fc2b2c8b6a0a",
+        "role": "reviewer",
+        "step_id": null,
+        "status": "succeeded",
+        "provider": "scripted",
+        "model": "demo-fast",
+        "profile": "fast",
+        "tier": "fast",
+        "attempt": 1,
+        "latency_ms": 1,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "usage_available": false,
+        "structured_mode": "json_object",
+        "cost_usd": 0.0,
+        "error_class": null,
+        "error": null,
+        "output_summary": {
+          "kind": "review",
+          "verdict": "request_changes",
+          "rationale": "scripted review",
+          "findings": [
+            {
+              "severity": "blocker",
+              "step_id": null,
+              "file": "target.py",
+              "message": "Wrong."
+            }
+          ],
+          "finding_count": 1
+        }
+      }
+    },
+    {
+      "event_id": "evt_10601aef19f3",
+      "seq": 9,
+      "at": "2026-11-01T17:26:11.439500+00:00",
+      "kind": "failure",
+      "message": "Review rejected without substantiated evidence",
+      "payload": {
+        "error": "Review requested changes but no blocker finding supplied the minimum evidence (a code reference or line, a named acceptance criterion, and expected/actual behaviour where applicable). The review is invalid, not an approval.",
+        "error_class": "review_invalid",
+        "role": "reviewer",
+        "attempt": 1,
+        "findings": [
+          {
+            "severity": "blocker",
+            "step_id": null,
+            "file": "target.py",
+            "message": "Wrong."
+          }
+        ],
+        "missing": [
+          {
+            "step_id": null,
+            "file": "target.py",
+            "missing": [
+              "code reference or line",
+              "named acceptance criterion"
+            ]
+          }
+        ],
+        "note": "Evidence-shape check only. It does not judge whether the code is correct, and it never turns a rejection into approval."
+      }
+    },
+    {
+      "event_id": "evt_c2ede4a8512a",
+      "seq": 10,
+      "at": "2026-11-01T17:26:11.440451+00:00",
+      "kind": "verification_started",
+      "message": "Diagnostic verification started",
+      "payload": {
+        "verification_id": "ver_cd419b4ae6aa",
+        "role": "verifier",
+        "runner": "deterministic_subprocess",
+        "command": "python -m pytest -q",
+        "timeout_seconds": 60,
+        "attempt": null,
+        "diagnostic": true
+      }
+    },
+    {
+      "event_id": "evt_1d4b9b82f1e4",
+      "seq": 11,
+      "at": "2026-11-01T17:26:12.713824+00:00",
+      "kind": "verification",
+      "message": "Diagnostic verification passed (reviewer did not approve; status unchanged)",
+      "payload": {
+        "verification_id": "ver_cd419b4ae6aa",
+        "role": "verifier",
+        "diagnostic": true,
+        "passed": true,
+        "command": "<path> -m pytest -q",
+        "exit_code": 0,
+        "tests_passed": 3,
+        "tests_failed": 0,
+        "duration_ms": 1269,
+        "stdout_tail": "...                                                                      [100%]\n3 passed in 0.01s",
+        "stderr_tail": ""
+      }
+    },
+    {
+      "event_id": "evt_545ce0b70835",
+      "seq": 12,
+      "at": "2026-11-01T17:26:12.714032+00:00",
+      "kind": "run_finished",
+      "message": "Run finished: review_invalid",
+      "payload": {
+        "status": "review_invalid",
+        "error": "Review requested changes but no blocker finding supplied the minimum evidence (a code reference or line, a named acceptance criterion, and expected/actual behaviour where applicable). The review is invalid, not an approval.",
+        "summary": "Status: review_invalid\nPlan: 1 step(s); completed 1/1\nSteps: draft_implementation\nReview: request_changes\nVerification (diagnostic): passed (3 passed, 0 failed, exit 0)\nDiagnostic verification does not change the review verdict.\nError: Revi…",
+        "verification": {
+          "diagnostic": true,
+          "passed": true,
+          "exit_code": 0,
+          "tests_passed": 3,
+          "tests_failed": 0
+        },
+        "cost_usd": 0.0,
+        "agent_calls": 2,
+        "ledger": {
+          "max_usd": 0.25,
+          "spent_usd": 0.0,
+          "reserved_usd": 0.0,
+          "remaining_usd": 0.25,
+          "max_calls": 6,
+          "calls": 2,
+          "denied": 0,
+          "monetary_enforced": false,
+          "elapsed_seconds": 1.311,
+          "remaining_seconds": 118.689
+        },
+        "escalated": false
+      }
+    }
+  ]
+}
