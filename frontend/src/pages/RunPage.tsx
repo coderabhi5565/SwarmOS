@@ -1,10 +1,11 @@
 import { Download, Square } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
 import { ApiError } from "@/api/client";
 import { useCancelRun, useHealth, useExecution } from "@/api/queries";
 import type { RunDetail, RunRecord } from "@/api/types";
 import { AgentRoster } from "@/components/execution/AgentRoster";
+import { ConnectionBadge } from "@/components/execution/ConnectionBadge";
 import { ExecutionTimeline } from "@/components/execution/ExecutionTimeline";
 import { formatDate } from "@/components/execution/format";
 import { InvocationTable } from "@/components/execution/InvocationTable";
@@ -21,7 +22,7 @@ import { useViewStore } from "@/store/viewStore";
 /** A run, rendered from its normalised execution state. Deep-linkable. */
 export function RunPage() {
   const { runId } = useParams();
-  const { record, trace, execution, live } = useExecution(runId);
+  const { record, trace, execution, live, connection } = useExecution(runId);
   // The graph's selection belongs to this run; another run starts unselected.
   const focusRun = useViewStore((state) => state.focusRun);
   useEffect(() => {
@@ -61,7 +62,13 @@ export function RunPage() {
   const run = record.data.run;
   return (
     <div className="space-y-4">
-      <RunHeader run={run} detail={record.data} live={live} />
+      <RunHeader
+        run={run}
+        detail={record.data}
+        live={live}
+        // Trace errors have their own alert below.
+        connection={<ConnectionBadge connection={connection} live={live} error={null} />}
+      />
       {trace.isError && (
         <p role="alert" className="rounded-lg border border-status-failed/30 bg-status-failed/5 px-3 py-2 text-sm text-status-failed">
           Could not refresh the trace: {trace.error.message}. Showing the last events received.
@@ -93,7 +100,17 @@ export function RunPage() {
   );
 }
 
-function RunHeader({ run, detail, live }: { run: RunRecord; detail: RunDetail; live: boolean }) {
+function RunHeader({
+  run,
+  detail,
+  live,
+  connection,
+}: {
+  run: RunRecord;
+  detail: RunDetail;
+  live: boolean;
+  connection: ReactNode;
+}) {
   const models = Object.entries(run.models_by_role);
   return (
     <header className="glass space-y-3 rounded-xl p-4 sm:p-5">
@@ -101,6 +118,7 @@ function RunHeader({ run, detail, live }: { run: RunRecord; detail: RunDetail; l
         <RunStatusBadge status={run.status} />
         <span className="font-mono text-xs text-muted-foreground">{run.run_id}</span>
         <span className="font-mono text-xs text-muted-foreground">· {formatDate(run.created_at)}</span>
+        {live && connection}
         <div className="ml-auto flex items-center gap-2">
           {live && <CancelRun runId={run.run_id} />}
           <Button variant="ghost" size="sm" onClick={() => downloadTrace(detail)}>

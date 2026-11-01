@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router";
 import { isLiveStatus, useExecution, useRunHistory } from "@/api/queries";
 import type { RunSummary } from "@/api/types";
 import { AgentRoster } from "@/components/execution/AgentRoster";
+import { ConnectionBadge } from "@/components/execution/ConnectionBadge";
 import { ExecutionTimeline } from "@/components/execution/ExecutionTimeline";
 import { formatClock, formatDate } from "@/components/execution/format";
 import { RoleDot, Section, ToneBadge } from "@/components/execution/primitives";
@@ -109,7 +110,7 @@ function EmptyConsole() {
 }
 
 function LiveRun({ runId }: { runId: string }) {
-  const { record, trace, execution, live } = useExecution(runId);
+  const { record, trace, execution, live, connection } = useExecution(runId);
   const focusRun = useViewStore((state) => state.focusRun);
   const followLive = useViewStore((state) => state.followLive);
   const setFollowLive = useViewStore((state) => state.setFollowLive);
@@ -132,7 +133,7 @@ function LiveRun({ runId }: { runId: string }) {
           <p className="truncate font-medium">{run.goal}</p>
           <p className="font-mono text-[11px] text-muted-foreground">{run.run_id}</p>
         </div>
-        <ConnectionState live={live} fetching={trace.isFetching} error={trace.isError ? trace.error : null} finished={Boolean(execution?.outcome)} />
+        <ConnectionBadge connection={connection} live={live} error={trace.isError ? trace.error : null} />
         <Button asChild variant="ghost" size="sm">
           <Link to={`/runs/${encodeURIComponent(run.run_id)}`}>
             Full run <ArrowUpRight aria-hidden="true" />
@@ -164,22 +165,6 @@ function LiveRun({ runId }: { runId: string }) {
       )}
     </div>
   );
-}
-
-function ConnectionState({ live, fetching, error, finished }: { live: boolean; fetching: boolean; error: Error | null; finished: boolean }) {
-  if (error) {
-    return (
-      <span role="status" className="text-xs text-status-failed">
-        Connection problem ({error.message}); showing the last events received
-      </span>
-    );
-  }
-  if (live && !finished) {
-    return (
-      <ToneBadge tone="live">{fetching ? "receiving events" : "live · polling every second"}</ToneBadge>
-    );
-  }
-  return <ToneBadge tone="muted">polling stopped: run finished</ToneBadge>;
 }
 
 /** What is actually executing right now: calls between start and result. */

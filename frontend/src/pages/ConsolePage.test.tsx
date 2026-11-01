@@ -4,7 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Health, RunRecord, RunStatus } from "@/api/types";
 import { fixtures, type TraceFixture } from "@/domain/execution/fixtures";
 import { useViewStore } from "@/store/viewStore";
-import { eventsPage, json, requestsTo, runDetailFrom, runSummaryFrom, stubFetch } from "@/test/api";
+import {
+  eventsPage,
+  json,
+  requestsTo,
+  runDetailFrom,
+  runSummaryFrom,
+  sseResponse,
+  stubFetch,
+  type SseResponse,
+} from "@/test/api";
 import { renderAt } from "@/test/render";
 
 interface Served {
@@ -63,7 +72,8 @@ describe("live console", () => {
       expect.stringContaining("alpha"),
       expect.stringContaining("beta"),
     ]);
-    expect(screen.getByText(/live · polling every second|receiving events/)).toBeInTheDocument();
+    // This stub serves no stream: the console says it is polling instead, never "streaming".
+    expect(screen.getByText("polling fallback · every second")).toBeInTheDocument();
     // gamma is planned but not dispatched: it is not in "Now".
     expect(within(now).queryByText("gamma")).not.toBeInTheDocument();
     expect(useViewStore.getState().runId).toBe(liveRun.fixture.run.run_id);
@@ -78,7 +88,7 @@ describe("live console", () => {
     await userEvent.click(choice!);
 
     expect(router.state.location.search).toBe(`?run=${doneRun.fixture.run.run_id}`);
-    expect(await screen.findByText("polling stopped: run finished")).toBeInTheDocument();
+    expect(await screen.findByText("updates stopped: run finished")).toBeInTheDocument();
     expect(screen.getByText("Nothing is running: the run has finished.")).toBeInTheDocument();
     const counters = screen.getByLabelText("Run counters");
     expect(within(counters).getByText("Revision rounds").nextSibling).toHaveTextContent("1");
@@ -100,7 +110,7 @@ describe("live console", () => {
     // The backend records the rest of the run and marks it completed.
     run.upTo = undefined;
     run.status = "completed";
-    expect(await screen.findByText("polling stopped: run finished", {}, { timeout: 6000 })).toBeInTheDocument();
+    expect(await screen.findByText("updates stopped: run finished", {}, { timeout: 6000 })).toBeInTheDocument();
     expect(screen.getByText("Nothing is running: the run has finished.")).toBeInTheDocument();
 
     const polls = requestsTo(fetchMock, `/api/runs/${run.fixture.run.run_id}/events`);
@@ -119,11 +129,54 @@ describe("live console", () => {
 
     run.upTo = undefined;
     run.status = "completed";
-    expect(await screen.findByText("polling stopped: run finished", {}, { timeout: 6000 })).toBeInTheDocument();
+    expect(await screen.findByText("updates stopped: run finished", {}, { timeout: 6000 })).toBeInTheDocument();
     expect(within(graph).getByRole("group", { name: /^Coder step gamma: succeeded/ })).toBeInTheDocument();
     expect(within(graph).getByRole("group", { name: /^Verification runner \(deterministic\): succeeded/ })).toBeInTheDocument();
     expect(within(graph).queryByRole("group", { name: /: running/ })).not.toBeInTheDocument();
   }, 10_000);
+
+  it("streams a live run into the graph and stops when it ends", async () => {
+    const fixture = fixtures.parallelOverlap;
+    const runId = fixture.run.run_id;
+    let status: RunStatus = "running";
+    const streams: SseResponse[] = [];
+    const fetchMock = stubFetch((url, init) => {
+      if (url.pathname === "/health") return json(health("public_demo"));
+      if (url.pathname === "/api/runs") return json({ runs: [runSummaryFrom(fixture, { status })], next_cursor: null });
+      if (url.pathname === `/api/runs/${runId}`) return json(runDetailFrom(fixture, { status }));
+      if (url.pathname === `/api/runs/${runId}/events`) {
+        const after = url.searchParams.get("after_seq");
+        const visible = status === "running" ? fixture.events.filter((e) => e.seq <= 6) : fixture.events;
+        return json(eventsPage(runId, visible, after === null ? null : Number(after)));
+      }
+      if (url.pathname === `/api/runs/${runId}/stream`) {
+        const stream = sseResponse(init);
+        streams.push(stream);
+        return stream.response;
+      }
+      return undefined;
+    });
+    renderAt(`/console?run=${runId}`);
+
+    expect(await screen.findByText("live · streaming")).toBeInTheDocument();
+    const graph = await screen.findByTestId("execution-graph-2d");
+    expect(within(graph).getByRole("group", { name: /^Coder step alpha: dispatched/ })).toBeInTheDocument();
+
+    // Both coders start: the stream delivers it, no poll involved.
+    streams[0].events(fixture.events.filter((e) => e.seq === 7 || e.seq === 8));
+    expect(await within(graph).findByRole("group", { name: /^Coder step alpha: running/ })).toBeInTheDocument();
+    expect(within(graph).getByRole("group", { name: /^Coder step beta: running/ })).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Running now" })).getAllByRole("listitem")).toHaveLength(2);
+
+    streams[0].events(fixture.events.filter((e) => e.seq > 8));
+    status = "completed";
+    streams[0].end(runId, "completed", fixture.events.at(-1)!.seq);
+    expect(await screen.findByText("updates stopped: run finished")).toBeInTheDocument();
+    expect(within(graph).getByRole("group", { name: /^Verification runner \(deterministic\): succeeded/ })).toBeInTheDocument();
+    expect(within(graph).queryByRole("group", { name: /: running/ })).not.toBeInTheDocument();
+    expect(requestsTo(fetchMock, `/api/runs/${runId}/stream`)).toHaveLength(1);
+    expect(streams[0].open).toBe(false);
+  });
 
   it("keeps the last state visible when the trace cannot be refreshed", async () => {
     serve([liveRun], { eventsStatus: 400 });
