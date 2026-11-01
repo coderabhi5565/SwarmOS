@@ -165,9 +165,9 @@ All four roles run the same graph under every policy; policies only change model
 | `GET` | `/api/provider/models` | List models from the endpoint (no inference) |
 | `POST` | `/api/runs?wait=true` | Create and execute a run inline |
 | `POST` | `/api/runs` | Create a run in the background (`202`) |
-| `GET` | `/api/runs` | Recent runs |
+| `GET` | `/api/runs?limit&cursor` | Run history, newest first: lightweight summaries (no file contents), paged with `next_cursor` |
 | `GET` | `/api/runs/{id}` | Run record plus every trace event |
-| `GET` | `/api/runs/{id}/events` | Trace events only |
+| `GET` | `/api/runs/{id}/events?after_seq` | Trace events in `seq` order; with `after_seq`, only newer ones. Returns `last_seq` for the next poll |
 | `POST` | `/api/runs/{id}/cancel` | Cancel an in-flight run (`202`; `404` unknown, `409` finished or not active here; `403` in the public demo) |
 | `GET` | `/api/demo-tasks` | The curated task catalog (the only runs the public demo accepts) |
 

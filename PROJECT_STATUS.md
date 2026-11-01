@@ -13,7 +13,8 @@ Milestones (revised 2026-11-01):
 - M0 stabilize ✅
 - M1 orchestration and API reliability ✅
 - M2 restricted demo execution ✅ (Linux validation pending, in M7)
-- M3 frontend and design system
+- M3.0 backend contract for the frontend ✅
+- M3 frontend and design system (M3.1 foundation next)
 - M4 Three.js agent network
 - M5 integration
 - M6 benchmarks, docs, landing page
@@ -22,14 +23,15 @@ Milestones (revised 2026-11-01):
 
 ## Current milestone
 
-**M2 — Safe restricted demo execution: complete** (branch `m0-stabilize-review-guard`).
-Next: **M3 — Premium React frontend and design system.**
+**M3.0 — Backend contract: complete** (on `main`, not yet pushed).
+Next: **M3.1 — Frontend foundation**, awaiting approval.
 
 ## Validation at the last milestone boundary
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest` | 287 passed, 2 skipped (symlink test needs privilege on Windows; POSIX rlimit test is Linux-only) |
+| `python -m pytest` | 338 passed, 2 skipped (symlink test needs privilege on Windows; POSIX rlimit test is Linux-only) |
+| `ruff format --check` | not configured; the codebase has never been formatted (56/62 files would change before M3.0) |
 | `ruff check .` | clean |
 | `npx tsc --noEmit` (frontend) | clean |
 | `npm run build` (frontend) | builds |
@@ -39,6 +41,27 @@ Suite wall time varies a lot on this machine (80 s to 300 s for the same code).
 Most of it is real `pytest` subprocesses spawned by verification tests.
 
 ## Completed
+
+### M3.0 — backend contract for the frontend
+
+- **Typed responses:** every `/api` route and `/health` has a response model
+  (`app/api_models.py`).
+- **Run list:** returns lightweight `RunSummary` rows (no file contents),
+  paged with a keyset `cursor` / `next_cursor`.
+- **Event cursor:** `GET /api/runs/{id}/events?after_seq=` returns only newer
+  events, plus `last_seq` for the next poll.
+- **Typed payloads:** every event payload is validated on emit by a strict
+  per-kind model (`app/events.py`), published in OpenAPI as
+  `TraceEventPayloads`.
+- **Lifecycle events:**
+  - `agent_started` / `agent_invocation` are paired by `invocation_id`;
+  - `verification_started` / `verification` are paired by `verification_id`.
+- **Plan events** carry the validated plan, so `depends_on` and waves are
+  available from the trace alone.
+- **Failure events** are normalised: `error` always; `error_class`, `role`,
+  `step_id` and `attempt` where they apply. Three coding rejections that were
+  previously silent now emit failures.
+- **Tests:** `tests/test_api_contract.py` and `tests/test_event_contract.py`.
 
 ### M2 — restricted public demo execution
 

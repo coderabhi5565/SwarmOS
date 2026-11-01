@@ -177,6 +177,32 @@ Routing (`Orchestrator._review`):
 Known limits: a fabricated finding with the right shape passes, and a genuine
 defect described without evidence ends the run without a repair round.
 
+## Event contract
+
+Every trace event is `{event_id, run_id, seq, at, kind, message, payload}`.
+`seq` starts at 1 and increases by one per event within a run. A client
+polls `GET /api/runs/{id}/events?after_seq=<last_seq>` to receive only new
+events.
+
+Each payload is validated on emit against the model for its `kind` in
+`app/events.py`. Unknown fields are rejected, and the models are published
+in OpenAPI under `TraceEventPayloads`.
+
+| Kind | Meaning |
+| --- | --- |
+| `run_started` / `run_finished` | Run boundaries. `run_finished.status` is the terminal status |
+| `routing_decision` | Discriminated by `decision`: `plan` (planner dispatched), `plan_accepted` / `plan_seeded` (the validated `plan` with `depends_on`, plus `waves`), `dispatch_coding` (steps queued, `parallel`, `mode`), `merge_wave` (accepted and rejected steps) |
+| `agent_started` → `agent_invocation` | One model call: started just before the provider call, finished with tokens, latency, and output summary. Paired by `invocation_id`; every retry attempt is its own pair |
+| `verification_started` → `verification` | The deterministic test runner (`runner: deterministic_subprocess`, never an agent). Paired by `verification_id`; `diagnostic: true` for evidence-only runs after a rejected review |
+| `failure` | Always `error`; `error_class`, `role`, `step_id` and `attempt` where they apply. Orchestration failures name no agent |
+| `revision`, `retry` (`scope`: `call` or `steps`), `repair`, `escalation`, `budget`, `provider`, `warning` | Loop, limit and diagnostic events |
+
+**Dispatched vs running.** A step is dispatched in `routing_decision`, but
+it is running only between its `agent_started` and `agent_invocation`. With
+`parallel_coding = false`, a wave is dispatched together and its steps start
+one at a time. The orchestrator's control nodes (`advance`, `escalate`,
+`finalize`) never emit agent lifecycle events.
+
 ## Trust boundaries
 
 ```mermaid
