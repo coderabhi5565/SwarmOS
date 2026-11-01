@@ -1,3 +1,9 @@
+/**
+ * The pre-redesign dashboard's client, kept for its hand-written types until
+ * those screens are ported. Requests go through the typed client's fetch, so
+ * both honour VITE_API_BASE_URL and raise ApiError (an Error subclass).
+ */
+import { apiFetch } from "@/api/client";
 import type {
   AppConfig,
   CreateRunInput,
@@ -6,24 +12,7 @@ import type {
   RunRecord,
 } from "./types";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
-  if (!response.ok) {
-    let detail = `${response.status} ${response.statusText}`;
-    try {
-      const body = await response.json();
-      if (typeof body?.detail === "string") detail = body.detail;
-      else if (body?.detail) detail = JSON.stringify(body.detail);
-    } catch {
-      // keep the status line
-    }
-    throw new Error(detail);
-  }
-  return (await response.json()) as T;
-}
+const request = <T,>(path: string, init?: RequestInit): Promise<T> => apiFetch<T>(path, init);
 
 export const api = {
   config: () => request<AppConfig>("/api/config"),

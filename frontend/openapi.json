@@ -1,0 +1,3557 @@
+{
+  "components": {
+    "schemas": {
+      "AgentInvocation": {
+        "properties": {
+          "attempt": {
+            "default": 1,
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "default": 0.0,
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error"
+          },
+          "error_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error Class"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Finished At"
+          },
+          "input_tokens": {
+            "default": 0,
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "invocation_id": {
+            "title": "Invocation Id",
+            "type": "string"
+          },
+          "latency_ms": {
+            "default": 0,
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "model_tier": {
+            "default": "fast",
+            "enum": [
+              "fast",
+              "strong"
+            ],
+            "title": "Model Tier",
+            "type": "string"
+          },
+          "output_tokens": {
+            "default": 0,
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "profile": {
+            "default": "fast",
+            "title": "Profile",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "planner",
+              "coder",
+              "reviewer",
+              "verifier"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "default": "succeeded",
+            "enum": [
+              "succeeded",
+              "failed",
+              "skipped"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Id"
+          },
+          "structured_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Structured Mode"
+          },
+          "usage_available": {
+            "default": false,
+            "title": "Usage Available",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "run_id",
+          "role",
+          "provider",
+          "model"
+        ],
+        "title": "AgentInvocation",
+        "type": "object"
+      },
+      "AgentInvocationPayload": {
+        "additionalProperties": false,
+        "description": "A model call finished (successfully or not).",
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error"
+          },
+          "error_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error Class"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "invocation": {
+            "$ref": "#/components/schemas/AgentInvocation"
+          },
+          "invocation_id": {
+            "title": "Invocation Id",
+            "type": "string"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "output_summary": {
+            "additionalProperties": true,
+            "title": "Output Summary",
+            "type": "object"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "planner",
+              "coder",
+              "reviewer",
+              "verifier"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "skipped"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Id"
+          },
+          "structured_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Structured Mode"
+          },
+          "tier": {
+            "enum": [
+              "fast",
+              "strong"
+            ],
+            "title": "Tier",
+            "type": "string"
+          },
+          "usage_available": {
+            "title": "Usage Available",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "invocation",
+          "invocation_id",
+          "role",
+          "status",
+          "provider",
+          "model",
+          "profile",
+          "tier",
+          "attempt",
+          "latency_ms",
+          "input_tokens",
+          "output_tokens",
+          "usage_available",
+          "cost_usd"
+        ],
+        "title": "AgentInvocationPayload",
+        "type": "object"
+      },
+      "AgentStartedPayload": {
+        "additionalProperties": false,
+        "description": "A model call is about to be sent. Pairs with ``agent_invocation``.",
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "invocation_id": {
+            "title": "Invocation Id",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "planner",
+              "coder",
+              "reviewer",
+              "verifier"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "string"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Id"
+          },
+          "tier": {
+            "enum": [
+              "fast",
+              "strong"
+            ],
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invocation_id",
+          "role",
+          "attempt",
+          "provider",
+          "model",
+          "profile",
+          "tier",
+          "started_at"
+        ],
+        "title": "AgentStartedPayload",
+        "type": "object"
+      },
+      "ApiInfo": {
+        "properties": {
+          "auth_required": {
+            "title": "Auth Required",
+            "type": "boolean"
+          },
+          "remote_bind_allowed": {
+            "title": "Remote Bind Allowed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "auth_required",
+          "remote_bind_allowed"
+        ],
+        "title": "ApiInfo",
+        "type": "object"
+      },
+      "BudgetPayload": {
+        "additionalProperties": false,
+        "description": "A call was refused or abandoned by the ledger.",
+        "properties": {
+          "category": {
+            "enum": [
+              "budget_exceeded",
+              "limit_exceeded",
+              "timed_out"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "ledger": {
+            "$ref": "#/components/schemas/LedgerSnapshot"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "planner",
+              "coder",
+              "reviewer",
+              "verifier"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Id"
+          }
+        },
+        "required": [
+          "role",
+          "reason",
+          "category",
+          "ledger"
+        ],
+        "title": "BudgetPayload",
+        "type": "object"
+      },
+      "CancelResponse": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "const": "cancelling",
+            "default": "cancelling",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "CancelResponse",
+        "type": "object"
+      },
+      "CapsInfo": {
+        "properties": {
+          "max_agent_calls": {
+            "title": "Max Agent Calls",
+            "type": "integer"
+          },
+          "max_budget_usd": {
+            "title": "Max Budget Usd",
+            "type": "number"
+          },
+          "max_escalations": {
+            "title": "Max Escalations",
+            "type": "integer"
+          },
+          "max_retries": {
+            "title": "Max Retries",
+            "type": "integer"
+          },
+          "max_revisions": {
+            "title": "Max Revisions",
+            "type": "integer"
+          },
+          "max_wall_seconds": {
+            "title": "Max Wall Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_agent_calls",
+          "max_budget_usd",
+          "max_wall_seconds",
+          "max_retries",
+          "max_revisions",
+          "max_escalations"
+        ],
+        "title": "CapsInfo",
+        "type": "object"
+      },
+      "ConfigResponse": {
+        "properties": {
+          "api": {
+            "$ref": "#/components/schemas/ApiInfo"
+          },
+          "auth_configured": {
+            "title": "Auth Configured",
+            "type": "boolean"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "caps": {
+            "$ref": "#/components/schemas/CapsInfo"
+          },
+          "demo_fixture": {
+            "title": "Demo Fixture",
+            "type": "boolean"
+          },
+          "escalation_available": {
+            "title": "Escalation Available",
+            "type": "boolean"
+          },
+          "json_mode": {
+            "title": "Json Mode",
+            "type": "boolean"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "model_policy": {
+            "title": "Model Policy",
+            "type": "string"
+          },
+          "monetary_enforced": {
+            "title": "Monetary Enforced",
+            "type": "boolean"
+          },
+          "openai_configured": {
+            "title": "Openai Configured",
+            "type": "boolean"
+          },
+          "pricing_known": {
+            "title": "Pricing Known",
+            "type": "boolean"
+          },
+          "profiles": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelProfileInfo"
+            },
+            "title": "Profiles",
+            "type": "object"
+          },
+          "provider_kind": {
+            "title": "Provider Kind",
+            "type": "string"
+          },
+          "provider_mode": {
+            "title": "Provider Mode",
+            "type": "string"
+          },
+          "public_demo": {
+            "$ref": "#/components/schemas/PublicDemoInfo"
+          },
+          "role_routing": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Role Routing",
+            "type": "object"
+          },
+          "sample_files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sample Files",
+            "type": "array"
+          },
+          "verification": {
+            "$ref": "#/components/schemas/VerificationConfigInfo"
+          }
+        },
+        "required": [
+          "mode",
+          "provider_mode",
+          "provider_kind",
+          "openai_configured",
+          "base_url",
+          "auth_configured",
+          "json_mode",
+          "profiles",
+          "role_routing",
+          "model_policy",
+          "escalation_available",
+          "pricing_known",
+          "monetary_enforced",
+          "public_demo",
+          "caps",
+          "verification",
+          "api",
+          "sample_files",
+          "demo_fixture"
+        ],
+        "title": "ConfigResponse",
+        "type": "object"
+      },
+      "DemoTaskInfo": {
+        "properties": {
+          "allowed_files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Files",
+            "type": "array"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "read_only_files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Read Only Files",
+            "type": "array"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/DemoTaskStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "waves": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Waves",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "goal",
+          "steps",
+          "waves",
+          "allowed_files",
+          "read_only_files",
+          "limits"
+        ],
+        "title": "DemoTaskInfo",
+        "type": "object"
+      },
+      "DemoTaskStep": {
+        "properties": {
+          "depends_on": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Depends On",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "DemoTaskStep",
+        "type": "object"
+      },
+      "DemoTasksResponse": {
+        "properties": {
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/DemoTaskInfo"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "mode",
+          "tasks"
+        ],
+        "title": "DemoTasksResponse",
+        "type": "object"
+      },
+      "DispatchCodingDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "attempts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Attempts",
+            "type": "object"
+          },
+          "decision": {
+            "const": "dispatch_coding",
+            "title": "Decision",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "initial",
+              "retry",
+              "revision",
+              "repair"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "parallel": {
+            "title": "Parallel",
+            "type": "boolean"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "revision_round": {
+            "title": "Revision Round",
+            "type": "integer"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "tier": {
+            "enum": [
+              "fast",
+              "strong"
+            ],
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "reason",
+          "mode",
+          "revision_round",
+          "steps",
+          "parallel",
+          "tier",
+          "attempts"
+        ],
+        "title": "DispatchCodingDecision",
+        "type": "object"
+      },
+      "EscalationPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "from_tier": {
+            "enum": [
+              "fast",
+              "strong"
+            ],
+            "title": "From Tier",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          },
+          "round": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Round"
+          },
+          "to_tier": {
+            "anyOf": [
+              {
+                "enum": [
+                  "fast",
+                  "strong"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Tier"
+          },
+          "unresolved": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Unresolved"
+          }
+        },
+        "required": [
+          "from_tier",
+          "to_tier",
+          "available"
+        ],
+        "title": "EscalationPayload",
+        "type": "object"
+      },
+      "FailurePayload": {
+        "additionalProperties": false,
+        "description": "Every failure: ``error`` always; agent context only where it applies.\n\nOrchestration-level failures (graph errors, crashes) carry no role, step,\nor attempt. The remaining fields are diagnostics specific to one cause.",
+        "properties": {
+          "allowed": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Allowed"
+          },
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Attempt"
+          },
+          "conflicting_steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Conflicting Steps"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "error_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error Class"
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exit Code"
+          },
+          "findings": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReviewFinding"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Findings"
+          },
+          "missing": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MissingEvidence"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Missing"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Note"
+          },
+          "paths": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Paths"
+          },
+          "read_only": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Read Only"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "planner",
+                  "coder",
+                  "reviewer",
+                  "verifier"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Role"
+          },
+          "stderr_tail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Stderr Tail"
+          },
+          "stdout_tail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Stdout Tail"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Id"
+          },
+          "tests_failed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Tests Failed"
+          },
+          "violations": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Violations"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "FailurePayload",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "properties": {
+          "auth_required": {
+            "title": "Auth Required",
+            "type": "boolean"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "openai_configured": {
+            "title": "Openai Configured",
+            "type": "boolean"
+          },
+          "provider_kind": {
+            "title": "Provider Kind",
+            "type": "string"
+          },
+          "provider_mode": {
+            "title": "Provider Mode",
+            "type": "string"
+          },
+          "service": {
+            "default": "swarmos",
+            "title": "Service",
+            "type": "string"
+          },
+          "status": {
+            "const": "ok",
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "mode",
+          "provider_mode",
+          "provider_kind",
+          "openai_configured",
+          "auth_required"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "LedgerSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "denied": {
+            "title": "Denied",
+            "type": "integer"
+          },
+          "elapsed_seconds": {
+            "title": "Elapsed Seconds",
+            "type": "number"
+          },
+          "max_calls": {
+            "title": "Max Calls",
+            "type": "integer"
+          },
+          "max_usd": {
+            "title": "Max Usd",
+            "type": "number"
+          },
+          "monetary_enforced": {
+            "title": "Monetary Enforced",
+            "type": "boolean"
+          },
+          "remaining_seconds": {
+            "title": "Remaining Seconds",
+            "type": "number"
+          },
+          "remaining_usd": {
+            "title": "Remaining Usd",
+            "type": "number"
+          },
+          "reserved_usd": {
+            "title": "Reserved Usd",
+            "type": "number"
+          },
+          "spent_usd": {
+            "title": "Spent Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "max_usd",
+          "spent_usd",
+          "reserved_usd",
+          "remaining_usd",
+          "max_calls",
+          "calls",
+          "denied",
+          "monetary_enforced",
+          "elapsed_seconds",
+          "remaining_seconds"
+        ],
+        "title": "LedgerSnapshot",
+        "type": "object"
+      },
+      "Limits": {
+        "description": "Autonomy envelope for a single run.\n\nValues are validated against the process ceiling by ``clamp_limits`` before\na run starts; a caller can tighten a limit but not widen it.",
+        "properties": {
+          "max_agent_calls": {
+            "default": 12,
+            "maximum": 64.0,
+            "minimum": 1.0,
+            "title": "Max Agent Calls",
+            "type": "integer"
+          },
+          "max_budget_usd": {
+            "default": 0.25,
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Max Budget Usd",
+            "type": "number"
+          },
+          "max_escalations": {
+            "default": 1,
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Max Escalations",
+            "type": "integer"
+          },
+          "max_retries": {
+            "default": 2,
+            "maximum": 5.0,
+            "minimum": 0.0,
+            "title": "Max Retries",
+            "type": "integer"
+          },
+          "max_revisions": {
+            "default": 1,
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Max Revisions",
+            "type": "integer"
+          },
+          "max_wall_seconds": {
+            "default": 120,
+            "maximum": 1800.0,
+            "minimum": 5.0,
+            "title": "Max Wall Seconds",
+            "type": "integer"
+          },
+          "parallel_coding": {
+            "default": true,
+            "title": "Parallel Coding",
+            "type": "boolean"
+          }
+        },
+        "title": "Limits",
+        "type": "object"
+      },
+      "MergeWaveDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted_steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Accepted Steps",
+            "type": "array"
+          },
+          "applied": {
+            "title": "Applied",
+            "type": "integer"
+          },
+          "conflicts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Conflicts",
+            "type": "array"
+          },
+          "decision": {
+            "const": "merge_wave",
+            "title": "Decision",
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "rejected_steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rejected Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "decision",
+          "applied",
+          "conflicts",
+          "accepted_steps",
+          "rejected_steps",
+          "files"
+        ],
+        "title": "MergeWaveDecision",
+        "type": "object"
+      },
+      "MissingEvidence": {
+        "additionalProperties": false,
+        "properties": {
+          "file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "File"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Id"
+          }
+        },
+        "required": [
+          "missing"
+        ],
+        "title": "MissingEvidence",
+        "type": "object"
+      },
+      "ModelProfileInfo": {
+        "properties": {
+          "input_usd_per_million": {
+            "title": "Input Usd Per Million",
+            "type": "number"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "output_usd_per_million": {
+            "title": "Output Usd Per Million",
+            "type": "number"
+          },
+          "priced": {
+            "title": "Priced",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "model",
+          "priced",
+          "input_usd_per_million",
+          "output_usd_per_million"
+        ],
+        "title": "ModelProfileInfo",
+        "type": "object"
+      },
+      "Plan": {
+        "properties": {
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/PlanStep"
+            },
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "steps"
+        ],
+        "title": "Plan",
+        "type": "object"
+      },
+      "PlanDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "decision": {
+            "enum": [
+              "plan_accepted",
+              "plan_seeded"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/Plan"
+          },
+          "planner_skipped": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Planner Skipped"
+          },
+          "recipe": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Recipe"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "waves": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Waves",
+            "type": "array"
+          }
+        },
+        "required": [
+          "decision",
+          "steps",
+          "waves",
+          "plan"
+        ],
+        "title": "PlanDecision",
+        "type": "object"
+      },
+      "PlanStep": {
+        "properties": {
+          "acceptance_criteria": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Acceptance Criteria",
+            "type": "array"
+          },
+          "depends_on": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Depends On",
+            "type": "array"
+          },
+          "detail": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Detail",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "target_files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Target Files",
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 3,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "detail",
+          "acceptance_criteria"
+        ],
+        "title": "PlanStep",
+        "type": "object"
+      },
+      "PlannerDispatchDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "const": "plan",
+            "title": "Decision",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "tier": {
+            "enum": [
+              "fast",
+              "strong"
+            ],
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "reason",
+          "tier"
+        ],
+        "title": "PlannerDispatchDecision",
+        "type": "object"
+      },
+      "ProviderModelsResponse": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Code"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning"
+          }
+        },
+        "required": [
+          "provider",
+          "ok",
+          "detail"
+        ],
+        "title": "ProviderModelsResponse",
+        "type": "object"
+      },
+      "ProviderPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "retryable": {
+            "title": "Retryable",
+            "type": "boolean"
+          },
+          "role": {
+            "enum": [
+              "planner",
+              "coder",
+              "reviewer",
+              "verifier"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Id"
+          }
+        },
+        "required": [
+          "role",
+          "attempt",
+          "category",
+          "retryable",
+          "error"
+        ],
+        "title": "ProviderPayload",
+        "type": "object"
+      },
+      "PublicDemoInfo": {
+        "properties": {
+          "code_policy": {
+            "title": "Code Policy",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "execution_sandbox": {
+            "title": "Execution Sandbox",
+            "type": "string"
+          },
+          "max_concurrent_runs": {
+            "title": "Max Concurrent Runs",
+            "type": "integer"
+          },
+          "runs_per_client_per_hour": {
+            "title": "Runs Per Client Per Hour",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "execution_sandbox",
+          "code_policy",
+          "max_concurrent_runs",
+          "runs_per_client_per_hour"
+        ],
+        "title": "PublicDemoInfo",
+        "type": "object"
+      },
+      "RepairPayload": {
+        "additionalProperties": false,
+        "description": "Unparseable structured output; the call is retried with a repair note.",
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "error_class": {
+            "const": "invalid_response",
+            "default": "invalid_response",
+            "title": "Error Class",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "planner",
+              "coder",
+              "reviewer",
+              "verifier"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Id"
+          }
+        },
+        "required": [
+          "role",
+          "attempt",
+          "error"
+        ],
+        "title": "RepairPayload",
+        "type": "object"
+      },
+      "RetryPayload": {
+        "additionalProperties": false,
+        "description": "``scope=\"call\"``: one agent call is retried after a transient error.\n``scope=\"steps\"``: failed plan steps are re-dispatched.",
+        "properties": {
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Attempt"
+          },
+          "attempts": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Attempts"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Category"
+          },
+          "delay_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Delay Seconds"
+          },
+          "max_retries": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Retries"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "planner",
+                  "coder",
+                  "reviewer",
+                  "verifier"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Role"
+          },
+          "scope": {
+            "enum": [
+              "call",
+              "steps"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Id"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Steps"
+          }
+        },
+        "required": [
+          "scope"
+        ],
+        "title": "RetryPayload",
+        "type": "object"
+      },
+      "ReviewFinding": {
+        "properties": {
+          "file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "message": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Message",
+            "type": "string"
+          },
+          "severity": {
+            "default": "major",
+            "enum": [
+              "blocker",
+              "major",
+              "minor",
+              "nit"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "ReviewFinding",
+        "type": "object"
+      },
+      "ReviewOutput": {
+        "properties": {
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "rationale": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Rationale",
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "approve",
+              "request_changes"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict"
+        ],
+        "title": "ReviewOutput",
+        "type": "object"
+      },
+      "RevisionPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "review_rejection": {
+            "title": "Review Rejection",
+            "type": "integer"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "withheld_blockers": {
+            "items": {
+              "$ref": "#/components/schemas/WithheldBlocker"
+            },
+            "title": "Withheld Blockers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "findings",
+          "review_rejection",
+          "steps"
+        ],
+        "title": "RevisionPayload",
+        "type": "object"
+      },
+      "RoutingDecisionPayload": {
+        "discriminator": {
+          "mapping": {
+            "dispatch_coding": "#/components/schemas/DispatchCodingDecision",
+            "merge_wave": "#/components/schemas/MergeWaveDecision",
+            "plan": "#/components/schemas/PlannerDispatchDecision",
+            "plan_accepted": "#/components/schemas/PlanDecision",
+            "plan_seeded": "#/components/schemas/PlanDecision"
+          },
+          "propertyName": "decision"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/PlannerDispatchDecision"
+          },
+          {
+            "$ref": "#/components/schemas/PlanDecision"
+          },
+          {
+            "$ref": "#/components/schemas/DispatchCodingDecision"
+          },
+          {
+            "$ref": "#/components/schemas/MergeWaveDecision"
+          }
+        ],
+        "title": "RoutingDecisionPayload"
+      },
+      "RunDetail": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/TraceEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "run": {
+            "$ref": "#/components/schemas/RunRecord"
+          }
+        },
+        "required": [
+          "run"
+        ],
+        "title": "RunDetail",
+        "type": "object"
+      },
+      "RunEventsResponse": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/TraceEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "last_seq": {
+            "title": "Last Seq",
+            "type": "integer"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "events",
+          "last_seq"
+        ],
+        "title": "RunEventsResponse",
+        "type": "object"
+      },
+      "RunFinishedPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_calls": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Agent Calls"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cost Usd"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error"
+          },
+          "escalated": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Escalated"
+          },
+          "ledger": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LedgerSnapshot"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "recovered": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Recovered"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "completed_with_findings",
+              "review_invalid",
+              "failed",
+              "cancelled",
+              "budget_exceeded",
+              "limit_exceeded",
+              "timed_out"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Summary"
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerificationOutcome"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "RunFinishedPayload",
+        "type": "object"
+      },
+      "RunListResponse": {
+        "properties": {
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunSummary"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "runs"
+        ],
+        "title": "RunListResponse",
+        "type": "object"
+      },
+      "RunRecord": {
+        "properties": {
+          "agent_calls": {
+            "default": 0,
+            "title": "Agent Calls",
+            "type": "integer"
+          },
+          "artifacts": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Artifacts",
+            "type": "object"
+          },
+          "changed_files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changed Files",
+            "type": "array"
+          },
+          "cost_usd": {
+            "default": 0.0,
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_ms": {
+            "default": 0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "escalations": {
+            "default": 0,
+            "title": "Escalations",
+            "type": "integer"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "model_policy": {
+            "default": "config",
+            "title": "Model Policy",
+            "type": "string"
+          },
+          "models_by_role": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Models By Role",
+            "type": "object"
+          },
+          "monetary_enforced": {
+            "default": false,
+            "title": "Monetary Enforced",
+            "type": "boolean"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Plan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider": {
+            "default": "demo",
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_kind": {
+            "default": "demo",
+            "enum": [
+              "demo",
+              "local",
+              "remote",
+              "unknown"
+            ],
+            "title": "Provider Kind",
+            "type": "string"
+          },
+          "provider_warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Warning"
+          },
+          "review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revisions": {
+            "default": 0,
+            "title": "Revisions",
+            "type": "integer"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "default": "queued",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "completed_with_findings",
+              "review_invalid",
+              "failed",
+              "cancelled",
+              "budget_exceeded",
+              "limit_exceeded",
+              "timed_out"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "default": "",
+            "title": "Summary",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          },
+          "usage_available": {
+            "default": false,
+            "title": "Usage Available",
+            "type": "boolean"
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerificationResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "goal"
+        ],
+        "title": "RunRecord",
+        "type": "object"
+      },
+      "RunRequest": {
+        "properties": {
+          "demo_task": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sample_tag_normalization",
+                  "sample_parallel_pipeline"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Task"
+          },
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "object"
+          },
+          "goal": {
+            "maxLength": 5000,
+            "minLength": 8,
+            "title": "Goal",
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Metadata",
+            "type": "object"
+          },
+          "model_policy": {
+            "anyOf": [
+              {
+                "enum": [
+                  "config",
+                  "fast_only",
+                  "adaptive",
+                  "role_routed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Policy"
+          },
+          "provider": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "demo",
+              "openai"
+            ],
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "goal"
+        ],
+        "title": "RunRequest",
+        "type": "object"
+      },
+      "RunStartedPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provider Warning"
+          },
+          "snapshot_truncated": {
+            "default": false,
+            "title": "Snapshot Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "goal",
+          "provider",
+          "limits",
+          "files"
+        ],
+        "title": "RunStartedPayload",
+        "type": "object"
+      },
+      "RunSummary": {
+        "description": "A run as listed in history: everything except plan details, review\ntext, verification output, the summary, and generated file contents.",
+        "properties": {
+          "agent_calls": {
+            "title": "Agent Calls",
+            "type": "integer"
+          },
+          "changed_files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changed Files",
+            "type": "array"
+          },
+          "cost_usd": {
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "escalations": {
+            "title": "Escalations",
+            "type": "integer"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "model_policy": {
+            "title": "Model Policy",
+            "type": "string"
+          },
+          "models_by_role": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Models By Role",
+            "type": "object"
+          },
+          "monetary_enforced": {
+            "title": "Monetary Enforced",
+            "type": "boolean"
+          },
+          "plan_step_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Step Count"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_kind": {
+            "title": "Provider Kind",
+            "type": "string"
+          },
+          "review_verdict": {
+            "anyOf": [
+              {
+                "enum": [
+                  "approve",
+                  "request_changes"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Verdict"
+          },
+          "revisions": {
+            "title": "Revisions",
+            "type": "integer"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "completed_with_findings",
+              "review_invalid",
+              "failed",
+              "cancelled",
+              "budget_exceeded",
+              "limit_exceeded",
+              "timed_out"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          },
+          "usage_available": {
+            "title": "Usage Available",
+            "type": "boolean"
+          },
+          "verification_diagnostic": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Diagnostic"
+          },
+          "verification_passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Passed"
+          }
+        },
+        "required": [
+          "run_id",
+          "created_at",
+          "updated_at",
+          "goal",
+          "status",
+          "provider",
+          "provider_kind",
+          "model_policy",
+          "models_by_role",
+          "limits",
+          "error",
+          "cost_usd",
+          "monetary_enforced",
+          "usage_available",
+          "agent_calls",
+          "escalations",
+          "revisions",
+          "duration_ms",
+          "changed_files"
+        ],
+        "title": "RunSummary",
+        "type": "object"
+      },
+      "TraceEvent": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "run_started",
+              "agent_started",
+              "agent_invocation",
+              "verification_started",
+              "routing_decision",
+              "verification",
+              "failure",
+              "retry",
+              "escalation",
+              "revision",
+              "budget",
+              "provider",
+              "repair",
+              "warning",
+              "run_finished"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "description": "Kind-specific data; see the TraceEventPayloads schema for the payload model of each kind.",
+            "title": "Payload",
+            "type": "object"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "kind"
+        ],
+        "title": "TraceEvent",
+        "type": "object"
+      },
+      "TraceEventPayloads": {
+        "description": "The payload schema for each TraceEvent.kind. TraceEvent.payload conforms to the entry for its kind for events recorded by this version; older stored traces are returned as recorded.",
+        "properties": {
+          "agent_invocation": {
+            "$ref": "#/components/schemas/AgentInvocationPayload"
+          },
+          "agent_started": {
+            "$ref": "#/components/schemas/AgentStartedPayload"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/BudgetPayload"
+          },
+          "escalation": {
+            "$ref": "#/components/schemas/EscalationPayload"
+          },
+          "failure": {
+            "$ref": "#/components/schemas/FailurePayload"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/ProviderPayload"
+          },
+          "repair": {
+            "$ref": "#/components/schemas/RepairPayload"
+          },
+          "retry": {
+            "$ref": "#/components/schemas/RetryPayload"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/RevisionPayload"
+          },
+          "routing_decision": {
+            "$ref": "#/components/schemas/RoutingDecisionPayload"
+          },
+          "run_finished": {
+            "$ref": "#/components/schemas/RunFinishedPayload"
+          },
+          "run_started": {
+            "$ref": "#/components/schemas/RunStartedPayload"
+          },
+          "verification": {
+            "$ref": "#/components/schemas/VerificationPayload"
+          },
+          "verification_started": {
+            "$ref": "#/components/schemas/VerificationStartedPayload"
+          },
+          "warning": {
+            "$ref": "#/components/schemas/WarningPayload"
+          }
+        },
+        "required": [
+          "agent_invocation",
+          "agent_started",
+          "budget",
+          "escalation",
+          "failure",
+          "provider",
+          "repair",
+          "retry",
+          "revision",
+          "routing_decision",
+          "run_finished",
+          "run_started",
+          "verification",
+          "verification_started",
+          "warning"
+        ],
+        "title": "TraceEventPayloads",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VerificationConfigInfo": {
+        "properties": {
+          "allowed_commands": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Commands",
+            "type": "array"
+          },
+          "command": {
+            "title": "Command",
+            "type": "string"
+          },
+          "execution_enabled": {
+            "title": "Execution Enabled",
+            "type": "boolean"
+          },
+          "repo_checkout_allowed": {
+            "title": "Repo Checkout Allowed",
+            "type": "boolean"
+          },
+          "timeout_seconds": {
+            "title": "Timeout Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "command",
+          "timeout_seconds",
+          "execution_enabled",
+          "allowed_commands",
+          "repo_checkout_allowed"
+        ],
+        "title": "VerificationConfigInfo",
+        "type": "object"
+      },
+      "VerificationOutcome": {
+        "additionalProperties": false,
+        "properties": {
+          "diagnostic": {
+            "title": "Diagnostic",
+            "type": "boolean"
+          },
+          "exit_code": {
+            "title": "Exit Code",
+            "type": "integer"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          },
+          "tests_failed": {
+            "title": "Tests Failed",
+            "type": "integer"
+          },
+          "tests_passed": {
+            "title": "Tests Passed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "diagnostic",
+          "passed",
+          "exit_code",
+          "tests_passed",
+          "tests_failed"
+        ],
+        "title": "VerificationOutcome",
+        "type": "object"
+      },
+      "VerificationPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Attempt"
+          },
+          "command": {
+            "title": "Command",
+            "type": "string"
+          },
+          "diagnostic": {
+            "title": "Diagnostic",
+            "type": "boolean"
+          },
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "exit_code": {
+            "title": "Exit Code",
+            "type": "integer"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          },
+          "role": {
+            "const": "verifier",
+            "default": "verifier",
+            "title": "Role",
+            "type": "string"
+          },
+          "stderr_tail": {
+            "title": "Stderr Tail",
+            "type": "string"
+          },
+          "stdout_tail": {
+            "title": "Stdout Tail",
+            "type": "string"
+          },
+          "tests_failed": {
+            "title": "Tests Failed",
+            "type": "integer"
+          },
+          "tests_passed": {
+            "title": "Tests Passed",
+            "type": "integer"
+          },
+          "verification_id": {
+            "title": "Verification Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verification_id",
+          "diagnostic",
+          "passed",
+          "command",
+          "exit_code",
+          "tests_passed",
+          "tests_failed",
+          "duration_ms",
+          "stdout_tail",
+          "stderr_tail"
+        ],
+        "title": "VerificationPayload",
+        "type": "object"
+      },
+      "VerificationResult": {
+        "properties": {
+          "command": {
+            "title": "Command",
+            "type": "string"
+          },
+          "diagnostic": {
+            "default": false,
+            "title": "Diagnostic",
+            "type": "boolean"
+          },
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "exit_code": {
+            "title": "Exit Code",
+            "type": "integer"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          },
+          "stderr_tail": {
+            "default": "",
+            "title": "Stderr Tail",
+            "type": "string"
+          },
+          "stdout_tail": {
+            "default": "",
+            "title": "Stdout Tail",
+            "type": "string"
+          },
+          "tests_failed": {
+            "default": 0,
+            "title": "Tests Failed",
+            "type": "integer"
+          },
+          "tests_passed": {
+            "default": 0,
+            "title": "Tests Passed",
+            "type": "integer"
+          },
+          "workspace_files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Workspace Files",
+            "type": "array"
+          }
+        },
+        "required": [
+          "passed",
+          "command",
+          "exit_code",
+          "duration_ms"
+        ],
+        "title": "VerificationResult",
+        "type": "object"
+      },
+      "VerificationStartedPayload": {
+        "additionalProperties": false,
+        "description": "The deterministic test runner is about to start. Not a model call.",
+        "properties": {
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Attempt"
+          },
+          "command": {
+            "title": "Command",
+            "type": "string"
+          },
+          "diagnostic": {
+            "title": "Diagnostic",
+            "type": "boolean"
+          },
+          "role": {
+            "const": "verifier",
+            "default": "verifier",
+            "title": "Role",
+            "type": "string"
+          },
+          "runner": {
+            "const": "deterministic_subprocess",
+            "default": "deterministic_subprocess",
+            "title": "Runner",
+            "type": "string"
+          },
+          "timeout_seconds": {
+            "title": "Timeout Seconds",
+            "type": "integer"
+          },
+          "verification_id": {
+            "title": "Verification Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verification_id",
+          "command",
+          "timeout_seconds",
+          "diagnostic"
+        ],
+        "title": "VerificationStartedPayload",
+        "type": "object"
+      },
+      "WarningPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "char_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Char Limit"
+          },
+          "code": {
+            "const": "snapshot_truncated",
+            "title": "Code",
+            "type": "string"
+          },
+          "files_included": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Files Included"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "WarningPayload",
+        "type": "object"
+      },
+      "WithheldBlocker": {
+        "additionalProperties": false,
+        "properties": {
+          "finding": {
+            "$ref": "#/components/schemas/ReviewFinding"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          }
+        },
+        "required": [
+          "finding",
+          "missing"
+        ],
+        "title": "WithheldBlocker",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Adaptive multi-agent coding orchestration with inspectable traces",
+    "title": "SwarmOS",
+    "version": "0.3.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/config": {
+      "get": {
+        "operationId": "config_api_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Config"
+      }
+    },
+    "/api/demo-tasks": {
+      "get": {
+        "description": "The curated tasks a visitor may run. The only runs the public demo accepts.",
+        "operationId": "demo_tasks_api_demo_tasks_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoTasksResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Demo Tasks"
+      }
+    },
+    "/api/provider/models": {
+      "get": {
+        "description": "List models from the configured endpoint. No inference, no cost.",
+        "operationId": "provider_models_api_provider_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderModelsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Provider Models"
+      }
+    },
+    "/api/runs": {
+      "get": {
+        "description": "Newest-first run history. Lightweight: no plan details, review text,\nverification output, summary, or generated file contents; fetch\n/api/runs/{run_id} for those.",
+        "operationId": "list_runs_api_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "next_cursor from the previous page, to fetch older runs",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "next_cursor from the previous page, to fetch older runs",
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Runs"
+      },
+      "post": {
+        "operationId": "create_run_api_runs_post",
+        "parameters": [
+          {
+            "description": "Execute inline instead of in the background",
+            "in": "query",
+            "name": "wait",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Execute inline instead of in the background",
+              "title": "Wait",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Run"
+      }
+    },
+    "/api/runs/{run_id}": {
+      "get": {
+        "operationId": "get_run_api_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run"
+      }
+    },
+    "/api/runs/{run_id}/cancel": {
+      "post": {
+        "operationId": "cancel_run_api_runs__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Run"
+      }
+    },
+    "/api/runs/{run_id}/events": {
+      "get": {
+        "operationId": "get_run_events_api_runs__run_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return only events with seq greater than this cursor. Omit for the full trace. Poll with the previous response's last_seq.",
+            "in": "query",
+            "name": "after_seq",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return only events with seq greater than this cursor. Omit for the full trace. Poll with the previous response's last_seq.",
+              "title": "After Seq"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunEventsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run Events"
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    }
+  }
+}
