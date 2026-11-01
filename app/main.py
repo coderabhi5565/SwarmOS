@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
@@ -351,10 +351,44 @@ async def get_run_events(
     )
 
 
+def spa_file(dist: Path, path: str) -> Path | None:
+    """The file to answer a browser GET for ``path`` with, or None for a 404.
+
+    The dashboard routes on the client (/runs/<id>, /console, ...), so any
+    path that is not a built file gets index.html. Unknown API paths and
+    missing assets (anything with a file extension) stay 404s, so a missing
+    script is never answered with HTML. Paths cannot escape ``dist``.
+    """
+    if path == "api" or path.startswith("api/"):
+        return None
+    root = dist.resolve()
+    candidate = (root / path).resolve()
+    if candidate != root and root not in candidate.parents:
+        return None
+    if candidate.is_file():
+        return candidate
+    if "." in path.rsplit("/", 1)[-1]:
+        return None
+    return root / "index.html"
+
+
+def mount_frontend(target: FastAPI, dist: Path) -> None:
+    """Serve the built dashboard from ``dist`` with client-side routing."""
+    target.mount("/assets", StaticFiles(directory=str(dist / "assets")), name="assets")
+
+    @target.get("/{path:path}", include_in_schema=False)
+    async def frontend(path: str) -> FileResponse:
+        file = spa_file(dist, path)
+        if file is None:
+            raise HTTPException(status_code=404, detail="not found")
+        return FileResponse(file)
+
+
 # Serve the built React dashboard when it exists, so one process can run the MVP.
+# Registered last, so every API route takes precedence over the catch-all.
 _dist = Path(settings.frontend_dist)
 if (_dist / "index.html").is_file():
-    app.mount("/", StaticFiles(directory=str(_dist), html=True), name="ui")
+    mount_frontend(app, _dist)
 else:
 
     @app.get("/")
