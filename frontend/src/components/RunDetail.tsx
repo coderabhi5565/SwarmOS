@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { api } from "../api";
 import type { PlanStep, RunDetail as RunDetailData, TraceEvent } from "../types";
 import { isTerminal, providerLabel } from "../types";
 import { StatusBadge } from "./StatusBadge";
@@ -85,6 +87,41 @@ function downloadTrace(detail: RunDetailData): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+function CancelButton({ runId }: { runId: string }) {
+  const [state, setState] = useState<"idle" | "pending" | "error">("idle");
+  const [message, setMessage] = useState("");
+
+  async function cancel() {
+    setState("pending");
+    try {
+      await api.cancelRun(runId);
+      // The status flips to "cancelled" on the next poll; keep the button
+      // disabled until then.
+    } catch (cause) {
+      setState("error");
+      setMessage((cause as Error).message);
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="link-button"
+        onClick={cancel}
+        disabled={state === "pending"}
+      >
+        {state === "pending" ? "cancelling…" : "cancel run"}
+      </button>
+      {state === "error" && (
+        <span className="muted small" role="alert">
+          {message}
+        </span>
+      )}
+    </>
+  );
+}
+
 export function RunDetail({ detail }: { detail: RunDetailData }) {
   const run = detail.run;
   const usage = usageTotals(detail.events);
@@ -106,6 +143,7 @@ export function RunDetail({ detail }: { detail: RunDetailData }) {
             </span>
             <span className="muted mono small">{run.provider}</span>
             {live && <span className="live">live</span>}
+            {live && <CancelButton runId={run.run_id} />}
           </div>
           <h1>{run.goal}</h1>
         </div>

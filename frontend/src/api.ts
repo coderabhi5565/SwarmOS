@@ -40,4 +40,10 @@ export const api = {
     }),
 
   providerModels: () => request<ProviderModelsResult>("/api/provider/models"),
+
+  cancelRun: (runId: string) =>
+    request<{ run_id: string; status: string }>(
+      `/api/runs/${encodeURIComponent(runId)}/cancel`,
+      { method: "POST" },
+    ),
 };

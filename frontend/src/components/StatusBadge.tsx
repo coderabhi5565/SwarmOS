@@ -7,8 +7,10 @@ const LABELS: Record<RunStatus, string> = {
   completed_with_findings: "needs review",
   review_invalid: "invalid review",
   failed: "failed",
+  cancelled: "cancelled",
   budget_exceeded: "budget exceeded",
   limit_exceeded: "limit exceeded",
+  timed_out: "timed out",
 };
 
 export function StatusBadge({ status }: { status: RunStatus }) {

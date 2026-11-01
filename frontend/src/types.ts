@@ -5,8 +5,10 @@ export type RunStatus =
   | "completed_with_findings"
   | "review_invalid"
   | "failed"
+  | "cancelled"
   | "budget_exceeded"
-  | "limit_exceeded";
+  | "limit_exceeded"
+  | "timed_out";
 
 export type ProviderKind = "demo" | "local" | "remote" | "unknown";
 
@@ -176,8 +178,10 @@ const IS_TERMINAL: Record<RunStatus, boolean> = {
   completed_with_findings: true,
   review_invalid: true,
   failed: true,
+  cancelled: true,
   budget_exceeded: true,
   limit_exceeded: true,
+  timed_out: true,
 };
 
 export const TERMINAL = (Object.keys(IS_TERMINAL) as RunStatus[]).filter(
