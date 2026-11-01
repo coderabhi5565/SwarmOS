@@ -46,5 +46,9 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     css: false,
     restoreMocks: true,
+    // Page tests render the whole app in jsdom: about 2 s for a file's first
+    // render on an idle machine, past Vitest's 5 s default under load. Unit
+    // tests still finish in milliseconds.
+    testTimeout: 20_000,
   },
 });

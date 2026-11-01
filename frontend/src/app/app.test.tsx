@@ -1,9 +1,7 @@
-import { render, screen, within } from "@testing-library/react";
-import { createMemoryRouter, RouterProvider } from "react-router";
+import { screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DemoTasks, Health, RunList } from "@/api/types";
-import { Providers } from "@/app/providers";
-import { routes } from "@/app/router";
+import { renderAt } from "@/test/render";
 
 const health: Health = {
   status: "ok",
@@ -87,15 +85,6 @@ function stubApi(responses: Record<string, unknown>) {
       if (body === undefined) return new Response(JSON.stringify({ detail: "not found" }), { status: 404 });
       return new Response(JSON.stringify(body), { status: 200 });
     }),
-  );
-}
-
-function renderAt(path: string) {
-  const router = createMemoryRouter(routes, { initialEntries: [path] });
-  return render(
-    <Providers>
-      <RouterProvider router={router} />
-    </Providers>,
   );
 }
 
