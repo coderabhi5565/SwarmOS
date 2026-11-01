@@ -154,6 +154,10 @@ class DemoProvider:
     def _review(payload: dict) -> dict:
         files: dict[str, str] = payload.get("files") or {}
         target = files.get("target.py", "")
+        # Blockers carry the evidence the review guard requires (a line or
+        # expression, a quoted criterion, expected versus actual), as the
+        # reviewer prompt demands of a real model.
+        criterion = DemoProvider._implementation_criterion(payload)
         if "def normalize_tags" not in target:
             return {
                 "verdict": "request_changes",
@@ -163,11 +167,19 @@ class DemoProvider:
                         "severity": "blocker",
                         "step_id": "draft_implementation",
                         "file": "target.py",
-                        "message": "normalize_tags is missing from target.py.",
+                        "message": (
+                            "target.py:1 has no `def normalize_tags(tags)`, so "
+                            f'"{criterion}" cannot hold.'
+                        ),
                     }
                 ],
             }
         if "NotImplementedError" in target:
+            line = next(
+                index
+                for index, text in enumerate(target.splitlines(), start=1)
+                if "NotImplementedError" in text
+            )
             return {
                 "verdict": "request_changes",
                 "rationale": "The stub still raises NotImplementedError.",
@@ -176,7 +188,11 @@ class DemoProvider:
                         "severity": "blocker",
                         "step_id": "draft_implementation",
                         "file": "target.py",
-                        "message": "Replace the NotImplementedError stub with an implementation.",
+                        "message": (
+                            f'target.py:{line} violates "{criterion}": '
+                            "normalize_tags([]) is expected to return [], but the "
+                            "actual call raises NotImplementedError."
+                        ),
                     }
                 ],
             }
@@ -185,3 +201,13 @@ class DemoProvider:
             "rationale": "The implementation matches the acceptance criteria and the test contract.",
             "findings": [],
         }
+
+    @staticmethod
+    def _implementation_criterion(payload: dict) -> str:
+        """The plan criterion a blocker on target.py cites, quoted exactly."""
+        steps = (payload.get("plan") or {}).get("steps") or []
+        ordered = sorted(steps, key=lambda step: step.get("id") != "draft_implementation")
+        for step in ordered:
+            for criterion in step.get("acceptance_criteria") or []:
+                return str(criterion)
+        return "the tests pass"

@@ -17,5 +17,11 @@ class VerificationAgent:
         self.command = command
         self.timeout_seconds = timeout_seconds
 
-    def verify(self, workspace: Workspace) -> VerificationResult:
-        return workspace.run_command(self.command, self.timeout_seconds)
+    def verify(
+        self, workspace: Workspace, timeout_seconds: int | None = None
+    ) -> VerificationResult:
+        """Run the command; ``timeout_seconds`` may only tighten the configured one."""
+        timeout = self.timeout_seconds
+        if timeout_seconds is not None:
+            timeout = max(1, min(timeout, timeout_seconds))
+        return workspace.run_command(self.command, timeout)

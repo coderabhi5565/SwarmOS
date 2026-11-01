@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from dataclasses import dataclass
 
 from app.config import Settings
 from app.demo_tasks import DemoTask, DemoTaskError, resolve_demo_task
@@ -38,11 +39,20 @@ def _demo_limits(requested: Limits, recipe: Limits) -> Limits:
     )
 
 
+@dataclass
+class _ActiveRun:
+    task: asyncio.Task
+    # None until ``execute`` has started and built the runtime.
+    runtime: RunRuntime | None = None
+    reason: str | None = None
+
+
 class RunService:
     def __init__(self, settings: Settings, store: RunStore) -> None:
         self.settings = settings
         self.store = store
         self._tasks: set[asyncio.Task] = set()
+        self._active: dict[str, _ActiveRun] = {}
 
     def resolve_policy(self, requested: str | None) -> str:
         policy = (requested or self.settings.model_policy or "config").strip().lower()
@@ -114,6 +124,7 @@ class RunService:
             self.execute(record, provider, request.files, policy, demo)
         )
         self._tasks.add(task)
+        self._active[record.run_id] = _ActiveRun(task=task)
         task.add_done_callback(self._tasks.discard)
         return record
 
@@ -152,20 +163,31 @@ class RunService:
             {} if demo is not None else files, self.settings.sample_project
         )
         started = time.perf_counter()
+        task = asyncio.current_task()
+        if task is not None:
+            active = self._active.setdefault(record.run_id, _ActiveRun(task=task))
+            active.runtime = runtime
         try:
             result = await Orchestrator(runtime).run(running)
             self.store.save_run(result.record)
             return result.record
         except asyncio.CancelledError:
-            failed = running.model_copy(
+            active = self._active.get(record.run_id)
+            reason = (active.reason if active else None) or "run cancelled before completion"
+            runtime.emit("run_finished", f"Run finished: cancelled ({reason})",
+                         status="cancelled", error=reason)
+            # Keep the progress persisted so far (plan, calls, review) and only
+            # change what the cancellation changed.
+            latest = self.store.get_run(record.run_id) or running
+            cancelled = latest.model_copy(
                 update={
-                    "status": "failed",
-                    "error": "run cancelled before completion",
+                    "status": "cancelled",
+                    "error": reason,
                     "duration_ms": int((time.perf_counter() - started) * 1000),
                     "updated_at": utc_now(),
                 }
             )
-            self.store.save_run(failed)
+            self.store.save_run(cancelled)
             raise
         except Exception as exc:  # noqa: BLE001 - never leave a run stuck in "running"
             runtime.emit("failure", "Run crashed", error=f"{type(exc).__name__}: {exc}")
@@ -180,9 +202,51 @@ class RunService:
             self.store.save_run(failed)
             return failed
         finally:
+            self._active.pop(record.run_id, None)
             runtime.cleanup()
 
+    def is_active(self, run_id: str) -> bool:
+        return run_id in self._active
+
+    def cancel(self, run_id: str, reason: str = "cancelled on request") -> bool:
+        """Cancel an in-flight run in this process. Returns False if not active.
+
+        The orchestration task is cancelled and the verification process tree,
+        which runs on a worker thread, is killed so it cannot outlive the run.
+        """
+        active = self._active.get(run_id)
+        if active is None or active.task.done():
+            return False
+        active.reason = reason
+        if active.runtime is not None:
+            active.runtime.workspace.kill_active_process()
+        else:
+            # Not started yet: its body will never run, so record the outcome here.
+            self._active.pop(run_id, None)
+            record = self.store.get_run(run_id)
+            if record is not None:
+                self.store.save_run(
+                    record.model_copy(
+                        update={"status": "cancelled", "error": reason, "updated_at": utc_now()}
+                    )
+                )
+        active.task.cancel()
+        return True
+
     async def drain(self) -> None:
-        """Wait for in-flight background runs (used by tests and shutdown)."""
+        """Wait for in-flight background runs (used by tests)."""
         if self._tasks:
             await asyncio.gather(*list(self._tasks), return_exceptions=True)
+
+    async def shutdown(self, grace_seconds: float = 5.0) -> None:
+        """Let background runs finish briefly, then cancel the rest.
+
+        Runs are in-process, so a stopped server cannot finish them. Cancelling
+        records an honest terminal state instead of leaving them "running".
+        """
+        pending = [task for task in self._tasks if not task.done()]
+        if pending:
+            await asyncio.wait(pending, timeout=grace_seconds)
+        for run_id in list(self._active):
+            self.cancel(run_id, reason="server shut down before the run finished")
+        await self.drain()

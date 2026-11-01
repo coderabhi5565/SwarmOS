@@ -21,6 +21,9 @@ Routing rules are deliberately explicit and small:
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import math
 import shutil
 import time
 from dataclasses import dataclass
@@ -54,7 +57,9 @@ from app.state import CodeStepPayload, RunHalt, StepFailure, SwarmState, initial
 
 _MAX_FILES_PER_STEP = 20
 _MAX_FILE_CHARS = 200_000
-_HALTING = {"budget_exceeded", "limit_exceeded"}
+_HALTING = {"budget_exceeded", "limit_exceeded", "timed_out"}
+# Tolerance when deciding whether the run deadline caused a timeout.
+_DEADLINE_SLACK_SECONDS = 1.0
 
 
 @dataclass
@@ -75,6 +80,14 @@ class Orchestrator:
             runtime.settings.verification_command,
             runtime.settings.verification_timeout_seconds,
         )
+        # With parallel_coding off, a wave is still dispatched as one batch (so
+        # routing and revision rounds are unchanged), but its coding calls run
+        # one at a time.
+        self._coding_slot = (
+            None if runtime.limits.parallel_coding else asyncio.Semaphore(1)
+        )
+        self._record: RunRecord | None = None
+        self._snapshot_truncated = False
         self.graph = self._build()
 
     # ------------------------------------------------------------------
@@ -90,7 +103,8 @@ class Orchestrator:
             started_at=time.perf_counter(),
             started_wall=utc_now(),
         )
-        state["workspace"] = self.runtime.workspace.snapshot()
+        self._record = record
+        state["workspace"] = self._snapshot()
 
         self.runtime.emit(
             "run_started",
@@ -100,6 +114,7 @@ class Orchestrator:
             provider_warning=self.runtime.provider_warning,
             limits=self.runtime.limits.model_dump(),
             files=sorted(state["workspace"].keys()),
+            snapshot_truncated=self._snapshot_truncated,
         )
         started = time.perf_counter()
 
@@ -150,6 +165,43 @@ class Orchestrator:
 
     def _provider_kind(self) -> str:
         return self.runtime.settings.provider_kind
+
+    def _snapshot(self) -> dict[str, str]:
+        """Snapshot the canonical workspace and report the first truncation."""
+        files = self.runtime.workspace.snapshot()
+        if self.runtime.workspace.last_truncated and not self._snapshot_truncated:
+            self._snapshot_truncated = True
+            self.runtime.emit(
+                "warning",
+                "Workspace snapshot truncated; agents see a partial workspace",
+                char_limit=self.runtime.workspace.char_limit,
+                files_included=len(files),
+            )
+        return files
+
+    def _save_progress(self, **fields: object) -> None:
+        """Persist a running snapshot of the record so clients see live progress.
+
+        Only the trace used to update while a run was in flight; the record kept
+        its queued values (no plan, zero calls) until the run finished.
+        """
+        store = self.runtime.trace.store
+        if store is None or self._record is None:
+            return
+        self._record = self._record.model_copy(
+            update={
+                "status": "running",
+                "provider_kind": self._provider_kind(),
+                "model_policy": self.runtime.model_policy,
+                "models_by_role": self._models_by_role(),
+                "agent_calls": self.runtime.ledger.calls,
+                "cost_usd": round(self.runtime.ledger.spent_usd, 8),
+                "duration_ms": int(self.runtime.ledger.elapsed_seconds * 1000),
+                "updated_at": utc_now(),
+                **fields,
+            }
+        )
+        store.save_run(self._record)
 
     def _models_by_role(self) -> dict[str, str]:
         if self.runtime.seeded_plan is not None:
@@ -216,9 +268,10 @@ class Orchestrator:
                 waves=[[step.id for step in wave] for wave in plan.waves()],
                 assumptions=plan.assumptions,
             )
+            self._save_progress(plan=plan)
             return {
                 "plan": plan,
-                "workspace": self.runtime.workspace.snapshot(),
+                "workspace": self._snapshot(),
                 "stage": "coding",
             }
 
@@ -255,7 +308,7 @@ class Orchestrator:
         plan = result.output
         updates.update(
             plan=plan,
-            workspace=self.runtime.workspace.snapshot(),
+            workspace=self._snapshot(),
             stage="coding",
         )
         self.runtime.emit(
@@ -266,6 +319,7 @@ class Orchestrator:
             waves=[[step.id for step in wave] for wave in plan.waves()],
             assumptions=plan.assumptions,
         )
+        self._save_progress(plan=plan)
         return updates
 
     async def _code_step(self, state: CodeStepPayload) -> dict:
@@ -286,14 +340,15 @@ class Orchestrator:
         checkout = Workspace(checkout_dir)
         checkout.seed(payload.files)
         try:
-            result = await self.runner.run(
-                self.coder,
-                payload,
-                step_id=step.id,
-                tier=state.get("model_tier", "fast"),
-                attempt=attempt,
-                max_attempts=1,
-            )
+            async with self._coding_slot or contextlib.nullcontext():
+                result = await self.runner.run(
+                    self.coder,
+                    payload,
+                    step_id=step.id,
+                    tier=state.get("model_tier", "fast"),
+                    attempt=attempt,
+                    max_attempts=1,
+                )
         except LimitExceeded as exc:
             return {
                 "halt": [RunHalt(status=exc.status, error=str(exc))],
@@ -440,7 +495,7 @@ class Orchestrator:
         accepted = [step_id for step_id in new_coded if step_id not in conflicts]
         completed = list(dict.fromkeys([*(state.get("completed_steps") or []), *accepted]))
 
-        workspace = self.runtime.workspace.snapshot()
+        workspace = self._snapshot()
         self.runtime.emit(
             "routing_decision",
             f"Merged {applied} file change(s) into the workspace",
@@ -451,6 +506,7 @@ class Orchestrator:
             rejected_steps=sorted(conflicts),
             files=sorted({change.path for change in delta if change.path in workspace}),
         )
+        self._save_progress(changed_files=sorted({change.path for change in changes}))
         return {
             "workspace": workspace,
             "completed_steps": completed,
@@ -469,7 +525,7 @@ class Orchestrator:
             goal=state["goal"],
             plan=plan,
             changes=list(state.get("changes", []) or []),
-            files=self.runtime.workspace.snapshot(),
+            files=self._snapshot(),
         )
         try:
             result = await self.runner.run(
@@ -490,6 +546,7 @@ class Orchestrator:
 
         review = result.output
         updates["review"] = review
+        self._save_progress(review=review)
         evidence = validate_review(
             review,
             acceptance_criteria=[
@@ -537,22 +594,65 @@ class Orchestrator:
             return updates
 
         if review.verdict == "request_changes":
+            # Unsupported blockers never reach the coder: there is nothing in
+            # them to act on. The rest of the review still drives the revision.
+            withheld = {id(check.finding) for check in evidence.unsupported_blockers}
+            actionable = [f for f in review.findings if id(f) not in withheld]
             rejections = int(state.get("review_rejections", 0) or 0) + 1
             updates["review_rejections"] = rejections
-            updates["pending_review_steps"] = self._review_targets(plan, review)
+            updates["revision_findings"] = actionable
+            updates["pending_review_steps"] = self._review_targets(plan, actionable)
             self.runtime.emit(
                 "revision",
                 "Review requested changes",
-                findings=[finding.model_dump(mode="json") for finding in review.findings],
+                findings=[finding.model_dump(mode="json") for finding in actionable],
+                withheld_blockers=[
+                    {
+                        "finding": check.finding.model_dump(mode="json"),
+                        "missing": list(check.missing),
+                    }
+                    for check in evidence.unsupported_blockers
+                ],
                 review_rejection=rejections,
                 steps=updates["pending_review_steps"],
             )
         else:
             updates["pending_review_steps"] = []
+            updates["revision_findings"] = []
         return updates
 
+    async def _run_verifier(self) -> tuple[VerificationResult | None, bool]:
+        """Run verification off the event loop, within the run's deadline.
+
+        Returns ``(result, deadline_reached)``. The result is None when no time
+        was left to start it. A blocking subprocess on the event loop would
+        freeze every other request the API is serving.
+        """
+        remaining = self.runtime.ledger.remaining_seconds
+        if remaining <= 0:
+            return None, True
+        result = await asyncio.to_thread(
+            self.verifier.verify, self.runtime.workspace, math.ceil(remaining)
+        )
+        deadline_reached = (
+            result.exit_code == 124
+            and self.runtime.ledger.remaining_seconds <= _DEADLINE_SLACK_SECONDS
+        )
+        return result, deadline_reached
+
+    def _timed_out(self, during: str) -> RunHalt:
+        return RunHalt(
+            status="timed_out",
+            error=(
+                f"wall-clock limit of {self.runtime.limits.max_wall_seconds}s "
+                f"reached {during}"
+            ),
+        )
+
     async def _verify(self, state: SwarmState) -> dict:
-        verification = self.verifier.verify(self.runtime.workspace)
+        verification, deadline_reached = await self._run_verifier()
+        if verification is None:
+            return {"halt": [self._timed_out("before verification")], "stage": "verification"}
         attempts = int(state.get("verification_attempts", 0) or 0) + 1
         self.runtime.emit(
             "verification",
@@ -577,11 +677,15 @@ class Orchestrator:
                 stdout_tail=verification.stdout_tail,
                 stderr_tail=verification.stderr_tail,
             )
-        return {
+        self._save_progress(verification=verification)
+        updates: dict = {
             "verification": verification,
             "verification_attempts": attempts,
             "stage": "verification",
         }
+        if deadline_reached:
+            updates["halt"] = [self._timed_out("during verification")]
+        return updates
 
     async def _escalate(self, state: SwarmState) -> dict:
         if not self.runtime.escalation_available:
@@ -658,7 +762,7 @@ class Orchestrator:
         # approving the changes, changing the status, or re-entering coding.
         diagnostic = False
         if status in {"completed_with_findings", "review_invalid"} and verification is None:
-            verification = self._diagnostic_verification()
+            verification = await self._diagnostic_verification()
             diagnostic = True
 
         summary = self._summary(
@@ -698,27 +802,31 @@ class Orchestrator:
             "verification": verification,
         }
 
-    def _diagnostic_verification(self) -> VerificationResult:
+    async def _diagnostic_verification(self) -> VerificationResult:
         """Run the real test command for a rejected run and record the evidence.
 
         This deliberately does not touch the verdict, status, or repair routing.
-        If execution is disabled, the command is not allowed, or the verifier
-        raises, the failure is recorded as a failed verification with the reason
-        rather than being reported as a pass or silently omitted.
+        If execution is disabled, the command is not allowed, no wall-clock time
+        is left, or the verifier raises, the failure is recorded as a failed
+        verification with the reason rather than being reported as a pass or
+        silently omitted.
         """
+        reason: str | None = None
+        result: VerificationResult | None = None
         try:
-            result = self.verifier.verify(self.runtime.workspace)
+            result, _ = await self._run_verifier()
+            if result is None:
+                reason = "the run's wall-clock limit was reached before it could start"
         except Exception as exc:  # noqa: BLE001 - never lose the diagnostic reason
+            reason = f"{type(exc).__name__}: {exc}"
+        if result is None:
             result = VerificationResult(
                 passed=False,
                 command=self.runtime.settings.verification_command,
                 exit_code=127,
                 duration_ms=0,
                 stdout_tail="",
-                stderr_tail=(
-                    "diagnostic verification could not run: "
-                    f"{type(exc).__name__}: {exc}"
-                ),
+                stderr_tail=f"diagnostic verification could not run: {reason}",
                 workspace_files=self.runtime.workspace.file_list(),
             )
         self.runtime.emit(
@@ -812,16 +920,11 @@ class Orchestrator:
         ):
             plan = state["plan"]
             steps = self._independent_batch(plan, pending)
-            findings = {
-                finding.step_id: [finding]
-                for finding in review.findings
-                if finding.step_id
-            }
             if steps:
                 return self._dispatch(
                     state,
                     steps,
-                    findings_by_step=findings,
+                    findings_by_step=self._findings_by_step(plan, state, steps),
                     reason="review requested changes",
                     mode="revision",
                 )
@@ -867,16 +970,11 @@ class Orchestrator:
         pending = list(state.get("pending_review_steps", []) or [])
         if review is not None and review.verdict == "request_changes" and pending:
             steps = self._independent_batch(plan, pending)
-            findings = {
-                finding.step_id: [finding]
-                for finding in review.findings
-                if finding.step_id
-            }
             if steps:
                 return self._dispatch(
                     state,
                     steps,
-                    findings_by_step=findings,
+                    findings_by_step=self._findings_by_step(plan, state, steps),
                     reason="escalated revision",
                     mode="revision",
                 )
@@ -959,12 +1057,31 @@ class Orchestrator:
         wanted = set(step_ids)
         return [step for step in plan.steps if step.id in wanted]
 
-    def _review_targets(self, plan, review) -> list[str]:
+    def _review_targets(self, plan, findings: list[ReviewFinding]) -> list[str]:
         known = {step.id for step in plan.steps}
-        targeted = [finding.step_id for finding in review.findings if finding.step_id in known]
+        targeted = [finding.step_id for finding in findings if finding.step_id in known]
         if targeted:
             return list(dict.fromkeys(targeted))
         return [step.id for step in plan.steps]
+
+    def _findings_by_step(
+        self, plan, state: SwarmState, steps: list[PlanStep]
+    ) -> dict[str, list[ReviewFinding]]:
+        """Every actionable finding for each revised step, in review order.
+
+        A finding that names no known step applies to every step being revised,
+        so it is never silently dropped.
+        """
+        known = {step.id for step in plan.steps}
+        findings: list[ReviewFinding] = list(state.get("revision_findings") or [])
+        return {
+            step.id: [
+                finding
+                for finding in findings
+                if finding.step_id == step.id or finding.step_id not in known
+            ]
+            for step in steps
+        }
 
     def _independent_batch(self, plan, step_ids: list[str]) -> list[PlanStep]:
         """Pick the earliest wave that intersects ``step_ids``.
@@ -1053,7 +1170,7 @@ class Orchestrator:
                 int(state.get("review_rejections", 0) or 0) if mode == "revision" else 0
             ),
             steps=[step.id for step in steps],
-            parallel=len(steps) > 1,
+            parallel=len(steps) > 1 and self._coding_slot is None,
             tier=state.get("model_tier", "fast"),
             attempts={step.id: self._attempts(state, step.id) + 1 for step in steps},
         )
@@ -1111,6 +1228,12 @@ class Orchestrator:
                 )
         else:
             lines.append("Verification: not run")
+        if self._snapshot_truncated:
+            lines.append(
+                "Workspace snapshot: truncated at "
+                f"{self.runtime.workspace.char_limit} characters; agents saw a "
+                "partial workspace"
+            )
         if unresolved:
             lines.append(
                 "Unresolved: "

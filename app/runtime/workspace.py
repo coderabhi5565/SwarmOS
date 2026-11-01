@@ -18,6 +18,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -80,6 +81,10 @@ class Workspace:
         self.execution_enabled = execution_enabled
         self.allowed_commands = allowed_commands or {"python", "python3", "py", "pytest"}
         self.last_truncated = False
+        # The verification process currently running, if any. Commands run on a
+        # worker thread, so cancellation kills it from another thread.
+        self._active_process: subprocess.Popen | None = None
+        self._process_lock = threading.Lock()
 
     # -- creation ---------------------------------------------------------
     @classmethod
@@ -265,6 +270,8 @@ class Workspace:
                 command, f"could not start verification command: {exc}"
             )
 
+        with self._process_lock:
+            self._active_process = process
         try:
             stdout, stderr = process.communicate(timeout=timeout_seconds)
             exit_code = process.returncode
@@ -276,6 +283,9 @@ class Workspace:
             exit_code = 124
             timed_out = True
             stderr = (stderr or "") + f"\nverification timed out after {timeout_seconds}s"
+        finally:
+            with self._process_lock:
+                self._active_process = None
 
         duration_ms = int((time.perf_counter() - started) * 1000)
         passed_count = _count(_PASSED, stdout)
@@ -310,6 +320,15 @@ class Workspace:
             stderr_tail=message,
             workspace_files=self.file_list(),
         )
+
+    def kill_active_process(self) -> bool:
+        """Kill the running verification process tree, if there is one."""
+        with self._process_lock:
+            process = self._active_process
+        if process is None:
+            return False
+        self._kill_tree(process)
+        return True
 
     @staticmethod
     def _kill_tree(process: subprocess.Popen) -> None:

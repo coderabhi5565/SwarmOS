@@ -17,6 +17,7 @@ from app.models import (
     FileChange,
     ModelTier,
     Plan,
+    ReviewFinding,
     ReviewOutput,
     RunStatus,
     VerificationResult,
@@ -33,7 +34,7 @@ class StepFailure(BaseModel):
 class RunHalt(BaseModel):
     """A reduced channel so parallel branches can all request a stop safely."""
 
-    status: Literal["budget_exceeded", "limit_exceeded"]
+    status: Literal["budget_exceeded", "limit_exceeded", "timed_out"]
     error: str
 
 
@@ -86,6 +87,9 @@ class SwarmState(TypedDict, total=False):
     # --- review / verification (single-writer)
     review: ReviewOutput | None
     pending_review_steps: list[str]
+    # The findings a revision acts on: the review's findings minus any blocker
+    # the evidence guard found unsupported.
+    revision_findings: list[ReviewFinding]
     # Routing counter: how many review verdicts requested changes. It drives the
     # ``max_revisions`` limit and is not the number reported as revisions.
     review_rejections: int
@@ -137,6 +141,7 @@ def initial_state(
         merged_coded=0,
         review=None,
         pending_review_steps=[],
+        revision_findings=[],
         review_rejections=0,
         revisions=0,
         verification=None,

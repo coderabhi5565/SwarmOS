@@ -8,7 +8,14 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from app.models import Plan, ReviewOutput, RunRecord, TraceEvent, VerificationResult
+from app.models import (
+    Plan,
+    ReviewOutput,
+    RunRecord,
+    TraceEvent,
+    VerificationResult,
+    utc_now,
+)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
@@ -189,6 +196,54 @@ class RunStore:
                 ),
             )
             self._conn.commit()
+
+    def recover_interrupted(self, reason: str) -> list[str]:
+        """Mark runs left queued or running by a stopped process as failed.
+
+        Runs execute in-process, so at startup nothing can still be running
+        them. This assumes a single API process per database; a multi-worker
+        deployment needs a durable job queue that owns run state instead.
+        """
+        now = utc_now()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT run_id FROM runs WHERE status IN ('queued', 'running')"
+            ).fetchall()
+            run_ids = [row["run_id"] for row in rows]
+            for run_id in run_ids:
+                self._conn.execute(
+                    "UPDATE runs SET status = 'failed', error = ?, updated_at = ? "
+                    "WHERE run_id = ?",
+                    (reason, now, run_id),
+                )
+                (last_seq,) = self._conn.execute(
+                    "SELECT COALESCE(MAX(seq), 0) FROM trace_events WHERE run_id = ?",
+                    (run_id,),
+                ).fetchone()
+                event = TraceEvent(
+                    run_id=run_id,
+                    seq=last_seq + 1,
+                    kind="run_finished",
+                    message="Run finished: failed (interrupted)",
+                    payload={"status": "failed", "error": reason, "recovered": True},
+                )
+                data = event.model_dump(mode="json")
+                self._conn.execute(
+                    "INSERT OR IGNORE INTO trace_events "
+                    "(event_id, run_id, seq, at, kind, message, payload_json) "
+                    "VALUES (?,?,?,?,?,?,?)",
+                    (
+                        data["event_id"],
+                        run_id,
+                        data["seq"],
+                        data["at"],
+                        data["kind"],
+                        data["message"],
+                        json.dumps(data["payload"]),
+                    ),
+                )
+            self._conn.commit()
+        return run_ids
 
     # ------------------------------------------------------------------
     def get_run(self, run_id: str) -> RunRecord | None:

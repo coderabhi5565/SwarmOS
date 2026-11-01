@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from app.config import PROJECT_ROOT
 from app.config import settings as base_settings
 from app.demo_tasks import resolve_demo_task
 from app.models import Limits, RunRecord
@@ -148,6 +149,18 @@ def make_settings(tmp_path: Path, **overrides):
         "strong_output_rate": 0.0,
         "role_models": "",
         "model_policy": "config",
+        # Safety, execution and path settings are pinned too: a local .env must
+        # not be able to require a token, disable execution, or swap the sample.
+        "api_token": "",
+        "allow_remote_bind": False,
+        "allow_repo_checkout": False,
+        "execution_enabled": True,
+        "verification_command": "python -m pytest -q",
+        "allowed_commands": "python,python3,py,pytest",
+        "snapshot_char_limit": 400_000,
+        "json_mode": True,
+        "retry_backoff_seconds": 0.0,
+        "sample_project": PROJECT_ROOT / "samples" / "sample_project",
     }
     values.update(overrides)
     return replace(base_settings, **values)

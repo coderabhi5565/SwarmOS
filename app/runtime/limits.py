@@ -28,7 +28,9 @@ class CallLimitExceeded(LimitExceeded):
 
 
 class DeadlineExceeded(LimitExceeded):
-    status = "limit_exceeded"
+    """The run's wall-clock limit was reached; reported as ``timed_out``."""
+
+    status = "timed_out"
 
 
 @dataclass
@@ -56,6 +58,10 @@ class BudgetLedger:
     @property
     def elapsed_seconds(self) -> float:
         return time.monotonic() - self.started_monotonic
+
+    @property
+    def remaining_seconds(self) -> float:
+        return max(0.0, self.deadline_monotonic - time.monotonic())
 
     async def reserve(self, estimate_usd: float) -> float:
         """Reserve budget for one call and return the reserved amount."""
@@ -100,9 +106,7 @@ class BudgetLedger:
             "denied": self.denied,
             "monetary_enforced": self.monetary_enforced,
             "elapsed_seconds": round(self.elapsed_seconds, 3),
-            "remaining_seconds": round(
-                max(0.0, self.deadline_monotonic - time.monotonic()), 3
-            ),
+            "remaining_seconds": round(self.remaining_seconds, 3),
         }
 
 

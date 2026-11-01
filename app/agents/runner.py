@@ -22,10 +22,15 @@ from app.agents.base import Agent, AgentOutputError
 from app.config import ModelProfile
 from app.models import AgentInvocation, ModelTier, utc_now
 from app.providers.base import ProviderError
-from app.runtime.limits import LimitExceeded
+from app.runtime.limits import DeadlineExceeded, LimitExceeded
 from app.runtime.runtime import RunRuntime
 
 _MAX_BACKOFF_SECONDS = 8.0
+_DEADLINE_SLACK_SECONDS = 0.05
+
+
+class _CallOutlivedDeadline(Exception):
+    """Internal: a provider call was cut off by the run's wall-clock limit."""
 
 
 @dataclass
@@ -103,9 +108,36 @@ class AgentRunner:
             started = time.perf_counter()
 
             try:
-                response = await self.runtime.provider.complete(
+                response = await self._complete_before_deadline(
                     agent.build_request(payload, profile.model, repair_note)
                 )
+            except _CallOutlivedDeadline:
+                await self.runtime.ledger.release(reserved)
+                failed = invocation.model_copy(
+                    update={
+                        "status": "failed",
+                        "finished_at": utc_now(),
+                        "latency_ms": int((time.perf_counter() - started) * 1000),
+                        "error": "abandoned: the run's wall-clock limit was reached mid-call",
+                        "error_class": "timeout",
+                    }
+                )
+                result.invocations.append(failed)
+                self._emit_invocation(failed)
+                exc = DeadlineExceeded(
+                    f"wall-clock limit of {self.runtime.limits.max_wall_seconds}s "
+                    f"exceeded during a {agent.role} call"
+                )
+                self.runtime.emit(
+                    "budget",
+                    f"Call abandoned: {exc}",
+                    role=agent.role,
+                    step_id=step_id,
+                    reason=str(exc),
+                    category=exc.status,
+                    ledger=self.runtime.ledger.snapshot(),
+                )
+                raise exc from None
             except ProviderError as exc:
                 await self.runtime.ledger.release(reserved)
                 failed = invocation.model_copy(
@@ -236,6 +268,23 @@ class AgentRunner:
         return result
 
     # ------------------------------------------------------------------
+    async def _complete_before_deadline(self, request):
+        """Run one provider call, but never past the run's wall-clock limit.
+
+        The ledger only refuses calls that *start* late; without this cap a
+        call started just before the deadline could run for the full provider
+        timeout.
+        """
+        try:
+            return await asyncio.wait_for(
+                self.runtime.provider.complete(request),
+                timeout=self.runtime.ledger.remaining_seconds,
+            )
+        except TimeoutError:
+            if self.runtime.ledger.remaining_seconds > _DEADLINE_SLACK_SECONDS:
+                raise  # the provider's own timeout, not the run deadline
+            raise _CallOutlivedDeadline from None
+
     def _backoff(self, offset: int, retry_after: float | None) -> float:
         if retry_after is not None:
             return min(_MAX_BACKOFF_SECONDS, max(0.0, retry_after))

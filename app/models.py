@@ -23,8 +23,10 @@ RunStatus = Literal[
     "completed_with_findings",
     "review_invalid",
     "failed",
+    "cancelled",
     "budget_exceeded",
     "limit_exceeded",
+    "timed_out",
 ]
 
 _STEP_ID = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
@@ -295,6 +297,7 @@ TraceKind = Literal[
     "budget",
     "provider",
     "repair",
+    "warning",
     "run_finished",
 ]
 

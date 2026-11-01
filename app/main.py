@@ -22,12 +22,13 @@ from app.store import RunStore
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     store = RunStore(settings.db_path)
+    store.recover_interrupted("interrupted: the server stopped before this run finished")
     app.state.store = store
     app.state.service = RunService(settings, store)
     try:
         yield
     finally:
-        await app.state.service.drain()
+        await app.state.service.shutdown()
         store.close()
 
 
@@ -183,6 +184,22 @@ async def list_runs(limit: int = Query(default=25, ge=1, le=200)) -> dict:
 @app.get("/api/runs/{run_id}", response_model=RunDetail)
 async def get_run(run_id: str) -> RunDetail:
     return _detail(run_id)
+
+
+@app.post("/api/runs/{run_id}/cancel", status_code=202)
+async def cancel_run(run_id: str) -> dict:
+    record = _store().get_run(run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"run {run_id} not found")
+    if _service().cancel(run_id):
+        return {"run_id": run_id, "status": "cancelling"}
+    if record.status not in {"queued", "running"}:
+        raise HTTPException(
+            status_code=409, detail=f"run {run_id} already finished: {record.status}"
+        )
+    raise HTTPException(
+        status_code=409, detail=f"run {run_id} is not active in this server process"
+    )
 
 
 @app.get("/api/runs/{run_id}/events")
