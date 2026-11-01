@@ -115,7 +115,7 @@ describe("overview", () => {
     expect(run).toHaveAttribute("href", "/runs/run_abc123");
     expect(within(run).getByText("invalid review")).toBeInTheDocument();
 
-    expect(await screen.findAllByText(/public demo · demo/)).not.toHaveLength(0);
+    expect(await screen.findAllByText(/public demo · demo fixture/)).not.toHaveLength(0);
   });
 
   it("reports a sleeping backend as waking, not failed", async () => {

@@ -1,4 +1,5 @@
 import { useHealth } from "@/api/queries";
+import { describeBackend } from "@/domain/backend";
 import { cn } from "@/lib/utils";
 
 /**
@@ -17,8 +18,9 @@ export function BackendStatus({ className }: { className?: string }) {
         ? "waking"
         : "checking";
 
+  const backend = health.data ? describeBackend(health.data) : null;
   const label = {
-    online: health.data ? `${health.data.mode === "public_demo" ? "public demo" : "local"} · ${health.data.provider_kind}` : "online",
+    online: backend ? `${backend.mode} · ${backend.provider}` : "online",
     offline: "API unreachable",
     waking: "waking server…",
     checking: "connecting…",

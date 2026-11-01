@@ -5,6 +5,7 @@ import type { DemoTask, RunSummary } from "@/api/types";
 import { RunStatusBadge } from "@/components/run/RunStatusBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { describeBackend } from "@/domain/backend";
 
 const AGENTS = [
   { role: "Planner", tone: "bg-agent-planner", detail: "Turns a goal into a dependency-aware plan." },
@@ -128,9 +129,10 @@ function RecentRun({ run }: { run: RunSummary }) {
 function BackendCard() {
   const health = useHealth();
   if (!health.data) return null;
+  const backend = describeBackend(health.data);
   const facts = [
-    ["Mode", health.data.mode],
-    ["Provider", health.data.provider_kind],
+    ["Mode", backend.mode],
+    ["Provider", backend.provider],
     ["Version", health.data.version],
     ["Auth", health.data.auth_required ? "token required" : "open"],
   ];
