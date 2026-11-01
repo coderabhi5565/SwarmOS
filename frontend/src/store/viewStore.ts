@@ -7,13 +7,16 @@
  * frame through getState() without re-rendering the canvas.
  */
 import { create } from "zustand";
-import type { TraceEventPayloads } from "@/api/types";
+import { PLANNER_ID, REVIEWER_ID, RUNNER_ID, stepNodeId } from "@/domain/visualization";
 
-export type AgentRole = TraceEventPayloads["agent_started"]["role"];
-
+/**
+ * One entity of the run, as both renderers and the details panel name it.
+ * Coder work is selected per step: the coder has no single node.
+ */
 export type Selection =
-  | { kind: "agent"; role: AgentRole }
+  | { kind: "agent"; role: "planner" | "reviewer" }
   | { kind: "step"; stepId: string }
+  | { kind: "runner" }
   | null;
 
 export type ViewMode = "3d" | "2d";
@@ -33,22 +36,39 @@ export interface ViewState {
   setFollowLive: (follow: boolean) => void;
 }
 
-/** 2D by default when the user asks the OS for reduced motion. */
-export function defaultViewMode(): ViewMode {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return "3d";
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "2d" : "3d";
-}
-
 export const useViewStore = create<ViewState>()((set) => ({
   runId: null,
   selection: null,
-  viewMode: defaultViewMode(),
+  // 2D is the primary view: it needs no WebGL, and the 3D scene's code is
+  // only downloaded once someone opts into it.
+  viewMode: "2d",
   followLive: true,
 
   focusRun: (runId) =>
     set((state) => (state.runId === runId ? state : { runId, selection: null, followLive: true })),
-  select: (selection) => set({ selection }),
+  select: (selection) => set((state) => (sameSelection(state.selection, selection) ? state : { selection })),
   clearSelection: () => set({ selection: null }),
   setViewMode: (viewMode) => set({ viewMode }),
   setFollowLive: (followLive) => set({ followLive }),
 }));
+
+/** The visualisation node id a selection points at (see domain/visualization). */
+export function selectionNodeId(selection: Selection): string | null {
+  if (!selection) return null;
+  if (selection.kind === "agent") return selection.role === "planner" ? PLANNER_ID : REVIEWER_ID;
+  if (selection.kind === "step") return stepNodeId(selection.stepId);
+  return RUNNER_ID;
+}
+
+/** The selection for a visualisation node id; null for an unknown id. */
+export function selectionFromNodeId(id: string): Selection {
+  if (id === PLANNER_ID) return { kind: "agent", role: "planner" };
+  if (id === REVIEWER_ID) return { kind: "agent", role: "reviewer" };
+  if (id === RUNNER_ID) return { kind: "runner" };
+  if (id.startsWith("step:") && id.length > 5) return { kind: "step", stepId: id.slice(5) };
+  return null;
+}
+
+function sameSelection(a: Selection, b: Selection): boolean {
+  return selectionNodeId(a) === selectionNodeId(b);
+}
