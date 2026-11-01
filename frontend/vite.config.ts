@@ -22,6 +22,24 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: false,
+    rollupOptions: {
+      output: {
+        // Frameworks change far less often than app code: separate chunks
+        // stay cached across deploys.
+        manualChunks(id) {
+          if (/node_modules[\\/](react|react-dom|scheduler|react-router)[\\/]/.test(id)) {
+            return "vendor-react";
+          }
+          if (/node_modules[\\/](motion|motion-dom|motion-utils|framer-motion)[\\/]/.test(id)) {
+            return "vendor-motion";
+          }
+          if (/node_modules[\\/]@tanstack[\\/]/.test(id)) {
+            return "vendor-query";
+          }
+          return undefined;
+        },
+      },
+    },
   },
   test: {
     environment: "jsdom",

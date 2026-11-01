@@ -1,6 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
+import { RouterProvider } from "react-router";
+import { Providers } from "@/app/providers";
+import { createRouter } from "@/app/router";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/jetbrains-mono";
 import "@/styles/globals.css";
@@ -8,8 +10,12 @@ import "@/styles/globals.css";
 // Tailwind's layers until each screen is ported.
 import "./styles.css";
 
+const router = createRouter();
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    <Providers>
+      <RouterProvider router={router} />
+    </Providers>
   </React.StrictMode>,
 );

@@ -1265,3 +1265,13 @@ button {
     min-width: 760px;
   }
 }
+
+/* Inside the new app shell: keep the sticky sidebar below the 3.5rem header. */
+.legacy-console .sidebar {
+  top: 3.5rem;
+  max-height: calc(100vh - 3.5rem);
+}
+
+.legacy-console .app {
+  min-height: calc(100vh - 3.5rem);
+}
