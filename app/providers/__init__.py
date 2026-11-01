@@ -39,8 +39,24 @@ __all__ = [
     "ProviderResponseError",
     "ProviderServerError",
     "ProviderTimeoutError",
+    "provider_kind",
     "resolve_provider",
 ]
+
+
+def provider_kind(provider_name: str, settings: Settings) -> str:
+    """The kind of provider a run actually used, from its resolved name.
+
+    Not ``settings.provider_kind``: that describes the configured endpoint,
+    which a demo-fixture run never calls.
+    """
+    if provider_name == "demo":
+        return "demo"
+    if provider_name.endswith(":local"):
+        return "local"
+    if provider_name.endswith(":remote"):
+        return "remote"
+    return settings.provider_kind if settings.openai_configured else "unknown"
 
 
 def resolve_provider(name: str, settings: Settings) -> tuple[Provider, str, str | None]:

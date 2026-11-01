@@ -424,3 +424,40 @@ async def test_demo_run_does_not_claim_configured_real_models(build_run):
     assert result.record.models_by_role["coder"] == "demo-fast"
     assert "planner=demo-fast" in result.record.summary
     assert "qwen2.5-coder:1.5b" not in result.record.summary
+
+
+async def test_demo_run_does_not_claim_a_real_provider_kind(build_run, tmp_path):
+    """A demo-fixture run must say "demo", even when a local endpoint is configured.
+
+    The run record (final and in-progress) once took its provider_kind from
+    the configured endpoint, so the dashboard claimed "local inference: every
+    model invocation was sent to the configured endpoint" for fixture runs.
+    """
+    from app.providers.demo import DemoProvider
+
+    store = RunStore(tmp_path / "kind.db")
+    try:
+        orchestrator, runtime, record = build_run(
+            DemoProvider(),
+            use_sample=True,
+            store=store,
+            base_url="http://127.0.0.1:11434/v1",
+            fast_model="qwen2.5-coder:1.5b",
+        )
+        assert runtime.settings.provider_kind == "local"  # the configured endpoint
+        store.save_run(record)
+        seen_while_running: list[str] = []
+        original = store.save_run
+
+        def spy(saved):
+            if saved.status == "running":
+                seen_while_running.append(saved.provider_kind)
+            original(saved)
+
+        store.save_run = spy  # type: ignore[method-assign]
+        result = await orchestrator.run(record)
+    finally:
+        store.close()
+
+    assert result.record.provider_kind == "demo"
+    assert seen_while_running and set(seen_while_running) == {"demo"}

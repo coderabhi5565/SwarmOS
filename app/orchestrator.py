@@ -49,6 +49,7 @@ from app.models import (
     new_id,
     utc_now,
 )
+from app.providers import provider_kind
 from app.providers.base import ModelUnavailableError
 from app.review_evidence import validate_review
 from app.runtime.code_policy import check_changes
@@ -172,7 +173,9 @@ class Orchestrator:
         return RunResult(record=updated, events=list(self.runtime.trace.events), state=final)
 
     def _provider_kind(self) -> str:
-        return self.runtime.settings.provider_kind
+        # The provider this run used, not the configured endpoint: a
+        # demo-fixture run must never be reported as local or remote.
+        return provider_kind(self.runtime.provider_name, self.runtime.settings)
 
     def _snapshot(self) -> dict[str, str]:
         """Snapshot the canonical workspace and report the first truncation."""

@@ -10,20 +10,10 @@ from app.config import Settings
 from app.demo_tasks import DemoTask, DemoTaskError, resolve_demo_task
 from app.models import Limits, RunRecord, RunRequest, utc_now
 from app.orchestrator import Orchestrator
-from app.providers import resolve_provider
+from app.providers import provider_kind, resolve_provider
 from app.providers.base import Provider
 from app.runtime.runtime import VALID_POLICIES, RunRuntime
 from app.store import RunStore
-
-
-def _provider_kind(provider_name: str, settings: Settings) -> str:
-    if provider_name == "demo":
-        return "demo"
-    if provider_name.endswith(":local"):
-        return "local"
-    if provider_name.endswith(":remote"):
-        return "remote"
-    return settings.provider_kind if settings.openai_configured else "unknown"
 
 
 def _demo_limits(requested: Limits, recipe: Limits) -> Limits:
@@ -138,7 +128,7 @@ class RunService:
         record = RunRecord(
             goal=demo.goal if demo is not None else request.goal,
             provider=provider_name,
-            provider_kind=_provider_kind(provider_name, self.settings),
+            provider_kind=provider_kind(provider_name, self.settings),
             provider_warning=warning,
             limits=limits,
             model_policy=policy,
