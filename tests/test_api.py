@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import time
+from typing import get_args
 
 import pytest
 from fastapi.testclient import TestClient
 
 import app.main as main_module
+from app.models import RunStatus
 from tests.conftest import make_settings
 
 GOAL = "Implement tag normalization so the failing tests pass"
+# Derived from the backend contract so a new terminal status cannot make a
+# polling loop spin until its deadline.
+TERMINAL_STATUSES = set(get_args(RunStatus)) - {"queued", "running"}
 
 
 @pytest.fixture
@@ -105,7 +110,7 @@ def test_background_run_can_be_polled(client):
     while time.time() < deadline:
         body = client.get(f"/api/runs/{run_id}").json()
         status = body["run"]["status"]
-        if status in {"completed", "failed", "completed_with_findings", "budget_exceeded"}:
+        if status in TERMINAL_STATUSES:
             break
         time.sleep(0.05)
     assert status == "completed"

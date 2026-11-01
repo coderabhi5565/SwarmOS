@@ -159,9 +159,20 @@ async def test_rejections_stop_at_the_revision_limit(build_run, max_revisions):
         if request.role == "coder":
             step_id = json.loads(request.user)["step"]["id"]
             return coder_response(step_id)
+        # An evidenced blocker: the guard lets it through, so the revision
+        # limit is what ends the run. Evidence-less blockers are covered in
+        # tests/test_review_guard_orchestration.py.
         return review_response(
             "request_changes",
-            [{"severity": "blocker", "step_id": "alpha", "message": "still wrong"}],
+            [
+                {
+                    "severity": "blocker",
+                    "step_id": "alpha",
+                    "file": "out/alpha.txt",
+                    "message": 'out/alpha.txt:1 is still wrong: its placeholder '
+                    'content does not satisfy "out/alpha.txt exists".',
+                }
+            ],
         )
 
     provider = ScriptedProvider(handler)

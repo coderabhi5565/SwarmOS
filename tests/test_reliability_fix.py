@@ -55,6 +55,17 @@ RUN_37204_ARTIFACT = (
 )
 
 
+# A blocker with the minimum evidence the review guard requires: a code
+# reference, a named criterion, and an expected/actual pair. These tests are
+# about what happens *after* a rejection, so the rejection must be one the guard
+# lets through. Whether the claim is true is deliberately independent of that.
+EVIDENCED_BLOCKER = (
+    'target.py:6 does not match "tests/test_target.py passes": '
+    'normalize_tags([" A "]) is expected to return ["a"], but the actual call '
+    "raises NotImplementedError."
+)
+
+
 def coder_writing(content: str, summary: str = "Rewrote normalize_tags"):
     def handler(request, index):
         if request.role == "planner":
@@ -79,7 +90,7 @@ def coder_writing(content: str, summary: str = "Rewrote normalize_tags"):
                         "severity": "blocker",
                         "step_id": "fix_target",
                         "file": "target.py",
-                        "message": "normalize_tags does not match the expected behaviour.",
+                        "message": EVIDENCED_BLOCKER,
                     }
                 ],
             }
