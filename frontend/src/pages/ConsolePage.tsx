@@ -11,6 +11,7 @@ import { RunOutcome } from "@/components/execution/RunPanels";
 import { RunStatusBadge } from "@/components/run/RunStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ExecutionView } from "@/components/visualization/ExecutionView";
 import { activeInvocations, lifecycleRecorded, verificationRunsOf, type ExecutionState } from "@/domain/execution";
 import { cn } from "@/lib/utils";
 import { useViewStore } from "@/store/viewStore";
@@ -144,6 +145,7 @@ function LiveRun({ runId }: { runId: string }) {
         <>
           <RunOutcome state={execution} recordStatus={run.status} />
           <NowPanel state={execution} />
+          <ExecutionView state={execution} live={live} />
           <AgentRoster state={execution} />
           <Counters state={execution} />
           <ExecutionTimeline

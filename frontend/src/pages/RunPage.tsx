@@ -1,4 +1,5 @@
 import { Download, Square } from "lucide-react";
+import { useEffect } from "react";
 import { Link, useParams } from "react-router";
 import { ApiError } from "@/api/client";
 import { useCancelRun, useHealth, useExecution } from "@/api/queries";
@@ -14,11 +15,18 @@ import { RoleDot, Unknown } from "@/components/execution/primitives";
 import { RunStatusBadge } from "@/components/run/RunStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ExecutionView } from "@/components/visualization/ExecutionView";
+import { useViewStore } from "@/store/viewStore";
 
 /** A run, rendered from its normalised execution state. Deep-linkable. */
 export function RunPage() {
   const { runId } = useParams();
   const { record, trace, execution, live } = useExecution(runId);
+  // The graph's selection belongs to this run; another run starts unselected.
+  const focusRun = useViewStore((state) => state.focusRun);
+  useEffect(() => {
+    if (runId) focusRun(runId);
+  }, [focusRun, runId]);
 
   if (record.isPending) {
     return (
@@ -64,6 +72,7 @@ export function RunPage() {
       ) : (
         <>
           <RunOutcome state={execution} recordStatus={run.status} />
+          <ExecutionView state={execution} live={live} />
           <AgentRoster state={execution} />
           <PlanWaves state={execution} />
           <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">

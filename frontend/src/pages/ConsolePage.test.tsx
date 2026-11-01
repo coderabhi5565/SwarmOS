@@ -108,6 +108,23 @@ describe("live console", () => {
     expect(polls.slice(1).every((url) => Number(url.searchParams.get("after_seq")) >= 8)).toBe(true);
   }, 10_000);
 
+  it("updates the graph from the same polling and reducer", async () => {
+    const run: Served = { ...liveRun, upTo: 8 };
+    serve([run]);
+    renderAt(`/console?run=${run.fixture.run.run_id}`);
+    const graph = await screen.findByTestId("execution-graph-2d");
+    expect(await within(graph).findByRole("group", { name: /^Coder step alpha: running/ })).toBeInTheDocument();
+    expect(within(graph).getByRole("group", { name: /^Coder step beta: running/ })).toBeInTheDocument();
+    expect(within(graph).getByRole("group", { name: /^Coder step gamma: pending/ })).toBeInTheDocument();
+
+    run.upTo = undefined;
+    run.status = "completed";
+    expect(await screen.findByText("polling stopped: run finished", {}, { timeout: 6000 })).toBeInTheDocument();
+    expect(within(graph).getByRole("group", { name: /^Coder step gamma: succeeded/ })).toBeInTheDocument();
+    expect(within(graph).getByRole("group", { name: /^Verification runner \(deterministic\): succeeded/ })).toBeInTheDocument();
+    expect(within(graph).queryByRole("group", { name: /: running/ })).not.toBeInTheDocument();
+  }, 10_000);
+
   it("keeps the last state visible when the trace cannot be refreshed", async () => {
     serve([liveRun], { eventsStatus: 400 });
     renderAt(`/console?run=${liveRun.fixture.run.run_id}`);

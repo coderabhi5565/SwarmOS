@@ -61,6 +61,22 @@ describe("run detail", () => {
     expect(screen.getByLabelText("Verification runner")).toHaveTextContent("Deterministic test runner, not a model");
   });
 
+  it("draws the execution graph of a finished run, with nothing running", async () => {
+    const fixture = fixtures.verificationRepair;
+    serve(fixture);
+    const { container } = renderAt(`/runs/${fixture.run.run_id}`);
+
+    const graph = await screen.findByRole("region", { name: "Execution graph" });
+    const nodes = within(graph).getByTestId("execution-graph-2d");
+    expect(within(nodes).getByRole("group", { name: /^Coder step draft_implementation: succeeded, 2 attempts, repaired ×1/ })).toBeInTheDocument();
+    expect(within(nodes).getByRole("group", { name: /^Verification runner \(deterministic\): succeeded, 2 runs/ })).toBeInTheDocument();
+    expect(within(graph).queryByText("running")).not.toBeInTheDocument();
+    expect(container.querySelector(".react-flow__edge.animated")).toBeNull();
+    // The trace and the other panels stay on the page.
+    expect(screen.getByRole("region", { name: "Verification" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Model calls" })).toBeInTheDocument();
+  });
+
   it("shows dependencies and marks unreported usage as unknown", async () => {
     const fixture = fixtures.demoPipelineCompleted;
     serve(fixture);
