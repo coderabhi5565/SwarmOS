@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
@@ -20,6 +20,7 @@ from app.api_models import (
     ProviderModelsResponse,
     RunEventsResponse,
     RunListResponse,
+    RunStreamEnd,
     RunSummary,
 )
 from app.config import settings
@@ -31,6 +32,13 @@ from app.providers.base import ProbeableProvider, ProviderConfigError, ProviderE
 from app.rate_limit import SlidingWindowLimiter
 from app.service import CapacityError, PublicDemoError, RunService
 from app.store import RunStore
+from app.streaming import (
+    RunEventBroker,
+    StreamLimitError,
+    effective_cursor,
+    parse_last_event_id,
+    run_event_stream,
+)
 
 
 @asynccontextmanager
@@ -41,7 +49,10 @@ async def lifespan(app: FastAPI):
     app.state.limiter = SlidingWindowLimiter(settings.runs_per_client_per_hour)
     store = RunStore(settings.db_path)
     store.recover_interrupted("interrupted: the server stopped before this run finished")
+    broker = RunEventBroker(settings.max_streams, settings.max_streams_per_client)
+    store.add_listener(broker.notify)
     app.state.store = store
+    app.state.broker = broker
     app.state.service = RunService(settings, store)
     try:
         yield
@@ -73,6 +84,18 @@ def _openapi() -> dict:
         components = schema.setdefault("components", {}).setdefault("schemas", {})
         for name, definition in openapi_components().items():
             components.setdefault(name, definition)
+        # The stream's end message is named only inside its event-stream
+        # response, so its model is added as a component explicitly.
+        components.setdefault(
+            "RunStreamEnd",
+            RunStreamEnd.model_json_schema(ref_template="#/components/schemas/{model}"),
+        )
+        # FastAPI types every non-JSON body as a string; the stream's
+        # messages are described by the reference alone.
+        stream = schema["paths"]["/api/runs/{run_id}/stream"]["get"]["responses"]["200"]
+        stream["content"]["text/event-stream"]["schema"] = {
+            "$ref": "#/components/schemas/RunStreamEnd"
+        }
         app.openapi_schema = schema
     return app.openapi_schema
 
@@ -348,6 +371,84 @@ async def get_run_events(
         events=events,
         # The cursor for the next poll: unchanged when nothing new arrived.
         last_seq=events[-1].seq if events else (after_seq or 0),
+    )
+
+
+class EventSourceResponse(StreamingResponse):
+    media_type = "text/event-stream"
+
+
+@app.get(
+    "/api/runs/{run_id}/stream",
+    response_class=EventSourceResponse,
+    responses={
+        200: {
+            "description": (
+                "Server-Sent Events. `trace` messages carry one TraceEvent (id = seq); "
+                "`end` (RunStreamEnd) closes the stream once the run is terminal. "
+                "Comment lines are keepalives."
+            ),
+            "content": {
+                "text/event-stream": {"schema": {"$ref": "#/components/schemas/RunStreamEnd"}}
+            },
+        },
+        400: {"description": "Malformed Last-Event-ID"},
+        404: {"description": "Unknown run"},
+        429: {"description": "Too many open streams"},
+    },
+)
+async def stream_run_events(
+    run_id: str,
+    request: Request,
+    after_seq: int | None = Query(
+        default=None,
+        ge=0,
+        description=(
+            "Send only events with seq greater than this cursor. With a "
+            "Last-Event-ID header too, the stream starts after the greater of the two."
+        ),
+    ),
+) -> EventSourceResponse:
+    """A run's trace as it is recorded, then an ``end`` message.
+
+    Read-only: it streams runs that exist, exactly the events
+    ``/api/runs/{run_id}/events`` would return, and nothing else.
+    """
+    try:
+        last_event_id = parse_last_event_id(request.headers.get("last-event-id"))
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400, detail="Last-Event-ID must be a non-negative integer seq"
+        ) from exc
+    if _store().get_run(run_id) is None:
+        raise HTTPException(status_code=404, detail=f"run {run_id} not found")
+    broker: RunEventBroker = request.app.state.broker
+    client = _client_key(request)
+    try:
+        broker.open(client)
+    except StreamLimitError as exc:
+        raise HTTPException(
+            status_code=429, detail=str(exc), headers={"Retry-After": "15"}
+        ) from exc
+
+    async def frames():
+        try:
+            async for frame in run_event_stream(
+                _store(),
+                broker,
+                run_id,
+                effective_cursor(after_seq, last_event_id),
+                heartbeat_seconds=settings.stream_heartbeat_seconds,
+                max_seconds=settings.stream_max_seconds,
+                is_disconnected=request.is_disconnected,
+            ):
+                yield frame
+        finally:
+            broker.close(client)
+
+    return EventSourceResponse(
+        frames(),
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 

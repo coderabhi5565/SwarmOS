@@ -43,7 +43,12 @@ def test_every_api_response_is_a_named_schema():
             continue
         for method, operation in operations.items():
             success = next(code for code in operation["responses"] if code.startswith("2"))
-            schema = operation["responses"][success]["content"]["application/json"]["schema"]
+            content = operation["responses"][success]["content"]
+            # JSON everywhere, except the live trace stream (Server-Sent
+            # Events), whose messages are named the same way.
+            media = "text/event-stream" if path.endswith("/stream") else "application/json"
+            assert list(content) == [media], f"{method.upper()} {path} serves {list(content)}"
+            schema = content[media]["schema"]
             assert "$ref" in schema, f"{method.upper()} {path} has an untyped response"
 
 

@@ -161,6 +161,10 @@ def make_settings(tmp_path: Path, **overrides):
         "json_mode": True,
         "retry_backoff_seconds": 0.0,
         "sample_project": PROJECT_ROOT / "samples" / "sample_project",
+        "max_streams": 0,
+        "max_streams_per_client": 0,
+        "stream_heartbeat_seconds": 15.0,
+        "stream_max_seconds": 600.0,
     }
     values.update(overrides)
     return replace(base_settings, **values)

@@ -154,6 +154,20 @@ class Settings:
             "SWARMOS_RUNS_PER_CLIENT_PER_HOUR", 6 if _public_demo() else 0
         )
     )
+    # Live trace streams (GET /api/runs/{id}/stream). Each holds a connection
+    # open, so the public demo caps them per client and in total (0 means
+    # unlimited). A stream is closed after stream_max_seconds; clients resume
+    # from their cursor, so a long run costs reconnects, never events.
+    max_streams: int = field(
+        default_factory=lambda: _env_int("SWARMOS_MAX_STREAMS", 40 if _public_demo() else 0)
+    )
+    max_streams_per_client: int = field(
+        default_factory=lambda: _env_int(
+            "SWARMOS_MAX_STREAMS_PER_CLIENT", 4 if _public_demo() else 0
+        )
+    )
+    stream_heartbeat_seconds: float = _env_float("SWARMOS_STREAM_HEARTBEAT_SECONDS", 15.0)
+    stream_max_seconds: float = _env_float("SWARMOS_STREAM_MAX_SECONDS", 600.0)
     # Only behind a proxy you control (e.g. Render) may X-Forwarded-For name
     # the client; otherwise any caller could pick its own rate-limit bucket.
     trust_proxy_headers: bool = _env_bool("SWARMOS_TRUST_PROXY_HEADERS", False)
@@ -271,6 +285,10 @@ class Settings:
             errors.append(
                 "SWARMOS_EXECUTION_SANDBOX must be 'none' or 'restricted', "
                 f"not {self.execution_sandbox!r}"
+            )
+        if self.stream_heartbeat_seconds <= 0 or self.stream_max_seconds <= 0:
+            errors.append(
+                "SWARMOS_STREAM_HEARTBEAT_SECONDS and SWARMOS_STREAM_MAX_SECONDS must be positive"
             )
         if self.is_public_demo:
             # The public demo never executes model-written code outside the

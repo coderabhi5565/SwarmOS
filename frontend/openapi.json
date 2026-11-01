@@ -2742,6 +2742,42 @@
         "title": "RunStartedPayload",
         "type": "object"
       },
+      "RunStreamEnd": {
+        "description": "The data of the ``end`` message that closes a run's event stream.\n\nThe stream (``GET /api/runs/{run_id}/stream``) is Server-Sent Events:\n``trace`` messages carry one ``TraceEvent`` each with ``id`` set to its\n``seq``; ``end`` is sent once the run is terminal and every event has\nbeen delivered. Comment lines are keepalives, not events.",
+        "properties": {
+          "last_seq": {
+            "title": "Last Seq",
+            "type": "integer"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "completed_with_findings",
+              "review_invalid",
+              "failed",
+              "cancelled",
+              "budget_exceeded",
+              "limit_exceeded",
+              "timed_out"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "status",
+          "last_seq"
+        ],
+        "title": "RunStreamEnd",
+        "type": "object"
+      },
       "RunSummary": {
         "description": "A run as listed in history: everything except plan details, review\ntext, verification output, the summary, and generated file contents.",
         "properties": {
@@ -3732,6 +3768,74 @@
           }
         },
         "summary": "Get Run Events"
+      }
+    },
+    "/api/runs/{run_id}/stream": {
+      "get": {
+        "description": "A run's trace as it is recorded, then an ``end`` message.\n\nRead-only: it streams runs that exist, exactly the events\n``/api/runs/{run_id}/events`` would return, and nothing else.",
+        "operationId": "stream_run_events_api_runs__run_id__stream_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Send only events with seq greater than this cursor. With a Last-Event-ID header too, the stream starts after the greater of the two.",
+            "in": "query",
+            "name": "after_seq",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Send only events with seq greater than this cursor. With a Last-Event-ID header too, the stream starts after the greater of the two.",
+              "title": "After Seq"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunStreamEnd"
+                }
+              }
+            },
+            "description": "Server-Sent Events. `trace` messages carry one TraceEvent (id = seq); `end` (RunStreamEnd) closes the stream once the run is terminal. Comment lines are keepalives."
+          },
+          "400": {
+            "description": "Malformed Last-Event-ID"
+          },
+          "404": {
+            "description": "Unknown run"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many open streams"
+          }
+        },
+        "summary": "Stream Run Events"
       }
     },
     "/health": {

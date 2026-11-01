@@ -220,6 +220,21 @@ class RunEventsResponse(_Response):
     last_seq: int
 
 
+class RunStreamEnd(_Response):
+    """The data of the ``end`` message that closes a run's event stream.
+
+    The stream (``GET /api/runs/{run_id}/stream``) is Server-Sent Events:
+    ``trace`` messages carry one ``TraceEvent`` each with ``id`` set to its
+    ``seq``; ``end`` is sent once the run is terminal and every event has
+    been delivered. Comment lines are keepalives, not events.
+    """
+
+    run_id: str
+    status: RunStatus
+    # The seq of the last event in the trace (0 when it has none).
+    last_seq: int
+
+
 class CancelResponse(_Response):
     run_id: str
     status: Literal["cancelling"] = "cancelling"

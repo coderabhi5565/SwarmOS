@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -112,6 +113,9 @@ class RunStore:
         if self.db_path != ":memory:":
             Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
+        # Called with a run_id after a committed change to that run or its
+        # trace (see add_listener). Carries no data: listeners re-read.
+        self._listeners: list[Callable[[str], None]] = []
         self._conn = sqlite3.connect(
             self.db_path, check_same_thread=False, timeout=30
         )
@@ -134,6 +138,18 @@ class RunStore:
     def close(self) -> None:
         with self._lock:
             self._conn.close()
+
+    def add_listener(self, listener: Callable[[str], None]) -> None:
+        """Call ``listener(run_id)`` after each committed change to a run.
+
+        Listeners run on the writing thread, after the commit and outside the
+        store lock, so a reader they wake always sees the change.
+        """
+        self._listeners.append(listener)
+
+    def _changed(self, run_id: str) -> None:
+        for listener in self._listeners:
+            listener(run_id)
 
     # ------------------------------------------------------------------
     def save_run(self, record: RunRecord) -> None:
@@ -176,6 +192,7 @@ class RunStore:
                 values,
             )
             self._conn.commit()
+        self._changed(record.run_id)
 
     def append_event(self, event: TraceEvent) -> None:
         data = event.model_dump(mode="json")
@@ -197,6 +214,7 @@ class RunStore:
                 ),
             )
             self._conn.commit()
+        self._changed(event.run_id)
 
     def recover_interrupted(self, reason: str) -> list[str]:
         """Mark runs left queued or running by a stopped process as failed.
@@ -247,6 +265,8 @@ class RunStore:
                     ),
                 )
             self._conn.commit()
+        for run_id in run_ids:
+            self._changed(run_id)
         return run_ids
 
     # ------------------------------------------------------------------
@@ -295,12 +315,16 @@ class RunStore:
         next_cursor = page[-1].run_id if len(rows) > limit else None
         return page, next_cursor
 
-    def get_events(self, run_id: str, after_seq: int | None = None) -> list[TraceEvent]:
-        """A run's events in ascending ``seq``; only those after ``after_seq`` if given."""
+    def get_events(
+        self, run_id: str, after_seq: int | None = None, limit: int | None = None
+    ) -> list[TraceEvent]:
+        """A run's events in ascending ``seq``; only those after ``after_seq`` if
+        given, and at most ``limit`` of them if given."""
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM trace_events WHERE run_id = ? AND seq > ? ORDER BY seq ASC",
-                (run_id, -1 if after_seq is None else after_seq),
+                "SELECT * FROM trace_events WHERE run_id = ? AND seq > ? ORDER BY seq ASC "
+                "LIMIT ?",
+                (run_id, -1 if after_seq is None else after_seq, -1 if limit is None else limit),
             ).fetchall()
         return [
             TraceEvent(

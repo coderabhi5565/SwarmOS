@@ -135,6 +135,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run_id}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Run Events
+         * @description A run's trace as it is recorded, then an ``end`` message.
+         *
+         *     Read-only: it streams runs that exist, exactly the events
+         *     ``/api/runs/{run_id}/events`` would return, and nothing else.
+         */
+        get: operations["stream_run_events_api_runs__run_id__stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1300,6 +1323,26 @@ export interface components {
             snapshot_truncated: boolean;
         };
         /**
+         * RunStreamEnd
+         * @description The data of the ``end`` message that closes a run's event stream.
+         *
+         *     The stream (``GET /api/runs/{run_id}/stream``) is Server-Sent Events:
+         *     ``trace`` messages carry one ``TraceEvent`` each with ``id`` set to its
+         *     ``seq``; ``end`` is sent once the run is terminal and every event has
+         *     been delivered. Comment lines are keepalives, not events.
+         */
+        RunStreamEnd: {
+            /** Last Seq */
+            last_seq: number;
+            /** Run Id */
+            run_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "completed_with_findings" | "review_invalid" | "failed" | "cancelled" | "budget_exceeded" | "limit_exceeded" | "timed_out";
+        };
+        /**
          * RunSummary
          * @description A run as listed in history: everything except plan details, review
          *     text, verification output, the summary, and generated file contents.
@@ -1805,6 +1848,61 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    stream_run_events_api_runs__run_id__stream_get: {
+        parameters: {
+            query?: {
+                /** @description Send only events with seq greater than this cursor. With a Last-Event-ID header too, the stream starts after the greater of the two. */
+                after_seq?: number | null;
+            };
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server-Sent Events. `trace` messages carry one TraceEvent (id = seq); `end` (RunStreamEnd) closes the stream once the run is terminal. Comment lines are keepalives. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["RunStreamEnd"];
+                };
+            };
+            /** @description Malformed Last-Event-ID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown run */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many open streams */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
