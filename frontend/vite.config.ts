@@ -1,10 +1,16 @@
-import { defineConfig } from "vite";
+import { fileURLToPath, URL } from "node:url";
 import react from "@vitejs/plugin-react";
+import { defineConfig } from "vitest/config";
 
 const api = "http://127.0.0.1:8000";
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
   server: {
     port: 5173,
     proxy: {
@@ -15,5 +21,11 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: false,
+  },
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
+    css: false,
+    restoreMocks: true,
   },
 });
