@@ -16,7 +16,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import { Bot, FlaskConical, GitBranch } from "lucide-react";
-import { useReducedMotion } from "motion/react";
+import { useReducedMotionConfig } from "motion/react";
 import { memo, useCallback, useEffect, useMemo } from "react";
 import { RoleDot, ToneBadge } from "@/components/execution/primitives";
 import type { VizEdge, VizModel, VizNode } from "@/domain/visualization";
@@ -60,7 +60,8 @@ function Graph({ model, live }: { model: VizModel; live: boolean }) {
   const select = useViewStore((state) => state.select);
   const clearSelection = useViewStore((state) => state.clearSelection);
   const followLive = useViewStore((state) => state.followLive);
-  const reducedMotion = useReducedMotion() ?? false;
+  // The app's MotionConfig (reducedMotion="user") follows the OS setting.
+  const reducedMotion = useReducedMotionConfig() ?? false;
 
   const nodes = useMemo(
     () => model.nodes.map((node) => toFlowNode(node, model.finished, node.id === selectedId)),

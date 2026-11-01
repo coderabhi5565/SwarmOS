@@ -1,5 +1,5 @@
 import { Box, Network, Pause, Play } from "lucide-react";
-import { Section } from "@/components/execution/primitives";
+import { Section, ToneBadge } from "@/components/execution/primitives";
 import { Button } from "@/components/ui/button";
 import type { ExecutionState } from "@/domain/execution";
 import type { VizModel } from "@/domain/visualization";
@@ -19,7 +19,16 @@ const MODES: { mode: ViewMode; label: string; icon: typeof Box }[] = [
  * details. Both views draw the same model and share the selection, so
  * switching between them keeps what is selected.
  */
-export function ExecutionView({ state, live }: { state: ExecutionState; live: boolean }) {
+export function ExecutionView({
+  state,
+  live,
+  replaying = false,
+}: {
+  state: ExecutionState;
+  live: boolean;
+  /** `state` is a replay frame, not the run as it is now. */
+  replaying?: boolean;
+}) {
   const model = useVizModel(state);
   const viewMode = useViewStore((store) => store.viewMode);
   const setViewMode = useViewStore((store) => store.setViewMode);
@@ -34,6 +43,11 @@ export function ExecutionView({ state, live }: { state: ExecutionState; live: bo
       description="Planner, coder steps by wave, reviewer and the deterministic verifier. Select a node for its details."
       action={
         <div className="flex flex-wrap items-center gap-2">
+          {replaying && (
+            <ToneBadge tone="findings" pulse={false}>
+              replay frame
+            </ToneBadge>
+          )}
           {live && (
             <Button variant="ghost" size="sm" aria-pressed={followLive} onClick={() => setFollowLive(!followLive)}>
               {followLive ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}

@@ -1,5 +1,5 @@
 import { RotateCcw } from "lucide-react";
-import { useReducedMotion } from "motion/react";
+import { useReducedMotionConfig } from "motion/react";
 import { Component, lazy, Suspense, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import type { VizModel } from "@/domain/visualization";
@@ -22,7 +22,8 @@ export function Scene3DView({ model, live, fallback }: { model: VizModel; live: 
     webglAvailable() ? null : "This browser or device does not provide WebGL.",
   );
   const [resetKey, setResetKey] = useState(0);
-  const reducedMotion = useReducedMotion() ?? false;
+  // The app's MotionConfig (reducedMotion="user") follows the OS setting.
+  const reducedMotion = useReducedMotionConfig() ?? false;
 
   if (failure) {
     return (
