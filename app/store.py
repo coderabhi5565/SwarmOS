@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from app.events import validate_payload
 from app.models import (
     Plan,
     ReviewOutput,
@@ -225,7 +226,10 @@ class RunStore:
                     seq=last_seq + 1,
                     kind="run_finished",
                     message="Run finished: failed (interrupted)",
-                    payload={"status": "failed", "error": reason, "recovered": True},
+                    payload=validate_payload(
+                        "run_finished",
+                        {"status": "failed", "error": reason, "recovered": True},
+                    ),
                 )
                 data = event.model_dump(mode="json")
                 self._conn.execute(

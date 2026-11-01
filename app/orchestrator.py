@@ -182,6 +182,7 @@ class Orchestrator:
             self.runtime.emit(
                 "warning",
                 "Workspace snapshot truncated; agents see a partial workspace",
+                code="snapshot_truncated",
                 char_limit=self.runtime.workspace.char_limit,
                 files_included=len(files),
             )
@@ -947,6 +948,7 @@ class Orchestrator:
                 self.runtime.emit(
                     "retry",
                     f"Retrying {len(steps)} failed step(s)",
+                    scope="steps",
                     steps=[step.id for step in steps],
                     attempts={step.id: self._attempts(state, step.id) + 1 for step in steps},
                     max_retries=self.runtime.limits.max_retries,

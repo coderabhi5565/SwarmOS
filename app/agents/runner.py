@@ -186,6 +186,7 @@ class AgentRunner:
                     self.runtime.emit(
                         "retry",
                         f"Retrying {agent.role} after {exc.category} in {delay:.1f}s",
+                        scope="call",
                         role=agent.role,
                         step_id=step_id,
                         category=exc.category,

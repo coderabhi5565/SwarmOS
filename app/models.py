@@ -311,7 +311,13 @@ class TraceEvent(BaseModel):
     at: str = Field(default_factory=utc_now)
     kind: TraceKind
     message: str = ""
-    payload: dict[str, Any] = Field(default_factory=dict)
+    payload: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Kind-specific data; see the TraceEventPayloads schema for the "
+            "payload model of each kind."
+        ),
+    )
 
 
 class RunRecord(BaseModel):

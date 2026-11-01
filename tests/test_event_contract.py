@@ -476,3 +476,115 @@ async def test_no_verification_starts_after_the_deadline(build_run):
     runtime.ledger.started_monotonic -= runtime.limits.max_wall_seconds
     await orchestrator._verify({"verification_attempts": 0})
     assert [e for e in runtime.trace.events if e.kind == "verification_started"] == []
+
+
+# ----------------------------------------------------------------------
+# typed payloads
+# ----------------------------------------------------------------------
+def test_every_trace_kind_has_a_payload_model():
+    from typing import get_args
+
+    from app.events import PAYLOAD_MODELS
+    from app.models import TraceKind
+
+    assert set(PAYLOAD_MODELS) == set(get_args(TraceKind))
+
+
+@pytest.mark.parametrize(
+    "kind, payload, problem",
+    [
+        ("failure", {"error": "x", "surprise": 1}, "extra"),
+        ("failure", {"role": "coder"}, "missing"),
+        ("failure", {"error": "x", "role": "advance"}, "literal"),
+        ("routing_decision", {"decision": "teleport"}, "union_tag"),
+        ("agent_started", {"role": "coder"}, "missing"),
+        ("retry", {"steps": ["a"]}, "missing"),
+    ],
+)
+def test_malformed_payloads_are_rejected_without_consuming_a_seq(kind, payload, problem):
+    from pydantic import ValidationError
+
+    from app.runtime.trace import TraceRecorder
+
+    trace = TraceRecorder("run_test")
+    trace.emit("warning", "first", code="snapshot_truncated")
+    with pytest.raises(ValidationError) as excinfo:
+        trace.emit(kind, "bad", **payload)
+    assert problem in str(excinfo.value.errors()[0]["type"])
+    after = trace.emit("warning", "second", code="snapshot_truncated")
+    assert after.seq == 2  # no gap left by the rejected payload
+
+
+def test_payloads_keep_exactly_the_keys_the_emitter_supplied():
+    from app.runtime.trace import TraceRecorder
+
+    event = TraceRecorder("run_test").emit("failure", "x", error="boom", role=None)
+    # role was supplied (as None) and is kept; unsupplied optionals are absent.
+    assert event.payload == {"error": "boom", "role": None}
+
+
+async def test_stored_events_validate_against_their_payload_models(build_run, tmp_path):
+    """Round-trip through SQLite and JSON: what clients read conforms."""
+    from app.events import PAYLOAD_MODELS
+    from app.store import RunStore
+
+    store = RunStore(tmp_path / "events.db")
+    try:
+        provider = ScriptedProvider(approving(), delay=0.01)
+        orchestrator, _, record = build_run(provider, files=SEED_OK, store=store)
+        store.save_run(record)
+        await orchestrator.run(record)
+        events = store.get_events(record.run_id)
+    finally:
+        store.close()
+
+    kinds = {event.kind for event in events}
+    assert {"run_started", "agent_started", "agent_invocation", "routing_decision",
+            "verification_started", "verification", "run_finished"} <= kinds
+    for event in events:
+        as_json = json.loads(event.model_dump_json())
+        PAYLOAD_MODELS[event.kind].model_validate(as_json["payload"])
+
+
+def test_openapi_publishes_every_payload_schema():
+    import app.main as main_module
+    from app.events import PAYLOAD_MODELS
+
+    spec = main_module.app.openapi()
+    schemas = spec["components"]["schemas"]
+    index = schemas["TraceEventPayloads"]["properties"]
+    assert set(index) == set(PAYLOAD_MODELS)
+
+    def refs(node):
+        if isinstance(node, dict):
+            if "$ref" in node:
+                yield node["$ref"]
+            for value in node.values():
+                yield from refs(value)
+        elif isinstance(node, list):
+            for value in node:
+                yield from refs(value)
+
+    for ref in refs(spec):
+        assert ref.split("/")[-1] in schemas, f"dangling {ref}"
+
+
+def test_legacy_event_shapes_still_load(tmp_path):
+    """Traces stored before M3.0 are returned as recorded, not re-validated."""
+    from app.models import RunRecord, TraceEvent
+    from app.store import RunStore
+
+    store = RunStore(tmp_path / "legacy.db")
+    try:
+        record = RunRecord(goal="legacy run", status="failed")
+        store.save_run(record)
+        old_conflict = TraceEvent(
+            run_id=record.run_id, seq=1, kind="failure",
+            message="Rejected conflicting parallel writes",
+            payload={"steps": ["alpha", "beta"], "files": ["out/shared.txt"]},
+        )
+        store.append_event(old_conflict)
+        (loaded,) = store.get_events(record.run_id)
+        assert loaded.payload["steps"] == ["alpha", "beta"]
+    finally:
+        store.close()

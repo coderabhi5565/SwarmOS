@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -23,6 +24,7 @@ from app.api_models import (
 )
 from app.config import settings
 from app.demo_tasks import DemoTaskError, demo_catalog
+from app.events import openapi_components
 from app.models import RunDetail, RunRequest
 from app.providers import resolve_provider
 from app.providers.base import ProbeableProvider, ProviderConfigError, ProviderError
@@ -54,6 +56,28 @@ app = FastAPI(
     description="Adaptive multi-agent coding orchestration with inspectable traces",
     lifespan=lifespan,
 )
+
+def _openapi() -> dict:
+    """The generated schema, plus the typed trace payloads.
+
+    Payloads travel inside ``TraceEvent.payload``, which no route names
+    directly, so their models are added as components explicitly.
+    """
+    if app.openapi_schema is None:
+        schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+        )
+        components = schema.setdefault("components", {}).setdefault("schemas", {})
+        for name, definition in openapi_components().items():
+            components.setdefault(name, definition)
+        app.openapi_schema = schema
+    return app.openapi_schema
+
+
+app.openapi = _openapi  # type: ignore[method-assign]
 
 app.add_middleware(
     CORSMiddleware,

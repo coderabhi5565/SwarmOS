@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from app.events import validate_payload
 from app.models import TraceEvent, TraceKind
 
 
@@ -29,13 +30,16 @@ class TraceRecorder:
         self._seq = 0
 
     def emit(self, kind: TraceKind, message: str = "", **payload: Any) -> TraceEvent:
+        # Validate before taking a sequence number, so a rejected payload never
+        # leaves a gap in the run's seq order.
+        validated = validate_payload(kind, jsonable(payload))
         self._seq += 1
         event = TraceEvent(
             run_id=self.run_id,
             seq=self._seq,
             kind=kind,
             message=message,
-            payload=jsonable(payload),
+            payload=validated,
         )
         self.events.append(event)
         if self.store is not None:
