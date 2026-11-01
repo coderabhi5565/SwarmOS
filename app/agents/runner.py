@@ -105,6 +105,22 @@ class AgentRunner:
                 model_tier=tier,
                 attempt=attempt + offset,
             )
+            # Emitted only once the ledger has accepted the call, immediately
+            # before the provider is asked: a dispatched step waiting for a
+            # coding slot, or a refused call, has not started.
+            self.runtime.emit(
+                "agent_started",
+                f"{agent.role} started" + (f" for {step_id}" if step_id else ""),
+                invocation_id=invocation.invocation_id,
+                role=agent.role,
+                step_id=step_id,
+                attempt=invocation.attempt,
+                provider=invocation.provider,
+                model=invocation.model,
+                profile=invocation.profile,
+                tier=tier,
+                started_at=invocation.started_at,
+            )
             started = time.perf_counter()
 
             try:
@@ -307,6 +323,8 @@ class AgentRunner:
             f"{invocation.role} {invocation.status}"
             + (f" for {invocation.step_id}" if invocation.step_id else ""),
             invocation=invocation,
+            # Pairs this completion with its agent_started event.
+            invocation_id=invocation.invocation_id,
             role=invocation.role,
             step_id=invocation.step_id,
             status=invocation.status,

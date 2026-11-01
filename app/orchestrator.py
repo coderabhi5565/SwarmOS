@@ -46,6 +46,7 @@ from app.models import (
     RunRecord,
     TraceEvent,
     VerificationResult,
+    new_id,
     utc_now,
 )
 from app.providers.base import ModelUnavailableError
@@ -651,18 +652,36 @@ class Orchestrator:
             updates["revision_findings"] = []
         return updates
 
-    async def _run_verifier(self) -> tuple[VerificationResult | None, bool]:
+    async def _run_verifier(
+        self, *, verification_id: str, attempt: int | None, diagnostic: bool
+    ) -> tuple[VerificationResult | None, bool]:
         """Run verification off the event loop, within the run's deadline.
 
         Returns ``(result, deadline_reached)``. The result is None when no time
-        was left to start it. A blocking subprocess on the event loop would
-        freeze every other request the API is serving.
+        was left to start it, in which case no started event is emitted. A
+        blocking subprocess on the event loop would freeze every other request
+        the API is serving. The caller owns ``verification_id`` so it can pair
+        the completion event even if the verifier raises.
         """
         remaining = self.runtime.ledger.remaining_seconds
         if remaining <= 0:
             return None, True
+        timeout = min(self.verifier.timeout_seconds, math.ceil(remaining))
+        # Verification is a deterministic subprocess, not a model call, so it
+        # gets its own lifecycle event rather than agent_started.
+        self.runtime.emit(
+            "verification_started",
+            "Diagnostic verification started" if diagnostic else "Verification started",
+            verification_id=verification_id,
+            role="verifier",
+            runner="deterministic_subprocess",
+            command=self.verifier.command,
+            timeout_seconds=timeout,
+            attempt=attempt,
+            diagnostic=diagnostic,
+        )
         result = await asyncio.to_thread(
-            self.verifier.verify, self.runtime.workspace, math.ceil(remaining)
+            self.verifier.verify, self.runtime.workspace, timeout
         )
         deadline_reached = (
             result.exit_code == 124
@@ -680,14 +699,19 @@ class Orchestrator:
         )
 
     async def _verify(self, state: SwarmState) -> dict:
-        verification, deadline_reached = await self._run_verifier()
+        attempts = int(state.get("verification_attempts", 0) or 0) + 1
+        verification_id = new_id("ver")
+        verification, deadline_reached = await self._run_verifier(
+            verification_id=verification_id, attempt=attempts, diagnostic=False
+        )
         if verification is None:
             return {"halt": [self._timed_out("before verification")], "stage": "verification"}
-        attempts = int(state.get("verification_attempts", 0) or 0) + 1
         self.runtime.emit(
             "verification",
             "Verification passed" if verification.passed else "Verification failed",
+            verification_id=verification_id,
             role="verifier",
+            diagnostic=False,
             passed=verification.passed,
             command=verification.command,
             exit_code=verification.exit_code,
@@ -850,8 +874,11 @@ class Orchestrator:
         """
         reason: str | None = None
         result: VerificationResult | None = None
+        verification_id = new_id("ver")
         try:
-            result, _ = await self._run_verifier()
+            result, _ = await self._run_verifier(
+                verification_id=verification_id, attempt=None, diagnostic=True
+            )
             if result is None:
                 reason = "the run's wall-clock limit was reached before it could start"
         except Exception as exc:  # noqa: BLE001 - never lose the diagnostic reason
@@ -874,6 +901,7 @@ class Orchestrator:
                 else "Diagnostic verification failed"
             )
             + " (reviewer did not approve; status unchanged)",
+            verification_id=verification_id,
             role="verifier",
             diagnostic=True,
             passed=result.passed,

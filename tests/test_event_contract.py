@@ -326,3 +326,153 @@ async def test_orchestration_failure_names_no_agent_or_step(build_run, monkeypat
     assert "scheduler bug" in event.payload["error"]
     for key in ("role", "step_id", "attempt"):
         assert event.payload.get(key) is None
+
+
+# ----------------------------------------------------------------------
+# lifecycle events and ordering
+# ----------------------------------------------------------------------
+def of_kind(result, kind: str) -> list:
+    return [event for event in result.events if event.kind == kind]
+
+
+def approving():
+    return coder_writing(lambda step: [{"path": f"out/{step}.txt", "content": "x"}])
+
+
+def assert_agent_pairs(result) -> None:
+    """Every completion has exactly one earlier start with the same identity."""
+    starts = {e.payload["invocation_id"]: e for e in of_kind(result, "agent_started")}
+    completions = of_kind(result, "agent_invocation")
+    assert len(starts) == len(of_kind(result, "agent_started"))  # ids are unique
+    assert {e.payload["invocation_id"] for e in completions} == set(starts)
+    for done in completions:
+        start = starts[done.payload["invocation_id"]]
+        assert start.seq < done.seq
+        for key in ("role", "step_id", "attempt", "model", "tier"):
+            assert start.payload[key] == done.payload[key], key
+
+
+async def test_every_trace_is_numbered_one_to_n(build_run):
+    orchestrator, _, record = build_run(ScriptedProvider(approving(), delay=0.02), files=SEED_OK)
+    result = await orchestrator.run(record)
+    assert [e.seq for e in result.events] == list(range(1, len(result.events) + 1))
+
+
+async def test_agent_starts_pair_with_completions(build_run):
+    orchestrator, _, record = build_run(ScriptedProvider(approving()), files=SEED_OK)
+    result = await orchestrator.run(record)
+
+    assert_agent_pairs(result)
+    roles = [e.payload["role"] for e in of_kind(result, "agent_started")]
+    assert roles == ["planner", "coder", "coder", "coder", "reviewer"]
+    # Control nodes and the deterministic verifier are never reported as agents.
+    assert set(roles) <= {"planner", "coder", "reviewer"}
+    start = of_kind(result, "agent_started")[0]
+    assert start.payload["started_at"]
+    assert start.payload["model"] == "demo-fast"
+
+
+async def test_parallel_agents_start_before_either_finishes(build_run):
+    provider = ScriptedProvider(approving(), delay=0.05)
+    orchestrator, _, record = build_run(provider, files=SEED_OK)
+    result = await orchestrator.run(record)
+
+    events = result.events
+    started = {e.payload["step_id"]: e.seq for e in of_kind(result, "agent_started") if e.payload["role"] == "coder"}
+    finished = {e.payload["step_id"]: e.seq for e in of_kind(result, "agent_invocation") if e.payload["role"] == "coder"}
+    first_wave_done = min(finished["alpha"], finished["beta"])
+    assert started["alpha"] < first_wave_done and started["beta"] < first_wave_done
+    # The dependent step starts only after the merge of the first wave.
+    merge = next(e.seq for e in events if e.payload.get("decision") == "merge_wave")
+    assert started["gamma"] > merge
+
+
+async def test_serial_coding_starts_one_agent_at_a_time(build_run):
+    provider = ScriptedProvider(approving(), delay=0.02)
+    orchestrator, _, record = build_run(
+        provider, files=SEED_OK, limits=Limits(parallel_coding=False)
+    )
+    result = await orchestrator.run(record)
+
+    coder_events = [
+        (e.kind, e.payload["step_id"])
+        for e in result.events
+        if e.kind in {"agent_started", "agent_invocation"} and e.payload.get("role") == "coder"
+    ]
+    # start, finish, start, finish ...: dispatched together, executed in turn.
+    kinds = [kind for kind, _ in coder_events]
+    assert kinds == ["agent_started", "agent_invocation"] * 3
+    dispatch = next(e for e in result.events if e.payload.get("decision") == "dispatch_coding")
+    assert dispatch.payload["steps"] == ["alpha", "beta"]
+    assert dispatch.payload["parallel"] is False
+
+
+async def test_each_retry_attempt_has_its_own_start(build_run):
+    from app.providers.base import ProviderTimeoutError
+
+    def handler(request, index):
+        if index == 1:
+            return ProviderTimeoutError("slow")
+        return approving()(request, index)
+
+    orchestrator, _, record = build_run(ScriptedProvider(handler), files=SEED_OK)
+    result = await orchestrator.run(record)
+
+    planner_starts = [e.payload for e in of_kind(result, "agent_started") if e.payload["role"] == "planner"]
+    assert [p["attempt"] for p in planner_starts] == [1, 2]
+    assert_agent_pairs(result)
+
+
+async def test_a_refused_call_never_starts(build_run):
+    orchestrator, _, record = build_run(
+        ScriptedProvider(approving()), files=SEED_OK, limits=Limits(max_agent_calls=1)
+    )
+    result = await orchestrator.run(record)
+
+    assert result.record.status == "limit_exceeded"
+    assert [e.payload["role"] for e in of_kind(result, "agent_started")] == ["planner"]
+    assert_agent_pairs(result)
+
+
+async def test_verification_start_pairs_with_its_result(build_run):
+    orchestrator, _, record = build_run(ScriptedProvider(approving()), files=SEED_OK)
+    result = await orchestrator.run(record)
+
+    (start,) = of_kind(result, "verification_started")
+    (done,) = of_kind(result, "verification")
+    assert start.seq < done.seq
+    assert start.payload["verification_id"] == done.payload["verification_id"]
+    assert start.payload["runner"] == "deterministic_subprocess"
+    assert start.payload["role"] == "verifier"
+    assert start.payload["diagnostic"] is False and done.payload["diagnostic"] is False
+    assert start.payload["attempt"] == done.payload["attempt"] == 1
+    assert start.payload["command"] == "python -m pytest -q"
+    # Verification started only after the reviewer approved.
+    review_done = next(e.seq for e in of_kind(result, "agent_invocation") if e.payload["role"] == "reviewer")
+    assert start.seq > review_done
+
+
+async def test_diagnostic_verification_has_a_paired_start(build_run):
+    def handler(request, index):
+        if request.role == "coder":
+            return json.dumps(
+                {"step_id": "draft_implementation", "summary": "implemented",
+                 "changes": [{"path": "target.py", "content": TARGET_IMPLEMENTATION}]}
+            )
+        return review_response("request_changes", [{"severity": "blocker", "message": "Wrong."}])
+
+    orchestrator, _, record = build_run(ScriptedProvider(handler), demo_task=SAMPLE_TASK_ID)
+    result = await orchestrator.run(record)
+
+    (start,) = of_kind(result, "verification_started")
+    (done,) = of_kind(result, "verification")
+    assert start.payload["diagnostic"] is True and done.payload["diagnostic"] is True
+    assert start.payload["attempt"] is None
+    assert start.payload["verification_id"] == done.payload["verification_id"]
+
+
+async def test_no_verification_starts_after_the_deadline(build_run):
+    orchestrator, runtime, record = build_run(ScriptedProvider(approving()), files=SEED_OK)
+    runtime.ledger.started_monotonic -= runtime.limits.max_wall_seconds
+    await orchestrator._verify({"verification_attempts": 0})
+    assert [e for e in runtime.trace.events if e.kind == "verification_started"] == []

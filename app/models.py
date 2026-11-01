@@ -287,7 +287,9 @@ class AgentInvocation(BaseModel):
 
 TraceKind = Literal[
     "run_started",
+    "agent_started",
     "agent_invocation",
+    "verification_started",
     "routing_decision",
     "verification",
     "failure",
