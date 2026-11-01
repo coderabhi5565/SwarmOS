@@ -12,7 +12,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 AgentRole = Literal["planner", "coder", "reviewer", "verifier"]
 ModelTier = Literal["fast", "strong"]
@@ -40,12 +40,20 @@ def new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
 
+# For models the API returns: in the serialization-mode JSON schema (OpenAPI
+# responses), a field with a default is still always present in the output, so
+# mark it required. Validation, and request schemas, are unaffected.
+RESPONSE_SCHEMA = ConfigDict(json_schema_serialization_defaults_required=True)
+
+
 class Limits(BaseModel):
     """Autonomy envelope for a single run.
 
     Values are validated against the process ceiling by ``clamp_limits`` before
     a run starts; a caller can tighten a limit but not widen it.
     """
+
+    model_config = RESPONSE_SCHEMA
 
     max_agent_calls: int = Field(default=12, ge=1, le=64)
     max_budget_usd: float = Field(default=0.25, ge=0, le=20)
@@ -93,6 +101,7 @@ def safe_relative_path(path: str) -> str:
 
 
 class PlanStep(BaseModel):
+    model_config = RESPONSE_SCHEMA
     id: str
     title: str = Field(min_length=3, max_length=120)
     detail: str = Field(min_length=3, max_length=2000)
@@ -130,6 +139,7 @@ class PlanStep(BaseModel):
 
 
 class Plan(BaseModel):
+    model_config = RESPONSE_SCHEMA
     steps: list[PlanStep] = Field(min_length=1, max_length=12)
     assumptions: list[str] = Field(default_factory=list)
 
@@ -223,6 +233,7 @@ class CodingOutput(BaseModel):
 
 
 class ReviewFinding(BaseModel):
+    model_config = RESPONSE_SCHEMA
     severity: Literal["blocker", "major", "minor", "nit"] = "major"
     step_id: str | None = None
     file: str | None = None
@@ -237,6 +248,7 @@ class ReviewInput(BaseModel):
 
 
 class ReviewOutput(BaseModel):
+    model_config = RESPONSE_SCHEMA
     verdict: Literal["approve", "request_changes"]
     rationale: str = Field(default="", max_length=4000)
     findings: list[ReviewFinding] = Field(default_factory=list)
@@ -249,6 +261,7 @@ class ReviewOutput(BaseModel):
 
 
 class VerificationResult(BaseModel):
+    model_config = RESPONSE_SCHEMA
     passed: bool
     command: str
     exit_code: int
@@ -263,6 +276,7 @@ class VerificationResult(BaseModel):
 
 
 class AgentInvocation(BaseModel):
+    model_config = RESPONSE_SCHEMA
     invocation_id: str = Field(default_factory=lambda: new_id("inv"))
     run_id: str
     role: AgentRole
@@ -305,6 +319,7 @@ TraceKind = Literal[
 
 
 class TraceEvent(BaseModel):
+    model_config = RESPONSE_SCHEMA
     event_id: str = Field(default_factory=lambda: new_id("evt"))
     run_id: str
     seq: int = 0
@@ -321,6 +336,7 @@ class TraceEvent(BaseModel):
 
 
 class RunRecord(BaseModel):
+    model_config = RESPONSE_SCHEMA
     run_id: str = Field(default_factory=lambda: new_id("run"))
     created_at: str = Field(default_factory=utc_now)
     updated_at: str = Field(default_factory=utc_now)
@@ -350,6 +366,7 @@ class RunRecord(BaseModel):
 
 
 class RunDetail(BaseModel):
+    model_config = RESPONSE_SCHEMA
     run: RunRecord
     events: list[TraceEvent] = Field(default_factory=list)
 

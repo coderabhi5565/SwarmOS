@@ -149,10 +149,26 @@
           }
         },
         "required": [
+          "invocation_id",
           "run_id",
           "role",
+          "step_id",
           "provider",
-          "model"
+          "model",
+          "profile",
+          "model_tier",
+          "attempt",
+          "status",
+          "started_at",
+          "finished_at",
+          "latency_ms",
+          "input_tokens",
+          "output_tokens",
+          "usage_available",
+          "structured_mode",
+          "cost_usd",
+          "error",
+          "error_class"
         ],
         "title": "AgentInvocation",
         "type": "object"
@@ -460,7 +476,8 @@
           }
         },
         "required": [
-          "run_id"
+          "run_id",
+          "status"
         ],
         "title": "CancelResponse",
         "type": "object"
@@ -640,7 +657,7 @@
             "type": "string"
           },
           "limits": {
-            "$ref": "#/components/schemas/Limits"
+            "$ref": "#/components/schemas/Limits-Output"
           },
           "read_only_files": {
             "items": {
@@ -705,7 +722,8 @@
         },
         "required": [
           "id",
-          "title"
+          "title",
+          "depends_on"
         ],
         "title": "DemoTaskStep",
         "type": "object"
@@ -1173,6 +1191,8 @@
           }
         },
         "required": [
+          "status",
+          "service",
           "version",
           "mode",
           "provider_mode",
@@ -1247,6 +1267,69 @@
         "properties": {
           "max_agent_calls": {
             "default": 12,
+            "maximum": 64,
+            "minimum": 1,
+            "title": "Max Agent Calls",
+            "type": "integer"
+          },
+          "max_budget_usd": {
+            "default": 0.25,
+            "maximum": 20,
+            "minimum": 0,
+            "title": "Max Budget Usd",
+            "type": "number"
+          },
+          "max_escalations": {
+            "default": 1,
+            "maximum": 2,
+            "minimum": 0,
+            "title": "Max Escalations",
+            "type": "integer"
+          },
+          "max_retries": {
+            "default": 2,
+            "maximum": 5,
+            "minimum": 0,
+            "title": "Max Retries",
+            "type": "integer"
+          },
+          "max_revisions": {
+            "default": 1,
+            "maximum": 3,
+            "minimum": 0,
+            "title": "Max Revisions",
+            "type": "integer"
+          },
+          "max_wall_seconds": {
+            "default": 120,
+            "maximum": 1800,
+            "minimum": 5,
+            "title": "Max Wall Seconds",
+            "type": "integer"
+          },
+          "parallel_coding": {
+            "default": true,
+            "title": "Parallel Coding",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "max_agent_calls",
+          "max_budget_usd",
+          "max_wall_seconds",
+          "max_retries",
+          "max_revisions",
+          "max_escalations",
+          "parallel_coding"
+        ],
+        "title": "Limits",
+        "type": "object"
+      },
+      "Limits-Input": {
+        "description": "Autonomy envelope for a single run.\n\nValues are validated against the process ceiling by ``clamp_limits`` before\na run starts; a caller can tighten a limit but not widen it.",
+        "properties": {
+          "max_agent_calls": {
+            "default": 12,
             "maximum": 64.0,
             "minimum": 1.0,
             "title": "Max Agent Calls",
@@ -1293,6 +1376,69 @@
             "type": "boolean"
           }
         },
+        "title": "Limits",
+        "type": "object"
+      },
+      "Limits-Output": {
+        "description": "Autonomy envelope for a single run.\n\nValues are validated against the process ceiling by ``clamp_limits`` before\na run starts; a caller can tighten a limit but not widen it.",
+        "properties": {
+          "max_agent_calls": {
+            "default": 12,
+            "maximum": 64.0,
+            "minimum": 1.0,
+            "title": "Max Agent Calls",
+            "type": "integer"
+          },
+          "max_budget_usd": {
+            "default": 0.25,
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Max Budget Usd",
+            "type": "number"
+          },
+          "max_escalations": {
+            "default": 1,
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Max Escalations",
+            "type": "integer"
+          },
+          "max_retries": {
+            "default": 2,
+            "maximum": 5.0,
+            "minimum": 0.0,
+            "title": "Max Retries",
+            "type": "integer"
+          },
+          "max_revisions": {
+            "default": 1,
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Max Revisions",
+            "type": "integer"
+          },
+          "max_wall_seconds": {
+            "default": 120,
+            "maximum": 1800.0,
+            "minimum": 5.0,
+            "title": "Max Wall Seconds",
+            "type": "integer"
+          },
+          "parallel_coding": {
+            "default": true,
+            "title": "Parallel Coding",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "max_agent_calls",
+          "max_budget_usd",
+          "max_wall_seconds",
+          "max_retries",
+          "max_revisions",
+          "max_escalations",
+          "parallel_coding"
+        ],
         "title": "Limits",
         "type": "object"
       },
@@ -1442,7 +1588,8 @@
           }
         },
         "required": [
-          "steps"
+          "steps",
+          "assumptions"
         ],
         "title": "Plan",
         "type": "object"
@@ -1565,7 +1712,9 @@
           "id",
           "title",
           "detail",
-          "acceptance_criteria"
+          "acceptance_criteria",
+          "depends_on",
+          "target_files"
         ],
         "title": "PlanStep",
         "type": "object"
@@ -1656,8 +1805,12 @@
         },
         "required": [
           "provider",
+          "kind",
           "ok",
-          "detail"
+          "detail",
+          "models",
+          "warning",
+          "status_code"
         ],
         "title": "ProviderModelsResponse",
         "type": "object"
@@ -1966,6 +2119,9 @@
           }
         },
         "required": [
+          "severity",
+          "step_id",
+          "file",
           "message"
         ],
         "title": "ReviewFinding",
@@ -1996,7 +2152,9 @@
           }
         },
         "required": [
-          "verdict"
+          "verdict",
+          "rationale",
+          "findings"
         ],
         "title": "ReviewOutput",
         "type": "object"
@@ -2079,7 +2237,8 @@
           }
         },
         "required": [
-          "run"
+          "run",
+          "events"
         ],
         "title": "RunDetail",
         "type": "object"
@@ -2252,7 +2411,8 @@
           }
         },
         "required": [
-          "runs"
+          "runs",
+          "next_cursor"
         ],
         "title": "RunListResponse",
         "type": "object"
@@ -2313,7 +2473,7 @@
             "type": "string"
           },
           "limits": {
-            "$ref": "#/components/schemas/Limits"
+            "$ref": "#/components/schemas/Limits-Output"
           },
           "model_policy": {
             "default": "config",
@@ -2431,7 +2591,31 @@
           }
         },
         "required": [
-          "goal"
+          "run_id",
+          "created_at",
+          "updated_at",
+          "goal",
+          "provider",
+          "provider_kind",
+          "provider_warning",
+          "status",
+          "limits",
+          "model_policy",
+          "models_by_role",
+          "plan",
+          "review",
+          "verification",
+          "summary",
+          "error",
+          "cost_usd",
+          "monetary_enforced",
+          "usage_available",
+          "agent_calls",
+          "escalations",
+          "revisions",
+          "duration_ms",
+          "changed_files",
+          "artifacts"
         ],
         "title": "RunRecord",
         "type": "object"
@@ -2467,7 +2651,7 @@
             "type": "string"
           },
           "limits": {
-            "$ref": "#/components/schemas/Limits"
+            "$ref": "#/components/schemas/Limits-Input"
           },
           "metadata": {
             "additionalProperties": {
@@ -2604,7 +2788,7 @@
             "type": "string"
           },
           "limits": {
-            "$ref": "#/components/schemas/Limits"
+            "$ref": "#/components/schemas/Limits-Output"
           },
           "model_policy": {
             "title": "Model Policy",
@@ -2729,7 +2913,11 @@
           "escalations",
           "revisions",
           "duration_ms",
-          "changed_files"
+          "changed_files",
+          "plan_step_count",
+          "review_verdict",
+          "verification_passed",
+          "verification_diagnostic"
         ],
         "title": "RunSummary",
         "type": "object"
@@ -2787,8 +2975,13 @@
           }
         },
         "required": [
+          "event_id",
           "run_id",
-          "kind"
+          "seq",
+          "at",
+          "kind",
+          "message",
+          "payload"
         ],
         "title": "TraceEvent",
         "type": "object"
@@ -3104,7 +3297,13 @@
           "passed",
           "command",
           "exit_code",
-          "duration_ms"
+          "duration_ms",
+          "tests_passed",
+          "tests_failed",
+          "stdout_tail",
+          "stderr_tail",
+          "workspace_files",
+          "diagnostic"
         ],
         "title": "VerificationResult",
         "type": "object"

@@ -267,3 +267,23 @@ def test_no_public_response_leaks_the_endpoint_or_key(tmp_path, monkeypatch):
         assert SECRET_KEY not in body
         assert PRIVATE_URL not in body
         assert "10.20.30.40" not in body
+
+
+def test_response_schemas_mark_always_present_fields_required():
+    """Clients generated from OpenAPI must not see always-present response
+    fields as optional, while requests and event payloads keep true optionals."""
+    schemas = main_module.app.openapi()["components"]["schemas"]
+
+    def required(name: str) -> set[str]:
+        return set(schemas[name].get("required", []))
+
+    assert {"run_id", "created_at", "status", "limits", "artifacts"} <= required("RunRecord")
+    assert {"event_id", "seq", "at", "payload"} <= required("TraceEvent")
+    assert {"depends_on", "target_files"} <= required("PlanStep")
+    assert {"runs", "next_cursor"} <= required("RunListResponse")
+    # A request body only requires what the server cannot default.
+    assert required("RunRequest") == {"goal"}
+    assert required("Limits-Input") == set()
+    # Event payload keys that may genuinely be absent stay optional.
+    assert "step_id" not in required("AgentStartedPayload")
+    assert required("FailurePayload") == {"error"}

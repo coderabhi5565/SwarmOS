@@ -13,10 +13,23 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.models import Limits, ReviewOutput, RunRecord, RunStatus, TraceEvent
+from app.models import (
+    RESPONSE_SCHEMA,
+    Limits,
+    ReviewOutput,
+    RunRecord,
+    RunStatus,
+    TraceEvent,
+)
 
 
-class HealthResponse(BaseModel):
+class _Response(BaseModel):
+    """Base for response models: defaulted fields are always serialised."""
+
+    model_config = RESPONSE_SCHEMA
+
+
+class HealthResponse(_Response):
     status: Literal["ok"] = "ok"
     service: str = "swarmos"
     version: str
@@ -30,13 +43,13 @@ class HealthResponse(BaseModel):
 # ----------------------------------------------------------------------
 # demo catalog
 # ----------------------------------------------------------------------
-class DemoTaskStep(BaseModel):
+class DemoTaskStep(_Response):
     id: str
     title: str
     depends_on: list[str] = Field(default_factory=list)
 
 
-class DemoTaskInfo(BaseModel):
+class DemoTaskInfo(_Response):
     id: str
     title: str
     description: str
@@ -48,7 +61,7 @@ class DemoTaskInfo(BaseModel):
     limits: Limits
 
 
-class DemoTasksResponse(BaseModel):
+class DemoTasksResponse(_Response):
     mode: str
     tasks: list[DemoTaskInfo]
 
@@ -56,7 +69,7 @@ class DemoTasksResponse(BaseModel):
 # ----------------------------------------------------------------------
 # configuration
 # ----------------------------------------------------------------------
-class ModelProfileInfo(BaseModel):
+class ModelProfileInfo(_Response):
     name: str
     model: str
     priced: bool
@@ -64,7 +77,7 @@ class ModelProfileInfo(BaseModel):
     output_usd_per_million: float
 
 
-class PublicDemoInfo(BaseModel):
+class PublicDemoInfo(_Response):
     enabled: bool
     execution_sandbox: str
     code_policy: bool
@@ -72,7 +85,7 @@ class PublicDemoInfo(BaseModel):
     runs_per_client_per_hour: int
 
 
-class CapsInfo(BaseModel):
+class CapsInfo(_Response):
     max_agent_calls: int
     max_budget_usd: float
     max_wall_seconds: int
@@ -81,7 +94,7 @@ class CapsInfo(BaseModel):
     max_escalations: int
 
 
-class VerificationConfigInfo(BaseModel):
+class VerificationConfigInfo(_Response):
     command: str
     timeout_seconds: int
     execution_enabled: bool
@@ -89,12 +102,12 @@ class VerificationConfigInfo(BaseModel):
     repo_checkout_allowed: bool
 
 
-class ApiInfo(BaseModel):
+class ApiInfo(_Response):
     auth_required: bool
     remote_bind_allowed: bool
 
 
-class ConfigResponse(BaseModel):
+class ConfigResponse(_Response):
     mode: str
     provider_mode: str
     provider_kind: str
@@ -117,7 +130,7 @@ class ConfigResponse(BaseModel):
     demo_fixture: bool
 
 
-class ProviderModelsResponse(BaseModel):
+class ProviderModelsResponse(_Response):
     provider: str
     kind: str | None = None
     ok: bool
@@ -130,7 +143,7 @@ class ProviderModelsResponse(BaseModel):
 # ----------------------------------------------------------------------
 # runs
 # ----------------------------------------------------------------------
-class RunSummary(BaseModel):
+class RunSummary(_Response):
     """A run as listed in history: everything except plan details, review
     text, verification output, the summary, and generated file contents."""
 
@@ -193,13 +206,13 @@ class RunSummary(BaseModel):
         )
 
 
-class RunListResponse(BaseModel):
+class RunListResponse(_Response):
     runs: list[RunSummary]
     # Pass as ``cursor`` to fetch the next (older) page; None on the last page.
     next_cursor: str | None = None
 
 
-class RunEventsResponse(BaseModel):
+class RunEventsResponse(_Response):
     run_id: str
     events: list[TraceEvent]
     # The cursor for the next poll (``after_seq``). Unchanged when no new
@@ -207,6 +220,6 @@ class RunEventsResponse(BaseModel):
     last_seq: int
 
 
-class CancelResponse(BaseModel):
+class CancelResponse(_Response):
     run_id: str
     status: Literal["cancelling"] = "cancelling"

@@ -189,7 +189,7 @@ export interface components {
              */
             input_tokens: number;
             /** Invocation Id */
-            invocation_id?: string;
+            invocation_id: string;
             /**
              * Latency Ms
              * @default 0
@@ -223,7 +223,7 @@ export interface components {
             /** Run Id */
             run_id: string;
             /** Started At */
-            started_at?: string;
+            started_at: string;
             /**
              * Status
              * @default succeeded
@@ -453,7 +453,7 @@ export interface components {
             goal: string;
             /** Id */
             id: string;
-            limits: components["schemas"]["Limits"];
+            limits: components["schemas"]["Limits-Output"];
             /** Read Only Files */
             read_only_files: string[];
             /** Steps */
@@ -466,7 +466,7 @@ export interface components {
         /** DemoTaskStep */
         DemoTaskStep: {
             /** Depends On */
-            depends_on?: string[];
+            depends_on: string[];
             /** Id */
             id: string;
             /** Title */
@@ -730,6 +730,94 @@ export interface components {
              */
             parallel_coding: boolean;
         };
+        /**
+         * Limits
+         * @description Autonomy envelope for a single run.
+         *
+         *     Values are validated against the process ceiling by ``clamp_limits`` before
+         *     a run starts; a caller can tighten a limit but not widen it.
+         */
+        "Limits-Input": {
+            /**
+             * Max Agent Calls
+             * @default 12
+             */
+            max_agent_calls: number;
+            /**
+             * Max Budget Usd
+             * @default 0.25
+             */
+            max_budget_usd: number;
+            /**
+             * Max Escalations
+             * @default 1
+             */
+            max_escalations: number;
+            /**
+             * Max Retries
+             * @default 2
+             */
+            max_retries: number;
+            /**
+             * Max Revisions
+             * @default 1
+             */
+            max_revisions: number;
+            /**
+             * Max Wall Seconds
+             * @default 120
+             */
+            max_wall_seconds: number;
+            /**
+             * Parallel Coding
+             * @default true
+             */
+            parallel_coding: boolean;
+        };
+        /**
+         * Limits
+         * @description Autonomy envelope for a single run.
+         *
+         *     Values are validated against the process ceiling by ``clamp_limits`` before
+         *     a run starts; a caller can tighten a limit but not widen it.
+         */
+        "Limits-Output": {
+            /**
+             * Max Agent Calls
+             * @default 12
+             */
+            max_agent_calls: number;
+            /**
+             * Max Budget Usd
+             * @default 0.25
+             */
+            max_budget_usd: number;
+            /**
+             * Max Escalations
+             * @default 1
+             */
+            max_escalations: number;
+            /**
+             * Max Retries
+             * @default 2
+             */
+            max_retries: number;
+            /**
+             * Max Revisions
+             * @default 1
+             */
+            max_revisions: number;
+            /**
+             * Max Wall Seconds
+             * @default 120
+             */
+            max_wall_seconds: number;
+            /**
+             * Parallel Coding
+             * @default true
+             */
+            parallel_coding: boolean;
+        };
         /** MergeWaveDecision */
         MergeWaveDecision: {
             /** Accepted Steps */
@@ -779,7 +867,7 @@ export interface components {
         /** Plan */
         Plan: {
             /** Assumptions */
-            assumptions?: string[];
+            assumptions: string[];
             /** Steps */
             steps: components["schemas"]["PlanStep"][];
         };
@@ -813,13 +901,13 @@ export interface components {
             /** Acceptance Criteria */
             acceptance_criteria: string[];
             /** Depends On */
-            depends_on?: string[];
+            depends_on: string[];
             /** Detail */
             detail: string;
             /** Id */
             id: string;
             /** Target Files */
-            target_files?: string[];
+            target_files: string[];
             /** Title */
             title: string;
         };
@@ -843,17 +931,17 @@ export interface components {
             /** Detail */
             detail: string;
             /** Kind */
-            kind?: string | null;
+            kind: string | null;
             /** Models */
-            models?: string[];
+            models: string[];
             /** Ok */
             ok: boolean;
             /** Provider */
             provider: string;
             /** Status Code */
-            status_code?: number | null;
+            status_code: number | null;
             /** Warning */
-            warning?: string | null;
+            warning: string | null;
         };
         /** ProviderPayload */
         ProviderPayload: {
@@ -972,7 +1060,7 @@ export interface components {
         /** ReviewFinding */
         ReviewFinding: {
             /** File */
-            file?: string | null;
+            file: string | null;
             /** Message */
             message: string;
             /**
@@ -982,12 +1070,12 @@ export interface components {
              */
             severity: "blocker" | "major" | "minor" | "nit";
             /** Step Id */
-            step_id?: string | null;
+            step_id: string | null;
         };
         /** ReviewOutput */
         ReviewOutput: {
             /** Findings */
-            findings?: components["schemas"]["ReviewFinding"][];
+            findings: components["schemas"]["ReviewFinding"][];
             /**
              * Rationale
              * @default
@@ -1015,7 +1103,7 @@ export interface components {
         /** RunDetail */
         RunDetail: {
             /** Events */
-            events?: components["schemas"]["TraceEvent"][];
+            events: components["schemas"]["TraceEvent"][];
             run: components["schemas"]["RunRecord"];
         };
         /** RunEventsResponse */
@@ -1072,7 +1160,7 @@ export interface components {
         /** RunListResponse */
         RunListResponse: {
             /** Next Cursor */
-            next_cursor?: string | null;
+            next_cursor: string | null;
             /** Runs */
             runs: components["schemas"]["RunSummary"][];
         };
@@ -1084,25 +1172,25 @@ export interface components {
              */
             agent_calls: number;
             /** Artifacts */
-            artifacts?: {
+            artifacts: {
                 [key: string]: string;
             };
             /** Changed Files */
-            changed_files?: string[];
+            changed_files: string[];
             /**
              * Cost Usd
              * @default 0
              */
             cost_usd: number;
             /** Created At */
-            created_at?: string;
+            created_at: string;
             /**
              * Duration Ms
              * @default 0
              */
             duration_ms: number;
             /** Error */
-            error?: string | null;
+            error: string | null;
             /**
              * Escalations
              * @default 0
@@ -1110,14 +1198,14 @@ export interface components {
             escalations: number;
             /** Goal */
             goal: string;
-            limits?: components["schemas"]["Limits"];
+            limits: components["schemas"]["Limits-Output"];
             /**
              * Model Policy
              * @default config
              */
             model_policy: string;
             /** Models By Role */
-            models_by_role?: {
+            models_by_role: {
                 [key: string]: string;
             };
             /**
@@ -1125,7 +1213,7 @@ export interface components {
              * @default false
              */
             monetary_enforced: boolean;
-            plan?: components["schemas"]["Plan"] | null;
+            plan: components["schemas"]["Plan"] | null;
             /**
              * Provider
              * @default demo
@@ -1138,15 +1226,15 @@ export interface components {
              */
             provider_kind: "demo" | "local" | "remote" | "unknown";
             /** Provider Warning */
-            provider_warning?: string | null;
-            review?: components["schemas"]["ReviewOutput"] | null;
+            provider_warning: string | null;
+            review: components["schemas"]["ReviewOutput"] | null;
             /**
              * Revisions
              * @default 0
              */
             revisions: number;
             /** Run Id */
-            run_id?: string;
+            run_id: string;
             /**
              * Status
              * @default queued
@@ -1159,13 +1247,13 @@ export interface components {
              */
             summary: string;
             /** Updated At */
-            updated_at?: string;
+            updated_at: string;
             /**
              * Usage Available
              * @default false
              */
             usage_available: boolean;
-            verification?: components["schemas"]["VerificationResult"] | null;
+            verification: components["schemas"]["VerificationResult"] | null;
         };
         /** RunRequest */
         RunRequest: {
@@ -1177,7 +1265,7 @@ export interface components {
             };
             /** Goal */
             goal: string;
-            limits?: components["schemas"]["Limits"];
+            limits?: components["schemas"]["Limits-Input"];
             /** Metadata */
             metadata?: {
                 [key: string]: string;
@@ -1233,7 +1321,7 @@ export interface components {
             escalations: number;
             /** Goal */
             goal: string;
-            limits: components["schemas"]["Limits"];
+            limits: components["schemas"]["Limits-Output"];
             /** Model Policy */
             model_policy: string;
             /** Models By Role */
@@ -1243,13 +1331,13 @@ export interface components {
             /** Monetary Enforced */
             monetary_enforced: boolean;
             /** Plan Step Count */
-            plan_step_count?: number | null;
+            plan_step_count: number | null;
             /** Provider */
             provider: string;
             /** Provider Kind */
             provider_kind: string;
             /** Review Verdict */
-            review_verdict?: ("approve" | "request_changes") | null;
+            review_verdict: ("approve" | "request_changes") | null;
             /** Revisions */
             revisions: number;
             /** Run Id */
@@ -1264,16 +1352,16 @@ export interface components {
             /** Usage Available */
             usage_available: boolean;
             /** Verification Diagnostic */
-            verification_diagnostic?: boolean | null;
+            verification_diagnostic: boolean | null;
             /** Verification Passed */
-            verification_passed?: boolean | null;
+            verification_passed: boolean | null;
         };
         /** TraceEvent */
         TraceEvent: {
             /** At */
-            at?: string;
+            at: string;
             /** Event Id */
-            event_id?: string;
+            event_id: string;
             /**
              * Kind
              * @enum {string}
@@ -1288,7 +1376,7 @@ export interface components {
              * Payload
              * @description Kind-specific data; see the TraceEventPayloads schema for the payload model of each kind.
              */
-            payload?: {
+            payload: {
                 [key: string]: unknown;
             };
             /** Run Id */
@@ -1429,7 +1517,7 @@ export interface components {
              */
             tests_passed: number;
             /** Workspace Files */
-            workspace_files?: string[];
+            workspace_files: string[];
         };
         /**
          * VerificationStartedPayload
