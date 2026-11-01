@@ -18,22 +18,22 @@ Milestones (revised 2026-11-01):
 - M3.2 event reducer and replay engine ✅
 - M3.3 execution interface (new run, run detail, live console, history) ✅
 - M4 visual execution engine (2D graph, lazy 3D scene) ✅
-- M5 integration
+- M5 real-time execution (SSE streaming, polling fallback) and playback ✅
 - M6 benchmarks, docs, landing page
 - M7 security review, testing, free deployment
 - M8 release
 
 ## Current milestone
 
-**M4 — Visual execution engine: complete** (on `main`; M3.3 pushed, M4 not yet pushed).
-Next: **M5 — integration**, awaiting approval.
+**M5 — Real-time execution and playback: complete** (on `main`; M4 pushed, M5 not yet pushed).
+Next: **M6 — benchmarks, docs, landing page**, awaiting approval (not started).
 
 ## Validation at the last milestone boundary
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest` | 351 passed, 2 skipped (symlink test needs privilege on Windows; POSIX rlimit test is Linux-only) |
-| frontend `npm run typecheck` / `npm test` / `npm run build` | clean / 174 passed (20 files) / builds |
+| `python -m pytest` | 381 passed, 2 skipped (symlink test needs privilege on Windows; POSIX rlimit test is Linux-only) |
+| frontend `npm run typecheck` / `npm test` / `npm run build` | clean / 226 passed (24 files) / builds |
 | `ruff format --check` | not configured; the codebase has never been formatted (56/62 files would change before M3.0) |
 | `ruff check .` | clean |
 | `npx tsc --noEmit` (frontend) | clean |
@@ -42,8 +42,52 @@ Next: **M5 — integration**, awaiting approval.
 
 Suite wall time varies a lot on this machine (80 s to 300 s for the same code).
 Most of it is real `pytest` subprocesses spawned by verification tests.
+During M5 the machine ran near its memory commit limit (other applications):
+frontend runs used `vitest run --maxWorkers=2`, and a few `tsc`/build runs
+were killed by out-of-memory and passed unchanged on retry.
 
 ## Completed
+
+### M5 — real-time execution and playback
+
+- **`GET /api/runs/{id}/stream`** (Server-Sent Events, `app/streaming.py`):
+  the persisted trace, live, then `end`. `RunStore` notifies listeners after
+  each commit; a broker wakes the streams of that run, which re-read the
+  store after their cursor. No second event store and no per-stream
+  buffering. Cursor: the greater of `after_seq` and `Last-Event-ID`; `id` =
+  `seq`. Correctness argument (connect race, read/wait race, terminal
+  ordering) in `docs/architecture.md#live-streaming`.
+- **Limits:** keepalive comments, a maximum stream lifetime (clients
+  resume), batches of 200, back-pressure. The public demo caps open streams
+  at 4 per client and 40 in total; the token check applies; the endpoint
+  creates nothing and takes no inputs beyond the cursor.
+- **Frontend transport:** one shared connection per run per QueryClient,
+  reading the stream with `fetch` and folding events through the reducer
+  into the same cache entry as polling. States: connecting, connected,
+  reconnecting (1/2/4 s backoff), polling fallback (stream retried every
+  30 s), disconnected (offline), completed. No record or event polling
+  while streaming; `end` refreshes the record and triggers one final
+  fetch. A poll folds onto the latest cached state, never a stale one.
+- **Connection badge** on the console and Run Detail: says live only while
+  a stream is open; the fallback says the backend answers but the stream
+  does not.
+- **Playback** on Run Detail (`createStateReplay` over the state's own log):
+  play, pause, restart, step, scrub, 0.5×–4×; the position is view state, so
+  it survives 2D/3D switches; all progress panels draw the frame; derived
+  only, so a live run keeps updating underneath. Elapsed time only from
+  recorded timestamps; the cadence is one event per step, stated as such.
+- **Visual check with a long run:** `scripts/serve_slow_demo.py` (dev only)
+  slows the demo provider to 4 s per call; production timing is unchanged.
+  Headless Edge confirmed streaming, nodes updating as events arrive,
+  animation only on edges into running work (and none under reduced
+  motion), selection surviving live updates and 2D/3D switches, playback in
+  both views, and one stream / two record / two events requests for a
+  whole live run. It found and fixed two M4 bugs: 2D follow-live never
+  moved (React Flow held queued fits because replaced nodes lost their
+  measured size), and both views stayed on the last active node after a run
+  ended.
+- **Not changed:** M2 public-demo restrictions, rate limits, the reducer
+  and the visualisation model.
 
 ### M4 — visual execution engine
 

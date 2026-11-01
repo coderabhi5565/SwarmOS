@@ -181,8 +181,9 @@ defect described without evidence ends the run without a repair round.
 
 Every trace event is `{event_id, run_id, seq, at, kind, message, payload}`.
 `seq` starts at 1 and increases by one per event within a run. A client
-polls `GET /api/runs/{id}/events?after_seq=<last_seq>` to receive only new
-events.
+follows a live run over `GET /api/runs/{id}/stream` (see *Live streaming*),
+or polls `GET /api/runs/{id}/events?after_seq=<last_seq>` to receive only
+new events.
 
 Each payload is validated on emit against the model for its `kind` in
 `app/events.py`. Unknown fields are rejected, and the models are published
@@ -215,7 +216,7 @@ API contract; it uses no React, store, DOM, or clock.
 | `events.ts` | The only compatibility boundary: maps any trace event (pre-M3.0, current, or an unknown future kind) to one `NormalizedEvent` union |
 | `model.ts` | `ExecutionState`: agents (planner, coder, reviewer), the deterministic verification runner, orchestrator operations, the plan with waves and dependencies, review rounds, budget, failures, and an integrity report |
 | `reducer.ts` | `reduce(state, event)`: pure, seq-ordered, idempotent for duplicates, rebuilds on late events |
-| `replay.ts` | `replay(events, { untilSeq })` and `createReplay` (memoised, scrubbable frames) |
+| `replay.ts` | `replay(events, { untilSeq })`, `createReplay` (memoised, scrubbable frames), and `createStateReplay` (the same frames over a state's own log, keeping shared frames as a live state grows) |
 
 Rules the reducer keeps:
 
@@ -230,6 +231,83 @@ Rules the reducer keeps:
 
 Fixtures are recorded from the real backend by
 `scripts/record_trace_fixtures.py`.
+
+## Live streaming
+
+`GET /api/runs/{run_id}/stream` sends a run's persisted trace as
+Server-Sent Events, live while the run executes, then closes. SQLite stays
+the only event store: the stream reads exactly what `/events` returns.
+
+```text
+retry: 2000                       reconnect delay hint
+id: 7                             one message per event, id = its seq
+event: trace
+data: {"event_id": ..., "seq": 7, "kind": "agent_started", ...}
+
+: keepalive                       comment line while idle, never an event
+
+event: end                        once the run is terminal and every event was sent
+data: {"run_id": ..., "status": "completed", "last_seq": 17}
+```
+
+**Cursor rules.** `after_seq` (query) and `Last-Event-ID` (header, which a
+browser's EventSource sends when it reconnects) both mean "I have every
+event up to this seq". The stream starts after the **greater** of the two;
+absent means 0. A malformed `Last-Event-ID` is a `400`, a malformed
+`after_seq` a `422`. Events go out in ascending `seq` with their own `seq`
+as the id, so a client resuming from its last id never receives an earlier
+event as a new one.
+
+**Why no event is lost.**
+
+- *Connecting.* The stream reads the store from the cursor, so events
+  recorded between a client reading its cursor and connecting are sent.
+- *While open.* `RunStore` calls its listeners after each commit; a broker
+  wakes the streams watching that run. Notifications carry no data: a
+  stream subscribes before its first read, clears its wake flag before
+  each read, re-reads after its cursor, and then waits. A commit during a
+  read or while sending leaves the flag set, so the next wait returns at
+  once. A missed wake-up costs at most a heartbeat; an event is never
+  skipped.
+- *Ending.* The status is read before each drain, and every terminal path
+  writes its last event before (or with) the terminal status, so a terminal
+  status seen before a drain means the drain was complete; only then is
+  `end` sent.
+
+**Resources.** Memory is one flag per open stream; events are read in
+batches of 200 and written with back-pressure, so a slow client holds back
+only its own stream. A stream closes when the client disconnects, at `end`,
+or after `SWARMOS_STREAM_MAX_SECONDS` (the client resumes from its cursor).
+The public demo caps open streams per client (4) and in total (40), the
+`SWARMOS_API_TOKEN` check applies, and the endpoint creates nothing and
+accepts no inputs beyond the cursor.
+
+**Frontend transport** (`frontend/src/api/`). One connection per run per
+QueryClient (`liveConnection.ts`), shared by every view of the run, reads
+the stream with `fetch` (`stream.ts`, `sse.ts`) and folds each chunk of
+events through the execution reducer into the same query-cache entry that
+polling writes: there is no second state. It resumes after the reduced
+state's `lastSeq`, so overlaps are no-ops.
+
+| State | Meaning |
+| --- | --- |
+| connecting / connected | The stream is opening / open |
+| reconnecting | Dropped: retried at once if it was healthy, else after 1, 2 and 4 s |
+| polling | The stream is unavailable (repeated failures, `404`/`405`/`501`, or `429`): cursor polling every second, and the stream retried every 30 s (or after `Retry-After`) |
+| disconnected | The browser is offline; reconnects when it is back |
+| completed | `end` received: the record is refreshed, whose terminal status triggers one final `/events` fetch, and the stream is closed |
+
+While the stream carries the run, neither the record nor the events are
+polled. A poll folds its page onto the latest cached state, so it cannot
+overwrite events the stream applied while the request was in flight.
+
+**Playback.** Run Detail replays a run from its execution state's own log
+(`createStateReplay`): play, pause, restart, step, scrub, 0.5× to 4×. The
+position lives in the view store, so it survives switching between 2D and
+3D, and every progress panel draws the same frame. Replay is derived only:
+the live state keeps receiving events underneath and "back to live" shows
+it again. Playback steps one event at a time and does not reproduce real
+durations; elapsed time is shown only from recorded timestamps.
 
 ## Trust boundaries
 

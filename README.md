@@ -168,6 +168,7 @@ All four roles run the same graph under every policy; policies only change model
 | `GET` | `/api/runs?limit&cursor` | Run history, newest first: lightweight summaries (no file contents), paged with `next_cursor` |
 | `GET` | `/api/runs/{id}` | Run record plus every trace event |
 | `GET` | `/api/runs/{id}/events?after_seq` | Trace events in `seq` order; with `after_seq`, only newer ones. Returns `last_seq` for the next poll |
+| `GET` | `/api/runs/{id}/stream?after_seq` | The trace as Server-Sent Events, live until the run ends (`id` = `seq`; resumes after the greater of `after_seq` and `Last-Event-ID`; `end` closes it). See [docs/architecture.md](docs/architecture.md#live-streaming) |
 | `POST` | `/api/runs/{id}/cancel` | Cancel an in-flight run (`202`; `404` unknown, `409` finished or not active here; `403` in the public demo) |
 | `GET` | `/api/demo-tasks` | The curated task catalog (the only runs the public demo accepts) |
 
@@ -202,9 +203,16 @@ React Router, TanStack Query and Motion. Routes:
 | `/legacy` | The original dashboard (free-form goals, policy comparison); local mode only |
 
 Every run view renders the frontend execution model
-(`src/domain/execution`): events are polled with the `after_seq` cursor and
-folded through a pure reducer, and anything a trace does not record is shown
-as unknown rather than invented.
+(`src/domain/execution`): a live run's events arrive over the event stream
+(cursor polling takes over when the stream is unavailable) and are folded
+through a pure reducer, and anything a trace does not record is shown as
+unknown rather than invented. The console and Run Detail say how the run is
+being received: streaming, reconnecting, polling fallback, offline, or
+finished.
+
+Run Detail can replay a run event by event (play, pause, step, scrub,
+speed); the graph, details and every panel show the chosen point, while a
+live run keeps updating underneath.
 
 Run Detail and the console draw the execution as a graph
 (`src/domain/visualization` builds one model for both views): planner,
@@ -296,6 +304,7 @@ app/
   state.py             Explicit shared state and reducers
   models.py            Typed contracts for every agent boundary
   store.py             SQLite runs + append-only trace events, with migration
+  streaming.py         Live trace streams (SSE): change broker, cursor rules
   service.py           Run lifecycle, provider/policy resolution, limit clamping
   main.py              FastAPI surface, optional auth, static dashboard
   benchmark.py         Reproducible policy comparison
@@ -304,7 +313,8 @@ app/
   runtime/             Budget ledger, isolated workspace, trace recorder
 frontend/src/          React app: app/ (shell, router), api/ (generated types, client, queries),
                        domain/, store/, pages/, components/ui (shadcn)
-scripts/               export_openapi.py (frontend type generation)
+scripts/               export_openapi.py (frontend type generation), record_trace_fixtures.py,
+                       serve_slow_demo.py (slowed demo provider for watching live runs; dev only)
 samples/sample_project Failing-test fixture used by demo runs
 tests/                 Pytest suite
 docs/                  Architecture, providers, safety, audit
