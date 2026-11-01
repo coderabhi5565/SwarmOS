@@ -4,8 +4,9 @@
  * needs no changes for that.
  */
 import type { TraceEvent } from "@/api/types";
+import type { NormalizedEvent } from "./events";
 import type { ExecutionState, RunSeed } from "./model";
-import { initialState, reduce, settleWithRecord } from "./reducer";
+import { applyEvent, initialState, reduce, settleWithRecord } from "./reducer";
 
 /** Sort by seq and drop repeated seqs (the first copy wins, as in the reducer). */
 export function orderedEvents(events: readonly TraceEvent[]): TraceEvent[] {
@@ -60,16 +61,53 @@ export interface Replay {
  */
 export function createReplay(events: readonly TraceEvent[], seed: RunSeed | null = null): Replay {
   const ordered = orderedEvents(events);
+  return framesOver(ordered, (state, event) => reduce(state, event), initialState(seed), []);
+}
+
+/**
+ * A replay of the events an execution state has applied (its log), through
+ * the same reducer. For playback of a run already in memory: no refetch, no
+ * second interpretation of the trace.
+ *
+ * Pass the previous replay of the same run when the state has grown: frames
+ * already computed for the events both logs share are kept, so replaying a
+ * live run never recomputes its history on each new event.
+ */
+export function createStateReplay(state: ExecutionState, previous?: Replay | null): Replay {
+  const initial = initialState(state.seed);
+  const kept = previous ? sharedFrames(previous, state.log, initial) : [];
+  return framesOver(state.log, applyEvent, initial, kept);
+}
+
+const replayed = new WeakMap<Replay, { log: readonly NormalizedEvent[]; initial: ExecutionState; frames: ExecutionState[] }>();
+
+function sharedFrames(previous: Replay, log: readonly NormalizedEvent[], initial: ExecutionState): ExecutionState[] {
+  const known = replayed.get(previous);
+  // The reducer clones the seed with each event: compare it by value (it is small).
+  if (!known || known.log.length > log.length || JSON.stringify(known.initial.seed) !== JSON.stringify(initial.seed)) {
+    return [];
+  }
+  // The reducer appends to the log by reference, so a shared prefix is the
+  // same event objects; a rebuilt (late-event) log is not, and starts over.
+  let shared = 0;
+  while (shared < known.frames.length && known.log[shared] === log[shared]) shared += 1;
+  return known.frames.slice(0, shared);
+}
+
+function framesOver<E extends { seq: number }>(
+  ordered: readonly E[],
+  step: (state: ExecutionState, event: E) => ExecutionState,
+  initial: ExecutionState,
+  frames: ExecutionState[],
+): Replay {
   const seqs = ordered.map((event) => event.seq);
-  const initial = initialState(seed);
-  const frames: ExecutionState[] = [];
 
   function stateAtIndex(index: number): ExecutionState {
     if (index < 0 || ordered.length === 0) return initial;
     const target = Math.min(index, ordered.length - 1);
     let state = frames.length > 0 ? frames[frames.length - 1] : initial;
     for (let i = frames.length; i <= target; i += 1) {
-      state = reduce(state, ordered[i]);
+      state = step(state, ordered[i]);
       frames.push(state);
     }
     return frames[target];
@@ -92,7 +130,7 @@ export function createReplay(events: readonly TraceEvent[], seed: RunSeed | null
     return stateAtIndex(found);
   }
 
-  return {
+  const replay: Replay = {
     seqs,
     length: seqs.length,
     initial,
@@ -100,4 +138,7 @@ export function createReplay(events: readonly TraceEvent[], seed: RunSeed | null
     stateAt,
     final: () => stateAtIndex(seqs.length - 1),
   };
+  if (ordered.length > 0 && !("type" in ordered[0])) return replay;
+  replayed.set(replay, { log: ordered as unknown as readonly NormalizedEvent[], initial, frames });
+  return replay;
 }

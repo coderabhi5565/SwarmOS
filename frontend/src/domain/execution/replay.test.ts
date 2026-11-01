@@ -3,7 +3,7 @@ import type { TraceEvent } from "@/api/types";
 import { allFixtures, fixtures } from "./fixtures";
 import type { Phase } from "./model";
 import { initialState, reduce } from "./reducer";
-import { createReplay, orderedEvents, replay } from "./replay";
+import { createReplay, createStateReplay, orderedEvents, replay } from "./replay";
 
 const fixture = fixtures.demoPipelineCompleted;
 const fold = (events: TraceEvent[]) => events.reduce(reduce, initialState(fixture.run));
@@ -88,5 +88,53 @@ describe("deterministic replay", () => {
       if (phases.at(-1) !== phase) phases.push(phase);
     }
     expect(phases).toEqual(["planning", "coding", "reviewing", "verifying", "finished"]);
+  });
+});
+
+describe("createStateReplay", () => {
+  const fixture = fixtures.retryEscalation;
+  const full = replay(fixture.events, { seed: fixture.run });
+
+  it("replays a state's own log exactly like the trace", () => {
+    const fromState = createStateReplay(full);
+    const fromTrace = createReplay(fixture.events, fixture.run);
+    expect(fromState.seqs).toEqual(fromTrace.seqs);
+    for (let index = -1; index < fromTrace.length; index++) {
+      expect(fromState.stateAtIndex(index), `frame ${index}`).toEqual(fromTrace.stateAtIndex(index));
+    }
+    expect(fromState.final()).toEqual(full);
+  });
+
+  it("is deterministic: the same position is the same state, however it was reached", () => {
+    const run = createStateReplay(full);
+    const forward = run.stateAtIndex(10);
+    run.stateAtIndex(run.length - 1);
+    expect(run.stateAtIndex(10)).toBe(forward);
+    expect(createStateReplay(full).stateAtIndex(10)).toEqual(forward);
+    expect(run.stateAt(fixture.events[10].seq)).toBe(forward);
+  });
+
+  it("keeps the frames a growing live state shares with its previous replay", () => {
+    const events = fixture.events;
+    const early = events.slice(0, 12).reduce(reduce, initialState(fixture.run));
+    const first = createStateReplay(early);
+    const kept = Array.from({ length: first.length }, (_, index) => first.stateAtIndex(index));
+
+    const later = events.slice(12).reduce(reduce, early);
+    const second = createStateReplay(later, first);
+    expect(second.length).toBe(events.length);
+    for (let index = 0; index < kept.length; index++) expect(second.stateAtIndex(index)).toBe(kept[index]);
+    expect(second.final()).toEqual(full);
+  });
+
+  it("starts over when a late event rebuilt the log", () => {
+    const events = fixture.events;
+    const withoutFive = events.filter((event) => event.seq !== 5).reduce(reduce, initialState(fixture.run));
+    const first = createStateReplay(withoutFive);
+    first.final();
+    const rebuilt = reduce(withoutFive, events.find((event) => event.seq === 5)!);
+    const second = createStateReplay(rebuilt, first);
+    expect(second.final()).toEqual(full);
+    expect(second.stateAtIndex(5)).toEqual(createReplay(events, fixture.run).stateAtIndex(5));
   });
 });

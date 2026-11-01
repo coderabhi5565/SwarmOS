@@ -5,5 +5,5 @@
 export type * from "./model";
 export { normalizeEvent, type NormalizedEvent } from "./events";
 export { applyEvent, initialState, isTerminal, reduce, settleWithRecord } from "./reducer";
-export { createReplay, orderedEvents, replay, type Replay, type ReplayOptions } from "./replay";
+export { createReplay, createStateReplay, orderedEvents, replay, type Replay, type ReplayOptions } from "./replay";
 export * from "./selectors";
