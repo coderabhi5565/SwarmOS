@@ -224,7 +224,12 @@ class RunService:
             self.store.save_run(cancelled)
             raise
         except Exception as exc:  # noqa: BLE001 - never leave a run stuck in "running"
-            runtime.emit("failure", "Run crashed", error=f"{type(exc).__name__}: {exc}")
+            runtime.emit(
+                "failure",
+                "Run crashed",
+                error=f"{type(exc).__name__}: {exc}",
+                error_class="run_crashed",
+            )
             failed = running.model_copy(
                 update={
                     "status": "failed",

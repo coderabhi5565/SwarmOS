@@ -124,7 +124,13 @@ class Orchestrator:
                 state, config={"recursion_limit": 64}
             )
         except Exception as exc:  # noqa: BLE001 - graph bugs must end the run cleanly
-            self.runtime.emit("failure", "Graph execution failed", error=str(exc))
+            # An orchestration failure: no agent, step, or attempt applies.
+            self.runtime.emit(
+                "failure",
+                "Graph execution failed",
+                error=f"{type(exc).__name__}: {exc}",
+                error_class="graph_error",
+            )
             final = dict(state)  # type: ignore[assignment]
             final["status"] = "failed"
             final["error"] = f"{type(exc).__name__}: {exc}"
@@ -378,11 +384,12 @@ class Orchestrator:
 
         if result.output.step_id != step.id:
             updates["failures"] = [
-                StepFailure(
-                    step_id=step.id,
-                    stage="coding",
+                self._reject_coding(
+                    step.id,
+                    attempt,
+                    message="Rejected a coder answer for a different step",
                     error=f"coder answered for {result.output.step_id!r}",
-                    attempts=attempt,
+                    error_class="wrong_step",
                 )
             ]
             return updates
@@ -397,63 +404,58 @@ class Orchestrator:
         if disallowed:
             allowed = sorted(self.runtime.allowed_files or [])
             read_only = sorted(self.runtime.read_only_files)
-            self.runtime.emit(
-                "failure",
-                "Rejected a coder write outside the allowed files",
-                step_id=step.id,
-                paths=disallowed,
-                allowed=allowed,
-                read_only=read_only,
-            )
             updates["failures"] = [
-                StepFailure(
-                    step_id=step.id,
-                    stage="coding",
+                self._reject_coding(
+                    step.id,
+                    attempt,
+                    message="Rejected a coder write outside the allowed files",
                     error=(
                         f"disallowed write(s): {', '.join(disallowed)}; "
                         f"allowed={allowed or 'all'}, read_only={read_only or 'none'}"
                     ),
-                    attempts=attempt,
+                    error_class="write_not_allowed",
+                    paths=disallowed,
+                    allowed=allowed,
+                    read_only=read_only,
                 )
             ]
             return updates
         if self.runtime.settings.code_policy_enabled:
             violations = check_changes(changes)
             if violations:
-                self.runtime.emit(
-                    "failure",
-                    "Rejected generated code that violates the demo code policy",
-                    step_id=step.id,
-                    violations=[violation.describe() for violation in violations[:20]],
-                )
                 updates["failures"] = [
-                    StepFailure(
-                        step_id=step.id,
-                        stage="coding",
+                    self._reject_coding(
+                        step.id,
+                        attempt,
+                        message="Rejected generated code that violates the demo code policy",
                         error="code policy violation: "
                         + "; ".join(v.describe() for v in violations[:5]),
-                        attempts=attempt,
+                        error_class="code_policy",
+                        violations=[violation.describe() for violation in violations[:20]],
                     )
                 ]
                 return updates
         if len(changes) > _MAX_FILES_PER_STEP:
             updates["failures"] = [
-                StepFailure(
-                    step_id=step.id,
-                    stage="coding",
+                self._reject_coding(
+                    step.id,
+                    attempt,
+                    message="Rejected a coder answer with too many files",
                     error=f"coder returned {len(changes)} file changes; limit is {_MAX_FILES_PER_STEP}",
-                    attempts=attempt,
+                    error_class="too_many_files",
                 )
             ]
             return updates
         oversized = [change.path for change in changes if len(change.content) > _MAX_FILE_CHARS]
         if oversized:
             updates["failures"] = [
-                StepFailure(
-                    step_id=step.id,
-                    stage="coding",
+                self._reject_coding(
+                    step.id,
+                    attempt,
+                    message="Rejected an oversized generated file",
                     error=f"file content too large: {', '.join(oversized)}",
-                    attempts=attempt,
+                    error_class="file_too_large",
+                    paths=oversized,
                 )
             ]
             return updates
@@ -488,27 +490,26 @@ class Orchestrator:
             self.runtime.workspace.apply([change])
             applied += 1
 
+        # One failure event per rejected step, so each carries a single step_id
+        # like every other coding failure; the partners are listed alongside.
+        conflict_files = sorted(
+            {change.path for change in delta if change.step_id in conflicts}
+        )
         failures = [
-            StepFailure(
-                step_id=step_id,
-                stage="coding",
+            self._reject_coding(
+                step_id,
+                int((state.get("attempts") or {}).get(step_id, 1)),
+                message="Rejected conflicting parallel writes",
                 error=(
                     "parallel write conflict: independent steps edited the same file; "
                     "the planner must add a dependency or separate the target files"
                 ),
-                attempts=int((state.get("attempts") or {}).get(step_id, 1)),
+                error_class="write_conflict",
+                conflicting_steps=sorted(conflicts - {step_id}),
+                paths=conflict_files,
             )
             for step_id in sorted(conflicts)
         ]
-        if failures:
-            self.runtime.emit(
-                "failure",
-                "Rejected conflicting parallel writes",
-                steps=sorted(conflicts),
-                files=sorted(
-                    {change.path for change in delta if change.step_id in conflicts}
-                ),
-            )
 
         coded: list[str] = list(state.get("coded_steps", []) or [])
         new_coded = coded[int(state.get("merged_coded", 0) or 0) :]
@@ -581,9 +582,19 @@ class Orchestrator:
             # Do not approve and do not dispatch a revision: there is nothing
             # actionable to send back to the coder. The run ends in an explicit
             # non-approval state instead of a normal "changes requested" outcome.
+            error = (
+                "Review requested changes but no blocker finding supplied the "
+                "minimum evidence (a code reference or line, a named acceptance "
+                "criterion, and expected/actual behaviour where applicable). "
+                "The review is invalid, not an approval."
+            )
             self.runtime.emit(
                 "failure",
                 "Review rejected without substantiated evidence",
+                role="reviewer",
+                attempt=result.invocation.attempt if result.invocation else None,
+                error=error,
+                error_class="review_invalid",
                 findings=[
                     check.finding.model_dump(mode="json")
                     for check in evidence.unsupported_blockers
@@ -603,12 +614,7 @@ class Orchestrator:
             )
             updates.update(
                 status="review_invalid",
-                error=(
-                    "Review requested changes but no blocker finding supplied the "
-                    "minimum evidence (a code reference or line, a named acceptance "
-                    "criterion, and expected/actual behaviour where applicable). "
-                    "The review is invalid, not an approval."
-                ),
+                error=error,
                 stage="done",
             )
             return updates
@@ -692,6 +698,13 @@ class Orchestrator:
             self.runtime.emit(
                 "failure",
                 "Verification reported failing tests",
+                role="verifier",
+                attempt=attempts,
+                error=(
+                    f"verification failed: {verification.tests_failed} test(s) failed, "
+                    f"exit code {verification.exit_code}"
+                ),
+                error_class="verification_failed",
                 exit_code=verification.exit_code,
                 tests_failed=verification.tests_failed,
                 stdout_tail=verification.stdout_tail,
@@ -1076,6 +1089,29 @@ class Orchestrator:
     def _steps_for(self, plan, step_ids: list[str]) -> list[PlanStep]:
         wanted = set(step_ids)
         return [step for step in plan.steps if step.id in wanted]
+
+    def _reject_coding(
+        self,
+        step_id: str,
+        attempt: int,
+        *,
+        message: str,
+        error: str,
+        error_class: str,
+        **details: object,
+    ) -> StepFailure:
+        """Record a rejected coding result: one normalised failure event."""
+        self.runtime.emit(
+            "failure",
+            message,
+            role="coder",
+            step_id=step_id,
+            attempt=attempt,
+            error=error,
+            error_class=error_class,
+            **details,
+        )
+        return StepFailure(step_id=step_id, stage="coding", error=error, attempts=attempt)
 
     def _review_targets(self, plan, findings: list[ReviewFinding]) -> list[str]:
         known = {step.id for step in plan.steps}

@@ -182,9 +182,11 @@ class AgentRunner:
                 self.runtime.emit(
                     "failure",
                     f"{agent.role} call failed ({exc.category})",
+                    role=agent.role,
                     step_id=step_id,
                     attempt=failed.attempt,
                     error=failed.error,
+                    error_class=exc.category,
                 )
                 return result
             except Exception as exc:  # noqa: BLE001 - unexpected provider boundary
@@ -205,9 +207,11 @@ class AgentRunner:
                 self.runtime.emit(
                     "failure",
                     f"{agent.role} call crashed",
+                    role=agent.role,
                     step_id=step_id,
                     attempt=failed.attempt,
                     error=failed.error,
+                    error_class="server",
                 )
                 return result
 
@@ -250,9 +254,11 @@ class AgentRunner:
                     "repair" if has_next else "failure",
                     "Requesting a structured-output repair" if has_next
                     else f"{agent.role} returned unparseable output",
+                    role=agent.role,
                     step_id=step_id,
                     attempt=rejected.attempt,
                     error=rejected.error,
+                    error_class="invalid_response",
                 )
                 if has_next:
                     await asyncio.sleep(self._backoff(offset, None))
