@@ -14,7 +14,8 @@ Milestones (revised 2026-11-01):
 - M1 orchestration and API reliability ✅
 - M2 restricted demo execution ✅ (Linux validation pending, in M7)
 - M3.0 backend contract for the frontend ✅
-- M3 frontend and design system (M3.1 foundation next)
+- M3.1 frontend foundation ✅
+- M3 frontend and design system (M3.2 domain layer next)
 - M4 Three.js agent network
 - M5 integration
 - M6 benchmarks, docs, landing page
@@ -23,14 +24,15 @@ Milestones (revised 2026-11-01):
 
 ## Current milestone
 
-**M3.0 — Backend contract: complete** (on `main`, not yet pushed).
-Next: **M3.1 — Frontend foundation**, awaiting approval.
+**M3.1 — Frontend foundation: complete** (on `main`; M3.0 pushed, M3.1 not yet pushed).
+Next: **M3.2 — Domain layer (event reducer)**, awaiting approval.
 
 ## Validation at the last milestone boundary
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest` | 338 passed, 2 skipped (symlink test needs privilege on Windows; POSIX rlimit test is Linux-only) |
+| `python -m pytest` | 351 passed, 2 skipped (symlink test needs privilege on Windows; POSIX rlimit test is Linux-only) |
+| frontend `npm run typecheck` / `npm test` / `npm run build` | clean / 29 passed (6 files) / builds, entry 101 kB |
 | `ruff format --check` | not configured; the codebase has never been formatted (56/62 files would change before M3.0) |
 | `ruff check .` | clean |
 | `npx tsc --noEmit` (frontend) | clean |
@@ -41,6 +43,36 @@ Suite wall time varies a lot on this machine (80 s to 300 s for the same code).
 Most of it is real `pytest` subprocesses spawned by verification tests.
 
 ## Completed
+
+### M3.1 — frontend foundation
+
+- **Stack:** React 19.3, Vite 6.4, TypeScript 5.9, Tailwind CSS 4.3,
+  shadcn/ui (Radix, radix-nova preset), React Router 7.18,
+  TanStack Query 5.105, Motion 12.43 (LazyMotion), Zustand 5.0, and
+  Vitest 5.0 with Testing Library and jsdom.
+- **Contract types:** generated from the backend by `npm run gen:api`
+  (`scripts/export_openapi.py` + openapi-typescript). A backend snapshot
+  test fails on drift.
+- **Query layer:** retries for a sleeping free-tier backend (never 4xx);
+  incremental event polling with `after_seq`; a paged history.
+- **Shell:** a glass header with a live backend status ("waking" during
+  cold starts); `/` overview from real API data; `/console` keeps the
+  original dashboard unchanged; `/runs/:runId` deep links; 404 page.
+  FastAPI serves client-side routes.
+- **Design tokens:** dark navy, electric blue, cyan and violet, plus
+  semantic status and agent-role colors; Inter and JetBrains Mono;
+  reduced-motion support.
+- **Zustand:** view state only (selection scoped to a run, 2D/3D mode,
+  follow live).
+- **Found and fixed during visual checks:** demo-fixture runs were recorded
+  as "local" when an endpoint was configured (backend), and the status
+  label (frontend).
+- **Bundle:** 101 kB entry (36 kB gzip), plus cached vendor chunks; the
+  console and run pages load lazily.
+
+Accepted advisory: openapi-typescript → @redocly/openapi-core →
+minimatch 5 (moderate ReDoS, GHSA-g3hv-75wg-m249). It is dev-only, only
+parses our own schema, and no patched release exists below minimatch 11.
 
 ### M3.0 — backend contract for the frontend
 

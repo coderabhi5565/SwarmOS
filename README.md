@@ -181,7 +181,7 @@ npm install
 npm run dev        # http://localhost:5173, proxying to the API on :8000
 ```
 
-For a single process:
+For a single process (FastAPI serves the build, including deep links such as `/runs/<id>`):
 
 ```bash
 cd frontend && npm run build && cd ..
@@ -189,7 +189,22 @@ uvicorn app.main:app
 # http://localhost:8000
 ```
 
-The dashboard shows run status, dependency waves, agent invocations, routing decisions, verification
+The frontend is React 19, Vite 6, TypeScript, Tailwind CSS 4 and shadcn/ui, with
+React Router, TanStack Query and Motion. Routes:
+
+| Route | Page |
+| --- | --- |
+| `/` | Overview from live API data: demo catalog, recent runs, backend mode |
+| `/console` | The original dashboard (run form, history, policy comparison) |
+| `/runs/:runId` | A deep-linkable run, polled incrementally with the event cursor |
+
+API types are generated from the backend contract. After changing the API, run
+`npm run gen:api` in `frontend/` with the virtualenv active and commit
+`openapi.json` and `src/api/schema.d.ts`; a backend test fails if they drift.
+Set `VITE_API_BASE_URL` (see `frontend/.env.example`) when the API is hosted on
+another origin.
+
+The console dashboard shows run status, dependency waves, agent invocations, routing decisions, verification
 evidence, errors, resource meters, the actual provider kind, and the model used by each role. Demo runs are
 labelled as fixtures. It also provides:
 
@@ -251,7 +266,7 @@ Tasks are in `benchmarks/tasks.jsonl`; results are written to `benchmarks/result
 ```bash
 python -m pytest
 ruff check .
-cd frontend && npx tsc --noEmit && npm run build
+cd frontend && npm run typecheck && npm test && npm run build
 ```
 
 The suite covers typed contracts, plan validation, routing, wave independence, parallel execution, conflict rejection, retries and escalation, budget and call limits, review revisions, verification repair, provider error classification, JSON-mode downgrade, workspace safety, persistence and migration, the benchmark harness, and the HTTP API.
@@ -270,7 +285,9 @@ app/
   agents/              Planner, coder, reviewer, verifier, call runner
   providers/           Provider protocol, demo fixture, OpenAI-compatible adapter
   runtime/             Budget ledger, isolated workspace, trace recorder
-frontend/src/          React trace viewer
+frontend/src/          React app: app/ (shell, router), api/ (generated types, client, queries),
+                       domain/, store/, pages/, components/ui (shadcn)
+scripts/               export_openapi.py (frontend type generation)
 samples/sample_project Failing-test fixture used by demo runs
 tests/                 Pytest suite
 docs/                  Architecture, providers, safety, audit
