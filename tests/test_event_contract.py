@@ -58,6 +58,98 @@ def coder_writing(changes_for):
 
 
 # ----------------------------------------------------------------------
+# plan structure
+# ----------------------------------------------------------------------
+def plan_event(result):
+    (event,) = [
+        e for e in result.events
+        if e.kind == "routing_decision"
+        and e.payload.get("decision") in {"plan_accepted", "plan_seeded"}
+    ]
+    return event
+
+
+def assert_waves_respect_dependencies(payload) -> None:
+    deps = {step["id"]: step["depends_on"] for step in payload["plan"]["steps"]}
+    wave_of = {step: index for index, wave in enumerate(payload["waves"]) for step in wave}
+    assert set(wave_of) == set(deps) == set(payload["steps"])
+    for step, needs in deps.items():
+        assert all(wave_of[dep] < wave_of[step] for dep in needs)
+
+
+async def test_generated_plan_event_carries_dependencies_and_waves(build_run):
+    provider = ScriptedProvider(coder_writing(lambda step: [{"path": f"out/{step}.txt", "content": "x"}]))
+    orchestrator, _, record = build_run(provider, files=SEED_OK)
+    result = await orchestrator.run(record)
+
+    payload = plan_event(result).payload
+    assert payload["decision"] == "plan_accepted"
+    deps = {step["id"]: step["depends_on"] for step in payload["plan"]["steps"]}
+    assert deps == {"alpha": [], "beta": [], "gamma": ["alpha", "beta"]}
+    assert payload["waves"] == [["alpha", "beta"], ["gamma"]]
+    assert payload["plan"]["steps"][0]["target_files"] == ["out/alpha.txt"]
+    assert_waves_respect_dependencies(payload)
+
+    # The first dispatch really ran the first wave in parallel.
+    dispatch = next(
+        e for e in result.events
+        if e.kind == "routing_decision" and e.payload.get("decision") == "dispatch_coding"
+    )
+    assert dispatch.payload["steps"] == payload["waves"][0]
+    assert dispatch.payload["parallel"] is True
+
+
+async def test_seeded_plan_event_carries_the_recipe_dependencies(build_run):
+    from app.demo_tasks import PIPELINE_TASK_ID
+    from app.providers.demo import DemoProvider
+
+    orchestrator, _, record = build_run(DemoProvider(), demo_task=PIPELINE_TASK_ID)
+    result = await orchestrator.run(record)
+
+    payload = plan_event(result).payload
+    assert payload["decision"] == "plan_seeded"
+    document = next(s for s in payload["plan"]["steps"] if s["id"] == "document_change")
+    assert document["depends_on"] == ["inspect_tests", "draft_implementation"]
+    assert payload["waves"] == [["inspect_tests", "draft_implementation"], ["document_change"]]
+    assert_waves_respect_dependencies(payload)
+
+
+async def test_dependency_chain_yields_one_step_per_wave(build_run):
+    chain = {
+        "steps": [
+            {"id": "first", "title": "First", "detail": "write first", "acceptance_criteria": ["done"],
+             "depends_on": [], "target_files": ["out/first.txt"]},
+            {"id": "second", "title": "Second", "detail": "write second", "acceptance_criteria": ["done"],
+             "depends_on": ["first"], "target_files": ["out/second.txt"]},
+            {"id": "third", "title": "Third", "detail": "write third", "acceptance_criteria": ["done"],
+             "depends_on": ["second"], "target_files": ["out/third.txt"]},
+        ]
+    }
+
+    def handler(request, index):
+        if request.role == "planner":
+            return plan_response(chain)
+        if request.role == "coder":
+            step_id = json.loads(request.user)["step"]["id"]
+            return json.dumps({"step_id": step_id, "summary": "done",
+                               "changes": [{"path": f"out/{step_id}.txt", "content": "x"}]})
+        return review_response("approve")
+
+    orchestrator, _, record = build_run(ScriptedProvider(handler), files=SEED_OK)
+    result = await orchestrator.run(record)
+
+    payload = plan_event(result).payload
+    assert payload["waves"] == [["first"], ["second"], ["third"]]
+    assert_waves_respect_dependencies(payload)
+    dispatches = [
+        e.payload for e in result.events
+        if e.kind == "routing_decision" and e.payload.get("decision") == "dispatch_coding"
+    ]
+    assert [d["steps"] for d in dispatches] == [["first"], ["second"], ["third"]]
+    assert not any(d["parallel"] for d in dispatches)
+
+
+# ----------------------------------------------------------------------
 # normalised failure events
 # ----------------------------------------------------------------------
 async def test_disallowed_write_failure_is_normalised(build_run):

@@ -274,6 +274,7 @@ class Orchestrator:
                 steps=[step.id for step in plan.steps],
                 waves=[[step.id for step in wave] for wave in plan.waves()],
                 assumptions=plan.assumptions,
+                plan=plan,
             )
             self._save_progress(plan=plan)
             return {
@@ -325,6 +326,9 @@ class Orchestrator:
             steps=[step.id for step in plan.steps],
             waves=[[step.id for step in wave] for wave in plan.waves()],
             assumptions=plan.assumptions,
+            # The validated plan itself, so a client can draw the dependency
+            # graph (depends_on, target files, criteria) from the trace alone.
+            plan=plan,
         )
         self._save_progress(plan=plan)
         return updates
