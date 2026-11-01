@@ -195,8 +195,16 @@ React Router, TanStack Query and Motion. Routes:
 | Route | Page |
 | --- | --- |
 | `/` | Overview from live API data: demo catalog, recent runs, backend mode |
-| `/console` | The original dashboard (run form, history, policy comparison) |
-| `/runs/:runId` | A deep-linkable run, polled incrementally with the event cursor |
+| `/runs/new` | Start a run from the curated task catalog (the only runs the public demo accepts) |
+| `/runs/:runId` | One run from its normalised execution state: plan and waves, agents and the verification runner, trace, review, verification, model calls, budget, failures |
+| `/console` | Live execution monitor: what is in flight right now, followed trace, counters |
+| `/history` | Paginated run history |
+| `/legacy` | The original dashboard (free-form goals, policy comparison); local mode only |
+
+Every run view renders the frontend execution model
+(`src/domain/execution`): events are polled with the `after_seq` cursor and
+folded through a pure reducer, and anything a trace does not record is shown
+as unknown rather than invented.
 
 API types are generated from the backend contract. After changing the API, run
 `npm run gen:api` in `frontend/` with the virtualenv active and commit

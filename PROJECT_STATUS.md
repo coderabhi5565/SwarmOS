@@ -16,7 +16,7 @@ Milestones (revised 2026-11-01):
 - M3.0 backend contract for the frontend ✅
 - M3.1 frontend foundation ✅
 - M3.2 event reducer and replay engine ✅
-- M3 frontend and design system (screens next)
+- M3.3 execution interface (new run, run detail, live console, history) ✅
 - M4 Three.js agent network
 - M5 integration
 - M6 benchmarks, docs, landing page
@@ -25,15 +25,15 @@ Milestones (revised 2026-11-01):
 
 ## Current milestone
 
-**M3.2 — Event reducer and replay engine: complete** (on `main`; M3.1 pushed, M3.2 not yet pushed).
-Next: **M3.3 / M4**, awaiting approval.
+**M3.3 — Execution interface: complete** (on `main`; M3.2 pushed, M3.3 not yet pushed).
+Next: **M4 — agent network visualisation**, awaiting approval.
 
 ## Validation at the last milestone boundary
 
 | Check | Result |
 | --- | --- |
 | `python -m pytest` | 351 passed, 2 skipped (symlink test needs privilege on Windows; POSIX rlimit test is Linux-only) |
-| frontend `npm run typecheck` / `npm test` / `npm run build` | clean / 82 passed (9 files) / builds, entry 101 kB |
+| frontend `npm run typecheck` / `npm test` / `npm run build` | clean / 122 passed (16 files) / builds |
 | `ruff format --check` | not configured; the codebase has never been formatted (56/62 files would change before M3.0) |
 | `ruff check .` | clean |
 | `npx tsc --noEmit` (frontend) | clean |
@@ -44,6 +44,33 @@ Suite wall time varies a lot on this machine (80 s to 300 s for the same code).
 Most of it is real `pytest` subprocesses spawned by verification tests.
 
 ## Completed
+
+### M3.3 — execution interface
+
+- **`useExecution(runId)`** keeps a cached `ExecutionState` current: each
+  poll fetches `after_seq` and folds the page through the reducer, so
+  duplicates are no-ops. It polls only while the run is live, makes one
+  final fetch when the run ends, and closes a trace that never finished
+  with `settleWithRecord`.
+- **Shared components** (`src/components/execution/`) render normalised
+  state only. Unknowns are explicit: "not recorded", "not reported",
+  "dependencies not recorded". The verifier is shown as a deterministic
+  runner. Only current activity is animated.
+- **Pages:**
+  - `/runs/new`: catalog only, with actionable 403/422/429 and
+    waking-server messages;
+  - `/runs/:runId`: the full execution view;
+  - `/console`: the live monitor (in-flight calls only, followed trace,
+    connection state);
+  - `/history`: cursor-paged, no trace fetches;
+  - `/legacy`: the old dashboard, local mode only.
+- **Visual check:** verified against a real public-demo backend with
+  headless screenshots. This found and fixed pulsing badges on past
+  timeline events.
+- **Process note:** `ac6b9b9` was committed while two page tests were
+  failing in the full suite (an ungated `;` before `git commit`); it is
+  fixed in `32e77c2` (lazy-route load timing), and later commits are gated
+  on the suite passing.
 
 ### M3.2 — event reducer and replay engine
 
