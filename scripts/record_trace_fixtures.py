@@ -5,7 +5,9 @@ guard, verification subprocess, persistence); only the model replies are
 scripted, as in the backend test suite. Legacy fixtures are exported,
 read-only, from historical runs in the local database when it is present.
 
-    python scripts/record_trace_fixtures.py
+    python scripts/record_trace_fixtures.py [fixture_name ...]
+
+With names, only those fixtures are (re)written; the others are left as they are.
 
 Output: frontend/src/domain/execution/fixtures/*.json. Payloads are
 sanitised: local paths are replaced, long text is truncated, and generated
@@ -72,7 +74,12 @@ def seed_of(record: RunRecord | dict) -> dict:
     return sanitize({key: data.get(key) for key in keep})
 
 
+ONLY: set[str] = set()
+
+
 def write(name: str, description: str, source: str, run: dict, events: list[dict]) -> None:
+    if ONLY and name not in ONLY:
+        return
     OUT.mkdir(parents=True, exist_ok=True)
     fixture = {
         "name": name,
@@ -204,7 +211,14 @@ async def record_all(tmp: Path) -> None:
           "the reviewer call is refused and the run ends limit_exceeded.", "recorded: current "
           "backend, scripted model replies", seed_of(result.record), event_dicts(result.events))
 
-    # 7. the wall clock expires during the planner call
+    # 7. a slow model: both first-wave coder calls are in flight at once
+    result = await orchestrate(tmp / "o", ScriptedProvider(approve_all, delay=0.05))
+    write("parallel_overlap", "Three planned steps on a slow scripted model: both first-wave "
+          "coder calls are in flight at the same time, then the dependent step runs.",
+          "recorded: current backend, scripted model replies with a 50 ms delay",
+          seed_of(result.record), event_dicts(result.events))
+
+    # 8. the wall clock expires during the planner call
     def short_clock(runtime):
         runtime.ledger.started_monotonic -= runtime.limits.max_wall_seconds - 0.3
 
@@ -214,7 +228,7 @@ async def record_all(tmp: Path) -> None:
           "is abandoned and the run ends timed_out.", "recorded: current backend, scripted "
           "model replies", seed_of(result.record), event_dicts(result.events))
 
-    # 8. cancelled mid-call: an agent_started without a completion
+    # 9. cancelled mid-call: an agent_started without a completion
     await record_cancelled(tmp / "c")
 
 
@@ -278,6 +292,7 @@ def export_legacy(db: Path) -> None:
 
 
 def main() -> None:
+    ONLY.update(sys.argv[1:])
     with tempfile.TemporaryDirectory(prefix="swarmos-fixtures-") as tmp:
         asyncio.run(record_all(Path(tmp)))
     export_legacy(ROOT / "swarmos.db")
