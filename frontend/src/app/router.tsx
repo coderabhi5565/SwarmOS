@@ -23,6 +23,10 @@ export const routes: RouteObject[] = [
         path: "runs/:runId",
         lazy: async () => ({ Component: (await import("@/pages/RunPage")).RunPage }),
       },
+      {
+        path: "history",
+        lazy: async () => ({ Component: (await import("@/pages/HistoryPage")).HistoryPage }),
+      },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

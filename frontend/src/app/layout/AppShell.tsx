@@ -10,6 +10,7 @@ export const NAV_ITEMS = [
   { to: "/", label: "Overview", end: true },
   { to: "/runs/new", label: "New run", end: true },
   { to: "/console", label: "Console", end: false },
+  { to: "/history", label: "History", end: false },
 ] as const;
 
 const REPOSITORY_URL = "https://github.com/coderabhi5565/SwarmOS";
