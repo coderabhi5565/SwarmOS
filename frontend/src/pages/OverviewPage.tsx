@@ -100,7 +100,7 @@ function RecentRunsCard() {
         {history.isError && <ErrorLine error={history.error} />}
         {history.isSuccess && runs.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            No runs yet. Start one from the <Link className="text-primary hover:underline" to="/console">console</Link>.
+            No runs yet. <Link className="text-primary hover:underline" to="/runs/new">Start one</Link> from the catalog.
           </p>
         )}
         <ul className="divide-y divide-border/60">

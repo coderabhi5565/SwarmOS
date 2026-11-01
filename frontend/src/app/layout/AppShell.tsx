@@ -8,6 +8,7 @@ import { BackendStatus } from "./BackendStatus";
 
 export const NAV_ITEMS = [
   { to: "/", label: "Overview", end: true },
+  { to: "/runs/new", label: "New run", end: true },
   { to: "/console", label: "Console", end: false },
 ] as const;
 
