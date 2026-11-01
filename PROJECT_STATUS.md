@@ -15,7 +15,8 @@ Milestones (revised 2026-11-01):
 - M2 restricted demo execution ✅ (Linux validation pending, in M7)
 - M3.0 backend contract for the frontend ✅
 - M3.1 frontend foundation ✅
-- M3 frontend and design system (M3.2 domain layer next)
+- M3.2 event reducer and replay engine ✅
+- M3 frontend and design system (screens next)
 - M4 Three.js agent network
 - M5 integration
 - M6 benchmarks, docs, landing page
@@ -24,15 +25,15 @@ Milestones (revised 2026-11-01):
 
 ## Current milestone
 
-**M3.1 — Frontend foundation: complete** (on `main`; M3.0 pushed, M3.1 not yet pushed).
-Next: **M3.2 — Domain layer (event reducer)**, awaiting approval.
+**M3.2 — Event reducer and replay engine: complete** (on `main`; M3.1 pushed, M3.2 not yet pushed).
+Next: **M3.3 / M4**, awaiting approval.
 
 ## Validation at the last milestone boundary
 
 | Check | Result |
 | --- | --- |
 | `python -m pytest` | 351 passed, 2 skipped (symlink test needs privilege on Windows; POSIX rlimit test is Linux-only) |
-| frontend `npm run typecheck` / `npm test` / `npm run build` | clean / 29 passed (6 files) / builds, entry 101 kB |
+| frontend `npm run typecheck` / `npm test` / `npm run build` | clean / 82 passed (9 files) / builds, entry 101 kB |
 | `ruff format --check` | not configured; the codebase has never been formatted (56/62 files would change before M3.0) |
 | `ruff check .` | clean |
 | `npx tsc --noEmit` (frontend) | clean |
@@ -43,6 +44,23 @@ Suite wall time varies a lot on this machine (80 s to 300 s for the same code).
 Most of it is real `pytest` subprocesses spawned by verification tests.
 
 ## Completed
+
+### M3.2 — event reducer and replay engine
+
+- **`frontend/src/domain/execution/`** (framework-free domain layer):
+  - `events.ts` (compatibility boundary);
+  - `model.ts` (normalised state);
+  - `reducer.ts` (pure, seq-ordered, idempotent, rebuilds on late events);
+  - `replay.ts` (replay to a seq; memoised, scrubbable frames).
+- **Fixtures recorded from the real backend** by
+  `scripts/record_trace_fixtures.py`:
+  - nine current-contract scenarios: pipeline, parallel overlap, review
+    revision, review_invalid, verification repair, retry and escalation,
+    call limit, timed out, cancelled mid-call;
+  - three historical qwen2.5-coder:1.5b runs exported read-only, spanning
+    three pre-M3.0 trace generations.
+- **Tests:** 53 domain tests (normalisation, the 22 reducer behaviours,
+  replay and determinism).
 
 ### M3.1 — frontend foundation
 

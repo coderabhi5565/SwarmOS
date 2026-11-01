@@ -203,6 +203,34 @@ it is running only between its `agent_started` and `agent_invocation`. With
 one at a time. The orchestrator's control nodes (`advance`, `escalate`,
 `finalize`) never emit agent lifecycle events.
 
+## Frontend execution model
+
+`frontend/src/domain/execution/` turns a run's trace into a normalised
+execution state that every view (timeline, 2D graph, 3D scene) renders. It
+is pure TypeScript. Its only outside imports are types from the generated
+API contract; it uses no React, store, DOM, or clock.
+
+| Module | Role |
+| --- | --- |
+| `events.ts` | The only compatibility boundary: maps any trace event (pre-M3.0, current, or an unknown future kind) to one `NormalizedEvent` union |
+| `model.ts` | `ExecutionState`: agents (planner, coder, reviewer), the deterministic verification runner, orchestrator operations, the plan with waves and dependencies, review rounds, budget, failures, and an integrity report |
+| `reducer.ts` | `reduce(state, event)`: pure, seq-ordered, idempotent for duplicates, rebuilds on late events |
+| `replay.ts` | `replay(events, { untilSeq })` and `createReplay` (memoised, scrubbable frames) |
+
+Rules the reducer keeps:
+
+- A dispatched step is not running. A call is running only between
+  `agent_started` and its completion. Traces recorded before lifecycle
+  events never show a call in progress.
+- `run_finished` closes open work as `interrupted`, never as succeeded.
+- Dependencies come from the plan event, else the stored record, else stay
+  unknown. They are never inferred from step order.
+- `null` means "the trace does not establish this": no invented durations,
+  token counts, or outcomes.
+
+Fixtures are recorded from the real backend by
+`scripts/record_trace_fixtures.py`.
+
 ## Trust boundaries
 
 ```mermaid
