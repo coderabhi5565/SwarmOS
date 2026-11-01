@@ -4,7 +4,7 @@
  * these helpers at compile time rather than letting tests drift.
  */
 import { vi } from "vitest";
-import type { RunDetail, RunEvents, RunRecord, TraceEvent } from "@/api/types";
+import type { RunDetail, RunEvents, RunRecord, RunSummary, TraceEvent } from "@/api/types";
 import type { TraceFixture } from "@/domain/execution/fixtures";
 
 export const DEFAULT_LIMITS: RunRecord["limits"] = {
@@ -84,4 +84,34 @@ export function requestsTo(mock: ReturnType<typeof stubFetch>, path: string): UR
   return mock.mock.calls
     .map(([input]) => new URL(String(input), "http://localhost"))
     .filter((url) => url.pathname === path);
+}
+
+/** The run-list row for a recorded trace (what GET /api/runs returns). */
+export function runSummaryFrom(fixture: TraceFixture, overrides: Partial<RunRecord> = {}): RunSummary {
+  const record = runRecordFrom(fixture, overrides);
+  return {
+    run_id: record.run_id,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+    goal: record.goal,
+    status: record.status,
+    provider: record.provider,
+    provider_kind: record.provider_kind,
+    model_policy: record.model_policy,
+    models_by_role: record.models_by_role,
+    limits: record.limits,
+    error: record.error,
+    cost_usd: record.cost_usd,
+    monetary_enforced: record.monetary_enforced,
+    usage_available: record.usage_available,
+    agent_calls: record.agent_calls,
+    escalations: record.escalations,
+    revisions: record.revisions,
+    duration_ms: record.duration_ms,
+    changed_files: record.changed_files,
+    plan_step_count: record.plan?.steps.length ?? null,
+    review_verdict: null,
+    verification_passed: null,
+    verification_diagnostic: null,
+  };
 }

@@ -9,11 +9,16 @@ export const routes: RouteObject[] = [
     element: <AppShell />,
     children: [
       { index: true, element: <OverviewPage /> },
-      // Loaded on demand, so the overview does not ship the legacy dashboard.
+      // Pages load on demand, so the overview ships only what it needs.
       {
         path: "console",
-        handle: { fullBleed: true } satisfies RouteHandle,
         lazy: async () => ({ Component: (await import("@/pages/ConsolePage")).ConsolePage }),
+      },
+      {
+        // The pre-redesign dashboard: a local-development tool.
+        path: "legacy",
+        handle: { fullBleed: true } satisfies RouteHandle,
+        lazy: async () => ({ Component: (await import("@/pages/LegacyPage")).LegacyPage }),
       },
       {
         path: "runs/new",

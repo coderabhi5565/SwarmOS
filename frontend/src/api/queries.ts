@@ -53,13 +53,17 @@ export function useDemoTasks() {
   return useQuery({ queryKey: queryKeys.demoTasks, queryFn: api.demoTasks, staleTime: Infinity });
 }
 
-/** Run history, newest first, one page at a time via the keyset cursor. */
-export function useRunHistory(limit = 25) {
+/**
+ * Run history, newest first, one page at a time via the keyset cursor.
+ * `pollMs` refreshes the loaded pages, e.g. to discover new runs.
+ */
+export function useRunHistory(limit = 25, { pollMs }: { pollMs?: number } = {}) {
   return useInfiniteQuery({
     queryKey: queryKeys.runs(limit),
     queryFn: ({ pageParam }) => api.listRuns({ limit, cursor: pageParam }),
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.next_cursor ?? undefined,
+    refetchInterval: pollMs ?? false,
   });
 }
 

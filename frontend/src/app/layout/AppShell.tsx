@@ -4,6 +4,7 @@ import { NavLink, Outlet, useLocation, useMatches } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { useHealth } from "@/api/queries";
 import { BackendStatus } from "./BackendStatus";
 
 export const NAV_ITEMS = [
@@ -15,8 +16,13 @@ export const NAV_ITEMS = [
 
 const REPOSITORY_URL = "https://github.com/coderabhi5565/SwarmOS";
 
+/** Shown only when the backend runs in local mode: the public demo refuses free-form runs. */
+const LOCAL_NAV_ITEMS = [{ to: "/legacy", label: "Legacy", end: false }] as const;
+
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
-  return NAV_ITEMS.map((item) => (
+  const health = useHealth();
+  const items = health.data?.mode === "local" ? [...NAV_ITEMS, ...LOCAL_NAV_ITEMS] : NAV_ITEMS;
+  return items.map((item) => (
     <NavLink
       key={item.to}
       to={item.to}
