@@ -84,7 +84,7 @@ export function ExecutionTimeline({
                   ) : null}
                   <span className="text-sm">{view.title}</span>
                   {view.tone !== "muted" && view.tone !== "completed" && (
-                    <ToneBadge tone={view.tone} className="py-0">
+                    <ToneBadge tone={view.tone} pulse={false} className="py-0">
                       {view.tone === "live" ? "started" : view.tone === "findings" ? "attention" : view.tone}
                     </ToneBadge>
                   )}

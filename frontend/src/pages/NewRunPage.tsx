@@ -132,7 +132,11 @@ function TaskOption({ task, selected, onSelect }: { task: DemoTask; selected: bo
               {task.steps.length} step{task.steps.length === 1 ? "" : "s"} · {task.waves.length} wave
               {task.waves.length === 1 ? "" : "s"}
             </ToneBadge>
-            {parallel && <ToneBadge tone="live">parallel</ToneBadge>}
+            {parallel && (
+              <ToneBadge tone="live" pulse={false}>
+                parallel
+              </ToneBadge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">{task.description}</p>
           <ol className="space-y-1">

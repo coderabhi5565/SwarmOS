@@ -13,8 +13,22 @@ const TONE_CLASS: Record<Tone, string> = {
   muted: "border-border bg-transparent text-muted-foreground",
 };
 
-/** A small status pill. "live" pulses (static under reduced motion). */
-export function ToneBadge({ tone, children, className }: { tone: Tone; children: ReactNode; className?: string }) {
+/**
+ * A small status pill. A "live" badge pulses only when it states something
+ * happening now (pulse defaults to true); past events and static facts pass
+ * pulse={false}. Reduced motion stops the animation globally.
+ */
+export function ToneBadge({
+  tone,
+  children,
+  className,
+  pulse = true,
+}: {
+  tone: Tone;
+  children: ReactNode;
+  className?: string;
+  pulse?: boolean;
+}) {
   return (
     <span
       className={cn(
@@ -23,7 +37,7 @@ export function ToneBadge({ tone, children, className }: { tone: Tone; children:
         className,
       )}
     >
-      <span aria-hidden="true" className={cn("size-1.5 rounded-full bg-current", tone === "live" && "animate-pulse")} />
+      <span aria-hidden="true" className={cn("size-1.5 rounded-full bg-current", pulse && tone === "live" && "animate-pulse")} />
       {children}
     </span>
   );
