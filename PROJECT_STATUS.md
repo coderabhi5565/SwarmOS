@@ -25,7 +25,7 @@ Milestones (revised 2026-11-01):
 
 ## Current milestone
 
-**M5 — Real-time execution and playback: complete and pushed** (`main` at `fb70f59`).
+**M5 — Real-time execution and playback: complete and pushed** (last M5 feature commit `fb70f59`).
 Next: **M6 — benchmarks, docs, landing page**, awaiting approval (not started).
 
 ## Validation at the last milestone boundary
