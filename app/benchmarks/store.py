@@ -298,33 +298,43 @@ class BenchmarkStore:
         return [_experiment(row) for row in rows]
 
     def list_experiments_page(
-        self, limit: int = 25, before: str | None = None
+        self,
+        limit: int = 25,
+        before: str | None = None,
+        suite_ids: set[str] | None = None,
     ) -> tuple[list[BenchmarkExperiment], str | None]:
         """Newest-first page of experiments and the cursor for the next page.
 
         Keyset pagination on ``(created_at, experiment_id)``, like the run
-        history. Raises ``KeyError`` for an unknown cursor.
+        history. ``suite_ids`` limits the listing to those suites; a cursor
+        outside them is unknown. Raises ``KeyError`` for an unknown cursor.
         """
         limit = max(1, min(limit, 200))
+        scope, scope_args = "1 = 1", ()
+        if suite_ids is not None:
+            ordered = sorted(suite_ids)
+            scope = f"suite_id IN ({','.join('?' for _ in ordered)})" if ordered else "0 = 1"
+            scope_args = tuple(ordered)
         with self.store.transaction() as conn:
             if before is None:
                 rows = conn.execute(
-                    "SELECT * FROM benchmark_experiments "
+                    f"SELECT * FROM benchmark_experiments WHERE {scope} "
                     "ORDER BY created_at DESC, experiment_id DESC LIMIT ?",
-                    (limit + 1,),
+                    (*scope_args, limit + 1),
                 ).fetchall()
             else:
                 anchor = conn.execute(
-                    "SELECT created_at FROM benchmark_experiments WHERE experiment_id = ?",
-                    (before,),
+                    "SELECT created_at FROM benchmark_experiments "
+                    f"WHERE experiment_id = ? AND {scope}",
+                    (before, *scope_args),
                 ).fetchone()
                 if anchor is None:
                     raise KeyError(before)
                 rows = conn.execute(
-                    "SELECT * FROM benchmark_experiments "
-                    "WHERE created_at < ? OR (created_at = ? AND experiment_id < ?) "
+                    f"SELECT * FROM benchmark_experiments WHERE {scope} AND "
+                    "(created_at < ? OR (created_at = ? AND experiment_id < ?)) "
                     "ORDER BY created_at DESC, experiment_id DESC LIMIT ?",
-                    (anchor["created_at"], anchor["created_at"], before, limit + 1),
+                    (*scope_args, anchor["created_at"], anchor["created_at"], before, limit + 1),
                 ).fetchall()
         page = [_experiment(row) for row in rows[:limit]]
         return page, (page[-1].experiment_id if len(rows) > limit else None)

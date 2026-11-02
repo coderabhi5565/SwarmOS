@@ -102,6 +102,7 @@ class ExperimentRunner:
         self.benchmarks = benchmarks
         self.slot_poll_seconds = slot_poll_seconds
         self._running: dict[str, _Running] = {}
+        self._tasks: set[asyncio.Task] = set()
 
     @property
     def settings(self):
@@ -404,6 +405,22 @@ class ExperimentRunner:
 
     def is_running(self, experiment_id: str) -> bool:
         return experiment_id in self._running
+
+    def launch(self, experiment_id: str) -> asyncio.Task:
+        """Run a queued experiment in the background (the API's way to run one)."""
+        task = asyncio.create_task(self.run(experiment_id))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        return task
+
+    async def shutdown(self) -> None:
+        """Stop background experiments: each ends interrupted, its current run
+        cancelled. Call before the run service shuts down."""
+        tasks = [task for task in self._tasks if not task.done()]
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     def recover_interrupted(self) -> list[str]:
         """Close experiments a stopped process left queued or running.

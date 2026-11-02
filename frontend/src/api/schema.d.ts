@@ -4,6 +4,96 @@
  */
 
 export interface paths {
+    "/api/benchmarks/experiments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Benchmark Experiments
+         * @description Newest-first experiments, paged like the run history.
+         */
+        get: operations["list_benchmark_experiments_api_benchmarks_experiments_get"];
+        put?: never;
+        /**
+         * Create Benchmark Experiment
+         * @description Create an experiment and start running it in the background.
+         *
+         *     Fixed suites and arms only, by id: no goals, files, models or limits.
+         *     Not available in the public demo.
+         */
+        post: operations["create_benchmark_experiment_api_benchmarks_experiments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/benchmarks/experiments/{experiment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Benchmark Experiment
+         * @description An experiment with its provenance, per-arm aggregates and every trial
+         *     (linked to its run). Unknown metric values are null, with reasons.
+         */
+        get: operations["get_benchmark_experiment_api_benchmarks_experiments__experiment_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/benchmarks/experiments/{experiment_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Benchmark Experiment
+         * @description Cancel an experiment running in this server process: its current run
+         *     is cancelled and its remaining trials never start. Not in the public demo.
+         */
+        post: operations["cancel_benchmark_experiment_api_benchmarks_experiments__experiment_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/benchmarks/suites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Benchmark Suites
+         * @description The benchmark suites and arms this server offers (the public demo
+         *     shows only public suites).
+         */
+        get: operations["benchmark_suites_api_benchmarks_suites_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/config": {
         parameters: {
             query?: never;
@@ -374,6 +464,437 @@ export interface components {
             auth_required: boolean;
             /** Remote Bind Allowed */
             remote_bind_allowed: boolean;
+        };
+        /**
+         * BenchmarkAggregate
+         * @description An arm's results, over all tasks (task_id null) or one task.
+         *     Rates and means are over counted trials only.
+         */
+        BenchmarkAggregate: {
+            /** Arm Id */
+            arm_id: string;
+            /** Counted */
+            counted: number;
+            /** Excluded */
+            excluded: number;
+            /** Excluded Reasons */
+            excluded_reasons: {
+                [key: string]: number;
+            };
+            /** Incomplete */
+            incomplete: number;
+            latency_ms: components["schemas"]["BenchmarkDistribution"];
+            /** Mean Agent Calls */
+            mean_agent_calls: number | null;
+            /** Mean Call Retries */
+            mean_call_retries: number | null;
+            /** Mean Cost Usd */
+            mean_cost_usd: number | null;
+            /** Mean Escalations */
+            mean_escalations: number | null;
+            /** Mean Input Tokens */
+            mean_input_tokens: number | null;
+            /** Mean Output Repairs */
+            mean_output_repairs: number | null;
+            /** Mean Output Tokens */
+            mean_output_tokens: number | null;
+            /** Mean Repair Rounds */
+            mean_repair_rounds: number | null;
+            /** Mean Retries */
+            mean_retries: number | null;
+            /** Mean Revisions */
+            mean_revisions: number | null;
+            /** Mean Step Retries */
+            mean_step_retries: number | null;
+            model_latency_ms: components["schemas"]["BenchmarkDistribution"];
+            /** Notes */
+            notes: string[];
+            /** Runs With Cost */
+            runs_with_cost: number;
+            /** Runs With Usage */
+            runs_with_usage: number;
+            /** Task Id */
+            task_id: string | null;
+            /** Task Success Rate */
+            task_success_rate: number | null;
+            /** Task Successes */
+            task_successes: number;
+            /** Total Cost Usd */
+            total_cost_usd: number | null;
+            /** Trial Statuses */
+            trial_statuses: {
+                [key: string]: number;
+            };
+            /** Trials */
+            trials: number;
+            verification_ms: components["schemas"]["BenchmarkDistribution"];
+            /** Verification Pass Rate */
+            verification_pass_rate: number | null;
+            /** Verification Passes */
+            verification_passes: number;
+        };
+        /** BenchmarkArmConfiguration */
+        BenchmarkArmConfiguration: {
+            /** Arm Id */
+            arm_id: string;
+            /** Escalation Possible */
+            escalation_possible: boolean;
+            /** Escalation Unavailable */
+            escalation_unavailable: string[];
+            /** Fingerprint */
+            fingerprint: string;
+            limits: components["schemas"]["Limits-Output"];
+            /** Model Policy */
+            model_policy: string;
+            /** Models By Role */
+            models_by_role: {
+                [key: string]: string;
+            };
+            /** Parallel Relevant */
+            parallel_relevant: boolean | null;
+            /** Provider */
+            provider: string;
+            /** Provider Kind */
+            provider_kind: string;
+            /** Scripted */
+            scripted: boolean;
+            /** Task Id */
+            task_id: string;
+        };
+        /** BenchmarkArmInfo */
+        BenchmarkArmInfo: {
+            /** Description */
+            description: string;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "execution" | "model_policy";
+            /** Label */
+            label: string;
+            /** Max Escalations */
+            max_escalations: number | null;
+            /** Model Policy */
+            model_policy: string | null;
+            /** Parallel Coding */
+            parallel_coding: boolean | null;
+        };
+        /** BenchmarkCancelResponse */
+        BenchmarkCancelResponse: {
+            /** Experiment Id */
+            experiment_id: string;
+            /**
+             * Status
+             * @default cancelling
+             * @constant
+             */
+            status: "cancelling";
+        };
+        /**
+         * BenchmarkCreateRequest
+         * @description A new experiment: a fixed suite and fixed arms, by id. Nothing else.
+         */
+        BenchmarkCreateRequest: {
+            /** Arm Ids */
+            arm_ids: string[];
+            /** Order Seed */
+            order_seed?: number | null;
+            /**
+             * Provider
+             * @default auto
+             * @enum {string}
+             */
+            provider: "auto" | "demo" | "openai";
+            /**
+             * Repetitions
+             * @default 1
+             */
+            repetitions: number;
+            /** Suite Id */
+            suite_id: string;
+            /** Task Ids */
+            task_ids?: string[] | null;
+        };
+        /** BenchmarkDistribution */
+        BenchmarkDistribution: {
+            /** Max */
+            max: number | null;
+            /** Mean */
+            mean: number | null;
+            /** Median */
+            median: number | null;
+            /** Min */
+            min: number | null;
+            /** N */
+            n: number;
+            /** P95 */
+            p95: number | null;
+        };
+        /** BenchmarkEnvironment */
+        BenchmarkEnvironment: {
+            /** App Version */
+            app_version: string;
+            /** Build Commit */
+            build_commit: string | null;
+            /** Collected At */
+            collected_at: string;
+            /** Execution Enabled */
+            execution_enabled: boolean;
+            /** Execution Sandbox */
+            execution_sandbox: string;
+            /** Mode */
+            mode: string;
+            /** Monetary Enforced */
+            monetary_enforced: boolean;
+            /** Platform */
+            platform: string | null;
+            /** Pricing Known */
+            pricing_known: boolean;
+            /** Provider */
+            provider: string;
+            /** Provider Kind */
+            provider_kind: string;
+            /** Python Version */
+            python_version: string | null;
+            /** Scripted */
+            scripted: boolean;
+            /** Verification Command */
+            verification_command: string;
+        };
+        /** BenchmarkExperimentDetail */
+        BenchmarkExperimentDetail: {
+            /** Aggregates */
+            aggregates: components["schemas"]["BenchmarkAggregate"][];
+            /** Configurations */
+            configurations: components["schemas"]["BenchmarkArmConfiguration"][];
+            environment: components["schemas"]["BenchmarkEnvironment"];
+            experiment: components["schemas"]["BenchmarkExperimentSummary"];
+            /** Identical By Design */
+            identical_by_design: components["schemas"]["BenchmarkIdenticalArms"][];
+            /** Notes */
+            notes: string[];
+            /** Order Seed */
+            order_seed: number;
+            /** Task Aggregates */
+            task_aggregates: components["schemas"]["BenchmarkAggregate"][];
+            /** Trials */
+            trials: components["schemas"]["BenchmarkTrialInfo"][];
+        };
+        /** BenchmarkExperimentListResponse */
+        BenchmarkExperimentListResponse: {
+            /** Experiments */
+            experiments: components["schemas"]["BenchmarkExperimentSummary"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** BenchmarkExperimentSummary */
+        BenchmarkExperimentSummary: {
+            /** Arm Ids */
+            arm_ids: string[];
+            /** Created At */
+            created_at: string;
+            /** Error */
+            error: string | null;
+            /** Experiment Id */
+            experiment_id: string;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "cli" | "api";
+            /** Provider */
+            provider: string;
+            /** Provider Kind */
+            provider_kind: string;
+            /** Repetitions */
+            repetitions: number;
+            /** Scripted */
+            scripted: boolean;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "partial" | "cancelled" | "failed" | "interrupted";
+            /** Suite Id */
+            suite_id: string;
+            /** Suite Title */
+            suite_title: string;
+            /** Suite Version */
+            suite_version: string;
+            /** Trials Done */
+            trials_done: number;
+            /** Trials Total */
+            trials_total: number;
+            /** Updated At */
+            updated_at: string;
+        };
+        /** BenchmarkIdenticalArms */
+        BenchmarkIdenticalArms: {
+            /** Arm Ids */
+            arm_ids: string[];
+            /** Explanation */
+            explanation: string;
+            /** Fingerprint */
+            fingerprint: string;
+            /** Reasons */
+            reasons: string[];
+            /** Task Id */
+            task_id: string;
+        };
+        /** BenchmarkSuiteInfo */
+        BenchmarkSuiteInfo: {
+            /** Description */
+            description: string;
+            /** Id */
+            id: string;
+            /** Public */
+            public: boolean;
+            /** Requires Real Model */
+            requires_real_model: boolean;
+            /** Tasks */
+            tasks: components["schemas"]["BenchmarkTaskInfo"][];
+            /** Title */
+            title: string;
+            /** Version */
+            version: string;
+        };
+        /** BenchmarkSuitesResponse */
+        BenchmarkSuitesResponse: {
+            /** Arms */
+            arms: components["schemas"]["BenchmarkArmInfo"][];
+            /** Can Create */
+            can_create: boolean;
+            /** Max Repetitions */
+            max_repetitions: number;
+            /** Max Trials */
+            max_trials: number;
+            /** Mode */
+            mode: string;
+            /** Suites */
+            suites: components["schemas"]["BenchmarkSuiteInfo"][];
+        };
+        /** BenchmarkTaskInfo */
+        BenchmarkTaskInfo: {
+            /** Demo Task */
+            demo_task: string | null;
+            /** Id */
+            id: string;
+            /** Notes */
+            notes: string;
+            /** Parallel Waves */
+            parallel_waves: boolean | null;
+            /** Title */
+            title: string;
+        };
+        /** BenchmarkTrialInfo */
+        BenchmarkTrialInfo: {
+            /** Arm Id */
+            arm_id: string;
+            /** Error */
+            error: string | null;
+            /** Fingerprint */
+            fingerprint: string;
+            /** Finished At */
+            finished_at: string | null;
+            metrics: components["schemas"]["BenchmarkTrialMetrics"] | null;
+            /** Ordinal */
+            ordinal: number;
+            /** Repetition */
+            repetition: number;
+            /** Run Id */
+            run_id: string | null;
+            /** Run Path */
+            run_path: string | null;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "running" | "done" | "not_run" | "error";
+            /** Task Id */
+            task_id: string;
+            /** Trial Id */
+            trial_id: string;
+        };
+        /**
+         * BenchmarkTrialMetrics
+         * @description What a trial's run established; null means not established (see null_reasons).
+         */
+        BenchmarkTrialMetrics: {
+            /** Agent Calls */
+            agent_calls: number | null;
+            /** Call Retries */
+            call_retries: number | null;
+            /** Calls With Usage */
+            calls_with_usage: number;
+            /** Cost Usd */
+            cost_usd: number | null;
+            /** Diagnostic Tests Passed */
+            diagnostic_tests_passed: boolean | null;
+            /** Escalations */
+            escalations: number | null;
+            /** Excluded Reason */
+            excluded_reason: string | null;
+            /** Input Tokens */
+            input_tokens: number | null;
+            /** Latency Ms */
+            latency_ms: number | null;
+            /** Metrics Version */
+            metrics_version: number;
+            /** Model Calls */
+            model_calls: number;
+            /** Model Latency Ms */
+            model_latency_ms: number | null;
+            /** Model Policy */
+            model_policy: string;
+            /** Models By Role */
+            models_by_role: {
+                [key: string]: string;
+            };
+            /** Null Reasons */
+            null_reasons: {
+                [key: string]: string;
+            };
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "success" | "failure" | "excluded" | "incomplete";
+            /** Output Repairs */
+            output_repairs: number | null;
+            /** Output Tokens */
+            output_tokens: number | null;
+            /** Provider */
+            provider: string;
+            /** Provider Kind */
+            provider_kind: string;
+            /** Repair Rounds */
+            repair_rounds: number | null;
+            /** Revisions */
+            revisions: number | null;
+            /** Run Id */
+            run_id: string;
+            /** Scripted */
+            scripted: boolean;
+            /** Status */
+            status: string;
+            /** Step Retries */
+            step_retries: number | null;
+            /** Task Success */
+            task_success: boolean | null;
+            /** Verification Ms */
+            verification_ms: number | null;
+            /** Verification Passed */
+            verification_passed: boolean | null;
+            /** Verification Runs */
+            verification_runs: number;
         };
         /**
          * BudgetPayload
@@ -1626,6 +2147,154 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_benchmark_experiments_api_benchmarks_experiments_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                /** @description next_cursor from the previous page, to fetch older experiments */
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenchmarkExperimentListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_benchmark_experiment_api_benchmarks_experiments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BenchmarkCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenchmarkExperimentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_benchmark_experiment_api_benchmarks_experiments__experiment_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenchmarkExperimentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_benchmark_experiment_api_benchmarks_experiments__experiment_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenchmarkCancelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    benchmark_suites_api_benchmarks_suites_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenchmarkSuitesResponse"];
+                };
+            };
+        };
+    };
     config_api_config_get: {
         parameters: {
             query?: never;

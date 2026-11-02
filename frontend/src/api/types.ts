@@ -56,3 +56,16 @@ export function isEventKind<K extends TraceKind>(
 ): event is TraceEvent & { kind: K; payload: TraceEventPayloads[K] } {
   return event.kind === kind;
 }
+
+/** Benchmarks (M6): suites, arms and experiments; see GET /api/benchmarks/*. */
+export type BenchmarkSuites = Schemas["BenchmarkSuitesResponse"];
+export type BenchmarkSuite = Schemas["BenchmarkSuiteInfo"];
+export type BenchmarkArm = Schemas["BenchmarkArmInfo"];
+export type BenchmarkCreateRequest = Schemas["BenchmarkCreateRequest"];
+export type BenchmarkExperimentList = Schemas["BenchmarkExperimentListResponse"];
+export type BenchmarkExperimentSummary = Schemas["BenchmarkExperimentSummary"];
+export type BenchmarkExperimentDetail = Schemas["BenchmarkExperimentDetail"];
+export type BenchmarkAggregate = Schemas["BenchmarkAggregate"];
+export type BenchmarkTrial = Schemas["BenchmarkTrialInfo"];
+export type BenchmarkTrialMetrics = Schemas["BenchmarkTrialMetrics"];
+export type BenchmarkCancel = Schemas["BenchmarkCancelResponse"];

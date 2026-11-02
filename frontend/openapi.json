@@ -410,6 +410,1508 @@
         "title": "ApiInfo",
         "type": "object"
       },
+      "BenchmarkAggregate": {
+        "description": "An arm's results, over all tasks (task_id null) or one task.\nRates and means are over counted trials only.",
+        "properties": {
+          "arm_id": {
+            "title": "Arm Id",
+            "type": "string"
+          },
+          "counted": {
+            "title": "Counted",
+            "type": "integer"
+          },
+          "excluded": {
+            "title": "Excluded",
+            "type": "integer"
+          },
+          "excluded_reasons": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Excluded Reasons",
+            "type": "object"
+          },
+          "incomplete": {
+            "title": "Incomplete",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "$ref": "#/components/schemas/BenchmarkDistribution"
+          },
+          "mean_agent_calls": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Agent Calls"
+          },
+          "mean_call_retries": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Call Retries"
+          },
+          "mean_cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Cost Usd"
+          },
+          "mean_escalations": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Escalations"
+          },
+          "mean_input_tokens": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Input Tokens"
+          },
+          "mean_output_repairs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Output Repairs"
+          },
+          "mean_output_tokens": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Output Tokens"
+          },
+          "mean_repair_rounds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Repair Rounds"
+          },
+          "mean_retries": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Retries"
+          },
+          "mean_revisions": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Revisions"
+          },
+          "mean_step_retries": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Step Retries"
+          },
+          "model_latency_ms": {
+            "$ref": "#/components/schemas/BenchmarkDistribution"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "runs_with_cost": {
+            "title": "Runs With Cost",
+            "type": "integer"
+          },
+          "runs_with_usage": {
+            "title": "Runs With Usage",
+            "type": "integer"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "task_success_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Success Rate"
+          },
+          "task_successes": {
+            "title": "Task Successes",
+            "type": "integer"
+          },
+          "total_cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Cost Usd"
+          },
+          "trial_statuses": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Trial Statuses",
+            "type": "object"
+          },
+          "trials": {
+            "title": "Trials",
+            "type": "integer"
+          },
+          "verification_ms": {
+            "$ref": "#/components/schemas/BenchmarkDistribution"
+          },
+          "verification_pass_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Pass Rate"
+          },
+          "verification_passes": {
+            "title": "Verification Passes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "arm_id",
+          "task_id",
+          "trial_statuses",
+          "trials",
+          "counted",
+          "excluded",
+          "incomplete",
+          "excluded_reasons",
+          "task_successes",
+          "task_success_rate",
+          "verification_passes",
+          "verification_pass_rate",
+          "latency_ms",
+          "model_latency_ms",
+          "verification_ms",
+          "mean_agent_calls",
+          "mean_retries",
+          "mean_step_retries",
+          "mean_call_retries",
+          "mean_output_repairs",
+          "mean_repair_rounds",
+          "mean_revisions",
+          "mean_escalations",
+          "runs_with_usage",
+          "mean_input_tokens",
+          "mean_output_tokens",
+          "runs_with_cost",
+          "mean_cost_usd",
+          "total_cost_usd",
+          "notes"
+        ],
+        "title": "BenchmarkAggregate",
+        "type": "object"
+      },
+      "BenchmarkArmConfiguration": {
+        "properties": {
+          "arm_id": {
+            "title": "Arm Id",
+            "type": "string"
+          },
+          "escalation_possible": {
+            "title": "Escalation Possible",
+            "type": "boolean"
+          },
+          "escalation_unavailable": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Escalation Unavailable",
+            "type": "array"
+          },
+          "fingerprint": {
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits-Output"
+          },
+          "model_policy": {
+            "title": "Model Policy",
+            "type": "string"
+          },
+          "models_by_role": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Models By Role",
+            "type": "object"
+          },
+          "parallel_relevant": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parallel Relevant"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_kind": {
+            "title": "Provider Kind",
+            "type": "string"
+          },
+          "scripted": {
+            "title": "Scripted",
+            "type": "boolean"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "arm_id",
+          "task_id",
+          "provider",
+          "provider_kind",
+          "scripted",
+          "model_policy",
+          "models_by_role",
+          "escalation_possible",
+          "escalation_unavailable",
+          "limits",
+          "parallel_relevant",
+          "fingerprint"
+        ],
+        "title": "BenchmarkArmConfiguration",
+        "type": "object"
+      },
+      "BenchmarkArmInfo": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "execution",
+              "model_policy"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "max_escalations": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Escalations"
+          },
+          "model_policy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Policy"
+          },
+          "parallel_coding": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parallel Coding"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "description",
+          "model_policy",
+          "parallel_coding",
+          "max_escalations"
+        ],
+        "title": "BenchmarkArmInfo",
+        "type": "object"
+      },
+      "BenchmarkCancelResponse": {
+        "properties": {
+          "experiment_id": {
+            "title": "Experiment Id",
+            "type": "string"
+          },
+          "status": {
+            "const": "cancelling",
+            "default": "cancelling",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "experiment_id",
+          "status"
+        ],
+        "title": "BenchmarkCancelResponse",
+        "type": "object"
+      },
+      "BenchmarkCreateRequest": {
+        "additionalProperties": false,
+        "description": "A new experiment: a fixed suite and fixed arms, by id. Nothing else.",
+        "properties": {
+          "arm_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Arm Ids",
+            "type": "array"
+          },
+          "order_seed": {
+            "anyOf": [
+              {
+                "maximum": 2147483647.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Seed"
+          },
+          "provider": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "demo",
+              "openai"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "repetitions": {
+            "default": 1,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Repetitions",
+            "type": "integer"
+          },
+          "suite_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Suite Id",
+            "type": "string"
+          },
+          "task_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Ids"
+          }
+        },
+        "required": [
+          "suite_id",
+          "arm_ids"
+        ],
+        "title": "BenchmarkCreateRequest",
+        "type": "object"
+      },
+      "BenchmarkDistribution": {
+        "properties": {
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "p95": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P95"
+          }
+        },
+        "required": [
+          "n",
+          "median",
+          "p95",
+          "mean",
+          "min",
+          "max"
+        ],
+        "title": "BenchmarkDistribution",
+        "type": "object"
+      },
+      "BenchmarkEnvironment": {
+        "properties": {
+          "app_version": {
+            "title": "App Version",
+            "type": "string"
+          },
+          "build_commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Commit"
+          },
+          "collected_at": {
+            "title": "Collected At",
+            "type": "string"
+          },
+          "execution_enabled": {
+            "title": "Execution Enabled",
+            "type": "boolean"
+          },
+          "execution_sandbox": {
+            "title": "Execution Sandbox",
+            "type": "string"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "monetary_enforced": {
+            "title": "Monetary Enforced",
+            "type": "boolean"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
+          "pricing_known": {
+            "title": "Pricing Known",
+            "type": "boolean"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_kind": {
+            "title": "Provider Kind",
+            "type": "string"
+          },
+          "python_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Python Version"
+          },
+          "scripted": {
+            "title": "Scripted",
+            "type": "boolean"
+          },
+          "verification_command": {
+            "title": "Verification Command",
+            "type": "string"
+          }
+        },
+        "required": [
+          "app_version",
+          "mode",
+          "provider",
+          "provider_kind",
+          "scripted",
+          "pricing_known",
+          "monetary_enforced",
+          "execution_enabled",
+          "execution_sandbox",
+          "verification_command",
+          "build_commit",
+          "python_version",
+          "platform",
+          "collected_at"
+        ],
+        "title": "BenchmarkEnvironment",
+        "type": "object"
+      },
+      "BenchmarkExperimentDetail": {
+        "properties": {
+          "aggregates": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkAggregate"
+            },
+            "title": "Aggregates",
+            "type": "array"
+          },
+          "configurations": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkArmConfiguration"
+            },
+            "title": "Configurations",
+            "type": "array"
+          },
+          "environment": {
+            "$ref": "#/components/schemas/BenchmarkEnvironment"
+          },
+          "experiment": {
+            "$ref": "#/components/schemas/BenchmarkExperimentSummary"
+          },
+          "identical_by_design": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkIdenticalArms"
+            },
+            "title": "Identical By Design",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "order_seed": {
+            "title": "Order Seed",
+            "type": "integer"
+          },
+          "task_aggregates": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkAggregate"
+            },
+            "title": "Task Aggregates",
+            "type": "array"
+          },
+          "trials": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkTrialInfo"
+            },
+            "title": "Trials",
+            "type": "array"
+          }
+        },
+        "required": [
+          "experiment",
+          "order_seed",
+          "environment",
+          "configurations",
+          "identical_by_design",
+          "aggregates",
+          "task_aggregates",
+          "trials",
+          "notes"
+        ],
+        "title": "BenchmarkExperimentDetail",
+        "type": "object"
+      },
+      "BenchmarkExperimentListResponse": {
+        "properties": {
+          "experiments": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkExperimentSummary"
+            },
+            "title": "Experiments",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "experiments",
+          "next_cursor"
+        ],
+        "title": "BenchmarkExperimentListResponse",
+        "type": "object"
+      },
+      "BenchmarkExperimentSummary": {
+        "properties": {
+          "arm_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Arm Ids",
+            "type": "array"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "experiment_id": {
+            "title": "Experiment Id",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "origin": {
+            "enum": [
+              "cli",
+              "api"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_kind": {
+            "title": "Provider Kind",
+            "type": "string"
+          },
+          "repetitions": {
+            "title": "Repetitions",
+            "type": "integer"
+          },
+          "scripted": {
+            "title": "Scripted",
+            "type": "boolean"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "partial",
+              "cancelled",
+              "failed",
+              "interrupted"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "suite_id": {
+            "title": "Suite Id",
+            "type": "string"
+          },
+          "suite_title": {
+            "title": "Suite Title",
+            "type": "string"
+          },
+          "suite_version": {
+            "title": "Suite Version",
+            "type": "string"
+          },
+          "trials_done": {
+            "title": "Trials Done",
+            "type": "integer"
+          },
+          "trials_total": {
+            "title": "Trials Total",
+            "type": "integer"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "experiment_id",
+          "created_at",
+          "updated_at",
+          "started_at",
+          "finished_at",
+          "status",
+          "origin",
+          "suite_id",
+          "suite_title",
+          "suite_version",
+          "provider",
+          "provider_kind",
+          "scripted",
+          "repetitions",
+          "arm_ids",
+          "trials_total",
+          "trials_done",
+          "error"
+        ],
+        "title": "BenchmarkExperimentSummary",
+        "type": "object"
+      },
+      "BenchmarkIdenticalArms": {
+        "properties": {
+          "arm_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Arm Ids",
+            "type": "array"
+          },
+          "explanation": {
+            "title": "Explanation",
+            "type": "string"
+          },
+          "fingerprint": {
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "arm_ids",
+          "fingerprint",
+          "reasons",
+          "explanation"
+        ],
+        "title": "BenchmarkIdenticalArms",
+        "type": "object"
+      },
+      "BenchmarkSuiteInfo": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "public": {
+            "title": "Public",
+            "type": "boolean"
+          },
+          "requires_real_model": {
+            "title": "Requires Real Model",
+            "type": "boolean"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkTaskInfo"
+            },
+            "title": "Tasks",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "version",
+          "public",
+          "requires_real_model",
+          "tasks"
+        ],
+        "title": "BenchmarkSuiteInfo",
+        "type": "object"
+      },
+      "BenchmarkSuitesResponse": {
+        "properties": {
+          "arms": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkArmInfo"
+            },
+            "title": "Arms",
+            "type": "array"
+          },
+          "can_create": {
+            "title": "Can Create",
+            "type": "boolean"
+          },
+          "max_repetitions": {
+            "title": "Max Repetitions",
+            "type": "integer"
+          },
+          "max_trials": {
+            "title": "Max Trials",
+            "type": "integer"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "suites": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkSuiteInfo"
+            },
+            "title": "Suites",
+            "type": "array"
+          }
+        },
+        "required": [
+          "mode",
+          "can_create",
+          "suites",
+          "arms",
+          "max_repetitions",
+          "max_trials"
+        ],
+        "title": "BenchmarkSuitesResponse",
+        "type": "object"
+      },
+      "BenchmarkTaskInfo": {
+        "properties": {
+          "demo_task": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Task"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "notes": {
+            "title": "Notes",
+            "type": "string"
+          },
+          "parallel_waves": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parallel Waves"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "demo_task",
+          "parallel_waves",
+          "notes"
+        ],
+        "title": "BenchmarkTaskInfo",
+        "type": "object"
+      },
+      "BenchmarkTrialInfo": {
+        "properties": {
+          "arm_id": {
+            "title": "Arm Id",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "fingerprint": {
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BenchmarkTrialMetrics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ordinal": {
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "repetition": {
+            "title": "Repetition",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "run_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Path"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "not_run",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "trial_id": {
+            "title": "Trial Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trial_id",
+          "ordinal",
+          "arm_id",
+          "task_id",
+          "repetition",
+          "fingerprint",
+          "status",
+          "run_id",
+          "run_path",
+          "started_at",
+          "finished_at",
+          "error",
+          "metrics"
+        ],
+        "title": "BenchmarkTrialInfo",
+        "type": "object"
+      },
+      "BenchmarkTrialMetrics": {
+        "description": "What a trial's run established; null means not established (see null_reasons).",
+        "properties": {
+          "agent_calls": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Calls"
+          },
+          "call_retries": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Retries"
+          },
+          "calls_with_usage": {
+            "title": "Calls With Usage",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "diagnostic_tests_passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diagnostic Tests Passed"
+          },
+          "escalations": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalations"
+          },
+          "excluded_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded Reason"
+          },
+          "input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "metrics_version": {
+            "title": "Metrics Version",
+            "type": "integer"
+          },
+          "model_calls": {
+            "title": "Model Calls",
+            "type": "integer"
+          },
+          "model_latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Latency Ms"
+          },
+          "model_policy": {
+            "title": "Model Policy",
+            "type": "string"
+          },
+          "models_by_role": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Models By Role",
+            "type": "object"
+          },
+          "null_reasons": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Null Reasons",
+            "type": "object"
+          },
+          "outcome": {
+            "enum": [
+              "success",
+              "failure",
+              "excluded",
+              "incomplete"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "output_repairs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Repairs"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_kind": {
+            "title": "Provider Kind",
+            "type": "string"
+          },
+          "repair_rounds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repair Rounds"
+          },
+          "revisions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revisions"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "scripted": {
+            "title": "Scripted",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "step_retries": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Retries"
+          },
+          "task_success": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Success"
+          },
+          "verification_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Ms"
+          },
+          "verification_passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Passed"
+          },
+          "verification_runs": {
+            "title": "Verification Runs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "metrics_version",
+          "run_id",
+          "status",
+          "outcome",
+          "excluded_reason",
+          "task_success",
+          "verification_passed",
+          "verification_runs",
+          "diagnostic_tests_passed",
+          "provider",
+          "provider_kind",
+          "scripted",
+          "model_policy",
+          "models_by_role",
+          "latency_ms",
+          "model_latency_ms",
+          "verification_ms",
+          "agent_calls",
+          "step_retries",
+          "call_retries",
+          "output_repairs",
+          "repair_rounds",
+          "revisions",
+          "escalations",
+          "model_calls",
+          "calls_with_usage",
+          "input_tokens",
+          "output_tokens",
+          "cost_usd",
+          "null_reasons"
+        ],
+        "title": "BenchmarkTrialMetrics",
+        "type": "object"
+      },
       "BudgetPayload": {
         "additionalProperties": false,
         "description": "A call was refused or abandoned by the ledger.",
@@ -3467,6 +4969,204 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/benchmarks/experiments": {
+      "get": {
+        "description": "Newest-first experiments, paged like the run history.",
+        "operationId": "list_benchmark_experiments_api_benchmarks_experiments_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "next_cursor from the previous page, to fetch older experiments",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "next_cursor from the previous page, to fetch older experiments",
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenchmarkExperimentListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Benchmark Experiments"
+      },
+      "post": {
+        "description": "Create an experiment and start running it in the background.\n\nFixed suites and arms only, by id: no goals, files, models or limits.\nNot available in the public demo.",
+        "operationId": "create_benchmark_experiment_api_benchmarks_experiments_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BenchmarkCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenchmarkExperimentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Benchmark Experiment"
+      }
+    },
+    "/api/benchmarks/experiments/{experiment_id}": {
+      "get": {
+        "description": "An experiment with its provenance, per-arm aggregates and every trial\n(linked to its run). Unknown metric values are null, with reasons.",
+        "operationId": "get_benchmark_experiment_api_benchmarks_experiments__experiment_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "experiment_id",
+            "required": true,
+            "schema": {
+              "title": "Experiment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenchmarkExperimentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Benchmark Experiment"
+      }
+    },
+    "/api/benchmarks/experiments/{experiment_id}/cancel": {
+      "post": {
+        "description": "Cancel an experiment running in this server process: its current run\nis cancelled and its remaining trials never start. Not in the public demo.",
+        "operationId": "cancel_benchmark_experiment_api_benchmarks_experiments__experiment_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "experiment_id",
+            "required": true,
+            "schema": {
+              "title": "Experiment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenchmarkCancelResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Benchmark Experiment"
+      }
+    },
+    "/api/benchmarks/suites": {
+      "get": {
+        "description": "The benchmark suites and arms this server offers (the public demo\nshows only public suites).",
+        "operationId": "benchmark_suites_api_benchmarks_suites_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenchmarkSuitesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Benchmark Suites"
+      }
+    },
     "/api/config": {
       "get": {
         "operationId": "config_api_config_get",

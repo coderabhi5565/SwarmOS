@@ -12,6 +12,11 @@ from fastapi.staticfiles import StaticFiles
 
 from app import __version__
 from app.api_models import (
+    BenchmarkCancelResponse,
+    BenchmarkCreateRequest,
+    BenchmarkExperimentDetail,
+    BenchmarkExperimentListResponse,
+    BenchmarkSuitesResponse,
     CancelResponse,
     ConfigResponse,
     DemoTaskInfo,
@@ -23,8 +28,9 @@ from app.api_models import (
     RunStreamEnd,
     RunSummary,
 )
-from app.benchmarks.runner import ExperimentRunner
-from app.benchmarks.store import BenchmarkStore
+from app.benchmarks import views as benchmark_views
+from app.benchmarks.runner import ExperimentError, ExperimentRunner
+from app.benchmarks.store import BenchmarkStore, ExperimentBusyError
 from app.config import settings
 from app.demo_tasks import DemoTaskError, demo_catalog
 from app.events import openapi_components
@@ -63,6 +69,9 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        # Experiments first: each ends interrupted with its current run
+        # cancelled, rather than starting another run during shutdown.
+        await app.state.experiments.shutdown()
         await app.state.service.shutdown()
         store.close()
 
@@ -455,6 +464,123 @@ async def stream_run_events(
     return EventSourceResponse(
         frames(),
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ----------------------------------------------------------------------
+# benchmarks (M6). Read-only in the public demo: visitors can inspect
+# experiments on the public catalog suite; creating and cancelling are local.
+# Recovery of experiments a stopped process left running is operator-only
+# (startup, or `swarmos bench --recover`); there is no API for it.
+# ----------------------------------------------------------------------
+def _experiments() -> ExperimentRunner:
+    return app.state.experiments
+
+
+def _visible_experiment(experiment_id: str):
+    """The experiment, or a 404: unknown and hidden (non-public in the
+    public demo) look the same, so hidden ones are not disclosed."""
+    experiment = _experiments().benchmarks.get_experiment(experiment_id)
+    if experiment is None or not benchmark_views.is_visible(experiment, settings):
+        raise HTTPException(status_code=404, detail=f"experiment {experiment_id} not found")
+    return experiment
+
+
+def _experiment_detail(experiment_id: str) -> BenchmarkExperimentDetail:
+    experiment = _visible_experiment(experiment_id)
+    trials = _experiments().benchmarks.get_trials(experiment_id)
+    return benchmark_views.experiment_detail(experiment, trials, settings)
+
+
+@app.get("/api/benchmarks/suites")
+async def benchmark_suites() -> BenchmarkSuitesResponse:
+    """The benchmark suites and arms this server offers (the public demo
+    shows only public suites)."""
+    return benchmark_views.suites_response(settings)
+
+
+@app.get("/api/benchmarks/experiments")
+async def list_benchmark_experiments(
+    limit: int = Query(default=20, ge=1, le=50),
+    cursor: str | None = Query(
+        default=None,
+        max_length=64,
+        description="next_cursor from the previous page, to fetch older experiments",
+    ),
+) -> BenchmarkExperimentListResponse:
+    """Newest-first experiments, paged like the run history."""
+    benchmarks = _experiments().benchmarks
+    try:
+        page, next_cursor = benchmarks.list_experiments_page(
+            limit, before=cursor, suite_ids=benchmark_views.visible_suite_ids(settings)
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=400, detail=f"unknown cursor: {cursor}") from exc
+    return BenchmarkExperimentListResponse(
+        experiments=[
+            benchmark_views.experiment_summary(
+                experiment, benchmarks.get_trials(experiment.experiment_id), settings
+            )
+            for experiment in page
+        ],
+        next_cursor=next_cursor,
+    )
+
+
+@app.get("/api/benchmarks/experiments/{experiment_id}")
+async def get_benchmark_experiment(experiment_id: str) -> BenchmarkExperimentDetail:
+    """An experiment with its provenance, per-arm aggregates and every trial
+    (linked to its run). Unknown metric values are null, with reasons."""
+    return _experiment_detail(experiment_id)
+
+
+@app.post("/api/benchmarks/experiments", status_code=202)
+async def create_benchmark_experiment(
+    request: BenchmarkCreateRequest,
+) -> BenchmarkExperimentDetail:
+    """Create an experiment and start running it in the background.
+
+    Fixed suites and arms only, by id: no goals, files, models or limits.
+    Not available in the public demo.
+    """
+    _public_demo_only_allows("creating benchmark experiments")
+    runner = _experiments()
+    try:
+        experiment = runner.create(
+            request.suite_id,
+            request.arm_ids,
+            request.repetitions,
+            origin="api",
+            provider=request.provider,
+            task_ids=request.task_ids,
+            order_seed=request.order_seed,
+        )
+    except ExperimentBusyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ExperimentError as exc:
+        raise HTTPException(
+            status_code=400, detail=benchmark_views.redact(str(exc), settings)
+        ) from exc
+    runner.launch(experiment.experiment_id)
+    return _experiment_detail(experiment.experiment_id)
+
+
+@app.post("/api/benchmarks/experiments/{experiment_id}/cancel", status_code=202)
+async def cancel_benchmark_experiment(experiment_id: str) -> BenchmarkCancelResponse:
+    """Cancel an experiment running in this server process: its current run
+    is cancelled and its remaining trials never start. Not in the public demo."""
+    _public_demo_only_allows("cancelling benchmark experiments")
+    experiment = _visible_experiment(experiment_id)
+    if _experiments().cancel(experiment_id):
+        return BenchmarkCancelResponse(experiment_id=experiment_id)
+    if experiment.status not in {"queued", "running"}:
+        raise HTTPException(
+            status_code=409,
+            detail=f"experiment {experiment_id} already finished: {experiment.status}",
+        )
+    raise HTTPException(
+        status_code=409,
+        detail=f"experiment {experiment_id} is not running in this server process",
     )
 
 

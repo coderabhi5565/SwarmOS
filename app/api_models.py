@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import (
     RESPONSE_SCHEMA,
@@ -237,4 +237,247 @@ class RunStreamEnd(_Response):
 
 class CancelResponse(_Response):
     run_id: str
+    status: Literal["cancelling"] = "cancelling"
+
+
+# ----------------------------------------------------------------------
+# benchmarks (M6). Explicit API shapes, converted from app.benchmarks; tests
+# keep their fields in step with the domain models they mirror.
+# ----------------------------------------------------------------------
+class BenchmarkTaskInfo(_Response):
+    id: str
+    title: str
+    # The catalog task this runs (null for free-form fixture goals).
+    demo_task: str | None
+    # Some wave has more than one step (null when the plan is not fixed).
+    parallel_waves: bool | None
+    notes: str
+
+
+class BenchmarkSuiteInfo(_Response):
+    id: str
+    title: str
+    description: str
+    version: str
+    public: bool
+    requires_real_model: bool
+    tasks: list[BenchmarkTaskInfo]
+
+
+class BenchmarkArmInfo(_Response):
+    id: str
+    kind: Literal["execution", "model_policy"]
+    label: str
+    description: str
+    model_policy: str | None
+    parallel_coding: bool | None
+    max_escalations: int | None
+
+
+class BenchmarkSuitesResponse(_Response):
+    mode: str
+    # Whether this server accepts new experiments (never in the public demo).
+    can_create: bool
+    suites: list[BenchmarkSuiteInfo]
+    arms: list[BenchmarkArmInfo]
+    max_repetitions: int
+    max_trials: int
+
+
+class BenchmarkCreateRequest(BaseModel):
+    """A new experiment: a fixed suite and fixed arms, by id. Nothing else."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    suite_id: str = Field(min_length=1, max_length=64)
+    arm_ids: list[str] = Field(min_length=1, max_length=8)
+    repetitions: int = Field(default=1, ge=1, le=10)
+    # A subset of the suite's tasks, by id (default: all of them).
+    task_ids: list[str] | None = Field(default=None, min_length=1, max_length=20)
+    provider: Literal["auto", "demo", "openai"] = "auto"
+    order_seed: int | None = Field(default=None, ge=0, le=2**31 - 1)
+
+
+class BenchmarkEnvironment(_Response):
+    app_version: str
+    mode: str
+    provider: str
+    provider_kind: str
+    scripted: bool
+    pricing_known: bool
+    monetary_enforced: bool
+    execution_enabled: bool
+    execution_sandbox: str
+    verification_command: str
+    build_commit: str | None
+    # Host details: null in the public demo.
+    python_version: str | None
+    platform: str | None
+    collected_at: str
+
+
+class BenchmarkArmConfiguration(_Response):
+    arm_id: str
+    task_id: str
+    provider: str
+    provider_kind: str
+    scripted: bool
+    model_policy: str
+    models_by_role: dict[str, str]
+    escalation_possible: bool
+    escalation_unavailable: list[str]
+    limits: Limits
+    parallel_relevant: bool | None
+    fingerprint: str
+
+
+class BenchmarkIdenticalArms(_Response):
+    task_id: str
+    arm_ids: list[str]
+    fingerprint: str
+    reasons: list[str]
+    explanation: str
+
+
+class BenchmarkDistribution(_Response):
+    n: int
+    median: float | None
+    p95: float | None
+    mean: float | None
+    min: float | None
+    max: float | None
+
+
+class BenchmarkTrialMetrics(_Response):
+    """What a trial's run established; null means not established (see null_reasons)."""
+
+    metrics_version: int
+    run_id: str
+    status: str
+    outcome: Literal["success", "failure", "excluded", "incomplete"]
+    excluded_reason: str | None
+    task_success: bool | None
+    verification_passed: bool | None
+    verification_runs: int
+    diagnostic_tests_passed: bool | None
+    provider: str
+    provider_kind: str
+    scripted: bool
+    model_policy: str
+    models_by_role: dict[str, str]
+    latency_ms: int | None
+    model_latency_ms: int | None
+    verification_ms: int | None
+    agent_calls: int | None
+    step_retries: int | None
+    call_retries: int | None
+    output_repairs: int | None
+    repair_rounds: int | None
+    revisions: int | None
+    escalations: int | None
+    model_calls: int
+    calls_with_usage: int
+    input_tokens: int | None
+    output_tokens: int | None
+    cost_usd: float | None
+    null_reasons: dict[str, str]
+
+
+class BenchmarkAggregate(_Response):
+    """An arm's results, over all tasks (task_id null) or one task.
+    Rates and means are over counted trials only."""
+
+    arm_id: str
+    task_id: str | None
+    # Every trial of the arm by status (pending, running, done, ...).
+    trial_statuses: dict[str, int]
+    trials: int
+    counted: int
+    excluded: int
+    incomplete: int
+    excluded_reasons: dict[str, int]
+    task_successes: int
+    task_success_rate: float | None
+    verification_passes: int
+    verification_pass_rate: float | None
+    latency_ms: BenchmarkDistribution
+    model_latency_ms: BenchmarkDistribution
+    verification_ms: BenchmarkDistribution
+    mean_agent_calls: float | None
+    mean_retries: float | None
+    mean_step_retries: float | None
+    mean_call_retries: float | None
+    mean_output_repairs: float | None
+    mean_repair_rounds: float | None
+    mean_revisions: float | None
+    mean_escalations: float | None
+    runs_with_usage: int
+    mean_input_tokens: float | None
+    mean_output_tokens: float | None
+    runs_with_cost: int
+    mean_cost_usd: float | None
+    total_cost_usd: float | None
+    notes: list[str]
+
+
+class BenchmarkTrialInfo(_Response):
+    trial_id: str
+    ordinal: int
+    arm_id: str
+    task_id: str
+    repetition: int
+    fingerprint: str
+    status: Literal["pending", "running", "done", "not_run", "error"]
+    run_id: str | None
+    # GET path of the trial's run (Run Detail and replay), when it has one.
+    run_path: str | None
+    started_at: str | None
+    finished_at: str | None
+    error: str | None
+    metrics: BenchmarkTrialMetrics | None
+
+
+class BenchmarkExperimentSummary(_Response):
+    experiment_id: str
+    created_at: str
+    updated_at: str
+    started_at: str | None
+    finished_at: str | None
+    status: Literal[
+        "queued", "running", "completed", "partial", "cancelled", "failed", "interrupted"
+    ]
+    origin: Literal["cli", "api"]
+    suite_id: str
+    suite_title: str
+    suite_version: str
+    provider: str
+    provider_kind: str
+    scripted: bool
+    repetitions: int
+    arm_ids: list[str]
+    trials_total: int
+    trials_done: int
+    error: str | None
+
+
+class BenchmarkExperimentListResponse(_Response):
+    experiments: list[BenchmarkExperimentSummary]
+    next_cursor: str | None
+
+
+class BenchmarkExperimentDetail(_Response):
+    experiment: BenchmarkExperimentSummary
+    order_seed: int
+    environment: BenchmarkEnvironment
+    configurations: list[BenchmarkArmConfiguration]
+    identical_by_design: list[BenchmarkIdenticalArms]
+    # One per arm over every task, then one per arm and task.
+    aggregates: list[BenchmarkAggregate]
+    task_aggregates: list[BenchmarkAggregate]
+    trials: list[BenchmarkTrialInfo]
+    notes: list[str]
+
+
+class BenchmarkCancelResponse(_Response):
+    experiment_id: str
     status: Literal["cancelling"] = "cancelling"
