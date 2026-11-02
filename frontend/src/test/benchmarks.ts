@@ -3,11 +3,13 @@
  * backend contract change breaks these at compile time.
  */
 import type {
+  BenchmarkAggregate,
   BenchmarkExperimentDetail,
   BenchmarkExperimentList,
   BenchmarkExperimentSummary,
   BenchmarkSuites,
   BenchmarkTrial,
+  BenchmarkTrialMetrics,
 } from "@/api/types";
 import { DEFAULT_LIMITS } from "./api";
 
@@ -78,6 +80,84 @@ export function trial(overrides: Partial<BenchmarkTrial> = {}): BenchmarkTrial {
     finished_at: null,
     error: null,
     metrics: null,
+    ...overrides,
+  };
+}
+
+export function trialMetrics(overrides: Partial<BenchmarkTrialMetrics> = {}): BenchmarkTrialMetrics {
+  return {
+    metrics_version: 1,
+    run_id: "run_000000000001",
+    status: "completed",
+    outcome: "success",
+    excluded_reason: null,
+    task_success: true,
+    verification_passed: true,
+    verification_runs: 1,
+    diagnostic_tests_passed: null,
+    provider: "demo",
+    provider_kind: "demo",
+    scripted: true,
+    model_policy: "config",
+    models_by_role: { coder: "demo-fast" },
+    latency_ms: 3_400,
+    model_latency_ms: null,
+    verification_ms: 1_200,
+    agent_calls: 2,
+    step_retries: 0,
+    call_retries: 0,
+    output_repairs: 0,
+    repair_rounds: 0,
+    revisions: 0,
+    escalations: 0,
+    model_calls: 2,
+    calls_with_usage: 0,
+    input_tokens: null,
+    output_tokens: null,
+    cost_usd: null,
+    null_reasons: {
+      model_latency_ms: "scripted provider: no model was called",
+      tokens: "scripted provider: no usage is reported",
+      cost_usd: "scripted provider: nothing was billed",
+    },
+    ...overrides,
+  };
+}
+
+const noDistribution = { n: 0, median: null, p95: null, mean: null, min: null, max: null };
+
+export function aggregate(overrides: Partial<BenchmarkAggregate> = {}): BenchmarkAggregate {
+  return {
+    arm_id: "parallel",
+    task_id: null,
+    trial_statuses: { done: 2 },
+    trials: 2,
+    counted: 2,
+    excluded: 0,
+    incomplete: 0,
+    excluded_reasons: {},
+    task_successes: 2,
+    task_success_rate: 1,
+    verification_passes: 2,
+    verification_pass_rate: 1,
+    latency_ms: { n: 2, median: 3_300, p95: 3_400, mean: 3_300, min: 3_200, max: 3_400 },
+    model_latency_ms: noDistribution,
+    verification_ms: { n: 2, median: 1_200, p95: 1_300, mean: 1_200, min: 1_100, max: 1_300 },
+    mean_agent_calls: 2,
+    mean_retries: 0,
+    mean_step_retries: 0,
+    mean_call_retries: 0,
+    mean_output_repairs: 0,
+    mean_repair_rounds: 0,
+    mean_revisions: 0,
+    mean_escalations: 0,
+    runs_with_usage: 0,
+    mean_input_tokens: null,
+    mean_output_tokens: null,
+    runs_with_cost: 0,
+    mean_cost_usd: null,
+    total_cost_usd: null,
+    notes: [],
     ...overrides,
   };
 }

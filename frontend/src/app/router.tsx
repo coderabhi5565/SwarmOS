@@ -37,6 +37,12 @@ export const routes: RouteObject[] = [
         path: "benchmarks",
         lazy: async () => ({ Component: (await import("@/pages/BenchmarksPage")).BenchmarksPage }),
       },
+      {
+        path: "benchmarks/:experimentId",
+        lazy: async () => ({
+          Component: (await import("@/pages/BenchmarkExperimentPage")).BenchmarkExperimentPage,
+        }),
+      },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
