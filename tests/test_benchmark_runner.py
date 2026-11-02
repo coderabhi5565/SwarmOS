@@ -415,3 +415,25 @@ async def test_results_survive_reopening_the_database(harness, tmp_path):
         assert reopened.get_run(trials[0].run_id) is not None
     finally:
         reopened.close()
+
+
+async def test_recovering_an_experiment_another_runner_still_owns(harness, slow_demo):
+    """What `bench --recover` does to a live experiment (why it is operator-only)."""
+    slow_demo(0.4)
+    runner, service, store = harness()
+    experiment = runner.create("catalog", ["parallel", "sequential"], origin="cli", task_ids=[SAMPLE])
+    task = asyncio.create_task(runner.run(experiment.experiment_id))
+    await wait_until(lambda: any(t.run_id for t in runner.benchmarks.get_trials(experiment.experiment_id)))
+
+    # Another process recovers it while this runner still owns it.
+    assert ExperimentRunner(service, BenchmarkStore(store)).recover_interrupted() == [experiment.experiment_id]
+    finished = await asyncio.wait_for(task, 20)
+
+    assert finished.status == "interrupted"
+    first, second = runner.benchmarks.get_trials(experiment.experiment_id)
+    # The trial in flight is recorded as an error; its run still completes and stays linked...
+    assert first.status == "error" and first.metrics is None
+    assert store.get_run(first.run_id).status == "completed"
+    # ...and the owning runner starts nothing more.
+    assert second.status == "not_run" and second.run_id is None
+    assert len(store.list_runs(10)) == 1

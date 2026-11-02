@@ -297,10 +297,10 @@ nothing records that ownership across processes. The API server closes
 experiments left queued or running by a stopped process when it starts.
 `swarmos bench --recover` does the same on demand and is **operator-only**:
 run it only when you know no server or other `bench` process is still
-running that experiment. If one is, its experiment is marked interrupted
-while it keeps running; its trials still record their runs, but the
-experiment's final status stays interrupted. There is no API for
-recovery.
+running that experiment. If one is, the experiment is marked interrupted
+under it: the trial in flight is recorded as an error (its run still
+completes and stays linked, without metrics), and the owning process starts
+no further trials. There is no API for recovery.
 
 ## Tests
 
