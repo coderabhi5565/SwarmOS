@@ -280,7 +280,10 @@ only its own stream. A stream closes when the client disconnects, at `end`,
 or after `SWARMOS_STREAM_MAX_SECONDS` (the client resumes from its cursor).
 The public demo caps open streams per client (4) and in total (40), the
 `SWARMOS_API_TOKEN` check applies, and the endpoint creates nothing and
-accepts no inputs beyond the cursor.
+accepts no inputs beyond the cursor. In the public demo each event is
+redacted (`app/redaction.py`) before it is framed, exactly as
+`/api/runs/{id}/events` redacts it; the frame's `id` and the cursor stay
+the stored `seq`.
 
 **Frontend transport** (`frontend/src/api/`). One connection per run per
 QueryClient (`liveConnection.ts`), shared by every view of the run, reads
@@ -389,6 +392,7 @@ flowchart TB
 1. **Model output is untrusted.** It is parsed into a Pydantic model; paths are normalized and rejected if absolute, traversing, or too long. File count and size per step are capped.
 2. **Coding branches are isolated.** Each step gets its own checkout under the run's temp root, and the checkout is destroyed after the branch returns. The canonical workspace changes only in `advance`.
 3. **Verification is contained, not sandboxed.** The subprocess inherits only an allow-listed environment (`PATH`, `SYSTEMROOT`, `TEMP`, `PYTHONPATH`, …), so provider credentials cannot leak into test code. It runs with a wall-clock timeout. There is no filesystem namespace, cgroup, or network block.
+4. **Stored run data is not public data.** Traces keep host details for local debugging; in the public demo every response carrying a run is redacted first (`app/redaction.py`, see `docs/safety.md`).
 
 ## Persistence
 

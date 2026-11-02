@@ -12,7 +12,6 @@ models, deciding what a caller may see:
 
 from __future__ import annotations
 
-import re
 from collections import Counter
 
 from app.api_models import (
@@ -36,20 +35,19 @@ from app.benchmarks.provenance import identical_by_design
 from app.benchmarks.runner import MAX_REPETITIONS, MAX_TRIALS
 from app.benchmarks.suites import SuiteError, all_suites, get_suite
 from app.config import Settings
-
-_URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://\S+")
-REDACTED = "[redacted]"
+from app.redaction import REDACTED, PublicRedactor
 
 
 def redact(text: str | None, settings: Settings) -> str | None:
-    """Remove private configuration from free text (errors, reasons)."""
+    """Remove private configuration from free text (errors, reasons); in the
+    public demo, also every URL, host path and address (``app.redaction``)."""
     if text is None:
         return None
     for secret in (settings.api_key, settings.base_url):
         if secret:
             text = text.replace(secret, REDACTED)
     if settings.is_public_demo:
-        text = _URL.sub(REDACTED, text)
+        text = PublicRedactor(settings).text(text)
     return text
 
 

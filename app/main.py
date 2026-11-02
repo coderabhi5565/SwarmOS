@@ -38,6 +38,7 @@ from app.models import RunDetail, RunRequest
 from app.providers import resolve_provider
 from app.providers.base import ProbeableProvider, ProviderConfigError, ProviderError
 from app.rate_limit import SlidingWindowLimiter
+from app.redaction import PublicRedactor
 from app.service import CapacityError, PublicDemoError, RunService
 from app.store import RunStore
 from app.streaming import (
@@ -180,11 +181,24 @@ def _public_demo_only_allows(feature: str) -> None:
         )
 
 
+def _public_view() -> PublicRedactor | None:
+    """How run data is shown: redacted in the public demo (no host paths,
+    executed command lines, endpoint, key or addresses), as stored otherwise."""
+    return PublicRedactor(settings) if settings.is_public_demo else None
+
+
+def _public_text(text: str) -> str:
+    view = _public_view()
+    return view.text(text) if view is not None else text
+
+
 def _detail(run_id: str) -> RunDetail:
     record = _store().get_run(run_id)
     if record is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} not found")
-    return RunDetail(run=record, events=_store().get_events(run_id))
+    detail = RunDetail(run=record, events=_store().get_events(run_id))
+    view = _public_view()
+    return view.detail(detail) if view is not None else detail
 
 
 @app.get("/health")
@@ -240,7 +254,8 @@ async def config() -> ConfigResponse:
             "max_escalations": settings.max_escalations,
         },
         "verification": {
-            "command": settings.verification_command,
+            # An operator may configure an absolute interpreter path.
+            "command": _public_text(settings.verification_command),
             "timeout_seconds": settings.verification_timeout_seconds,
             "execution_enabled": settings.execution_enabled,
             "allowed_commands": sorted(settings.allowed_command_set),
@@ -313,9 +328,9 @@ async def create_run(
         else:
             record = service.submit(request)
     except ProviderConfigError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=_public_text(str(exc))) from exc
     except DemoTaskError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=_public_text(str(exc))) from exc
     except CapacityError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     return _detail(record.run_id)
@@ -336,6 +351,9 @@ async def list_runs(
         records, next_cursor = _store().list_runs_page(limit, before=cursor)
     except KeyError as exc:
         raise HTTPException(status_code=400, detail=f"unknown cursor: {cursor}") from exc
+    view = _public_view()
+    if view is not None:
+        records = [view.run(record) for record in records]
     return RunListResponse(
         runs=[RunSummary.from_record(record) for record in records],
         next_cursor=next_cursor,
@@ -381,9 +399,10 @@ async def get_run_events(
     if _store().get_run(run_id) is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} not found")
     events = _store().get_events(run_id, after_seq=after_seq)
+    view = _public_view()
     return RunEventsResponse(
         run_id=run_id,
-        events=events,
+        events=[view.event(event) for event in events] if view is not None else events,
         # The cursor for the next poll: unchanged when nothing new arrived.
         last_seq=events[-1].seq if events else (after_seq or 0),
     )
@@ -445,6 +464,7 @@ async def stream_run_events(
         raise HTTPException(
             status_code=429, detail=str(exc), headers={"Retry-After": "15"}
         ) from exc
+    view = _public_view()
 
     async def frames():
         try:
@@ -456,6 +476,7 @@ async def stream_run_events(
                 heartbeat_seconds=settings.stream_heartbeat_seconds,
                 max_seconds=settings.stream_max_seconds,
                 is_disconnected=request.is_disconnected,
+                view=view.event if view is not None else None,
             ):
                 yield frame
         finally:

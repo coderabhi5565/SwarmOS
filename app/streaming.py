@@ -188,12 +188,15 @@ async def run_event_stream(
     heartbeat_seconds: float,
     max_seconds: float,
     is_disconnected: Callable[[], Awaitable[bool]] | None = None,
+    view: Callable[[TraceEvent], TraceEvent] | None = None,
 ) -> AsyncIterator[str]:
     """SSE frames for ``run_id``'s trace after ``cursor``, live until the run ends.
 
     Closes after ``max_seconds`` without an ``end`` event; the client then
     reconnects from its cursor. Cancellation (a client disconnect) exits
-    through the subscription's cleanup.
+    through the subscription's cleanup. ``view``, when given, is applied to
+    each event before it is sent (the public demo's redaction); it must keep
+    the event's seq, which the cursor follows.
     """
     deadline = time.monotonic() + max_seconds
     yield sse_retry()
@@ -211,7 +214,7 @@ async def run_event_stream(
             terminal = record.status in TERMINAL_STATUSES
             events = store.get_events(run_id, after_seq=cursor, limit=BATCH_SIZE)
             for event in events:
-                yield sse_event(event)
+                yield sse_event(view(event) if view is not None else event)
                 cursor = event.seq
             if len(events) == BATCH_SIZE:
                 continue  # more already recorded: keep draining before waiting

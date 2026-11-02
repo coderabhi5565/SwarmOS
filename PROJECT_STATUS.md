@@ -29,18 +29,19 @@ Milestones (revised 2026-11-01):
 
 ## Current milestone
 
-**M6.3 — Benchmark pages: complete.** Feature commits `8fb1f38`,
-`a900fdc`, `cdde8fb` and `83c9c23` are pushed. The integration,
-browser-verification and documentation commit is local until approved.
+**M6.3 — Benchmark pages: complete, with the public trace disclosure it
+found fixed.** Feature commits `8fb1f38`, `a900fdc`, `cdde8fb` and
+`83c9c23` are pushed. The documentation commit `79a634f` and the redaction
+fix are local until approved.
 Next: **M6.4 — benchmark charts**, awaiting approval (not started).
 
 ## Validation at the last milestone boundary
 
-M6.3, 2026-11-02:
+M6.3 with the public trace redaction, 2026-11-03:
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest` (`.env` loading disabled) | 574 passed, 2 skipped |
+| `python -m pytest` (`.env` loading disabled) | 611 passed, 2 skipped (574 before the redaction tests) |
 | frontend `npx tsc --noEmit` / `vitest run` / `npm run build` | clean / 305 passed (28 files) / builds |
 | `ruff check .` | clean |
 | `ruff format --check` | not configured; the codebase has never been formatted |
@@ -54,6 +55,46 @@ frontend runs used `vitest run --maxWorkers=2`, and a few `tsc`/build runs
 were killed by out-of-memory and passed unchanged on retry.
 
 ## Completed
+
+### Public trace redaction (found in M6.3 integration)
+
+- **Root cause:** runs are stored as recorded, and the public demo served
+  them as stored. `Workspace.run_command` records the command it executed,
+  with `python` replaced by `sys.executable`; the restricted runner adds the
+  launcher's path, the temporary workspace and `--basetemp`. That command
+  (in `run.verification` and the `verification` event), pytest output that
+  quotes paths, and free-text errors put absolute server paths, and so the
+  account's home directory, into `GET /api/runs/{id}`, `POST /api/runs`,
+  `GET /api/runs/{id}/events` and `GET /api/runs/{id}/stream`.
+- **Fix:** `app/redaction.py` (`PublicRedactor`), applied in `public_demo`
+  mode at the response boundary of every route that returns run data
+  (detail, create, events, the stream before framing, the list), the
+  configured command in `/api/config`, 400 messages from run creation, and
+  the benchmark views' free text. Commands are an allowlist (only the
+  configured verification command); truncated output loses its partial
+  first line; every other string loses keys, endpoints, credentials, URLs,
+  absolute paths (workspace paths become workspace-relative) and IP
+  addresses. Stored data is not rewritten; `local` mode is unchanged.
+  Details: `docs/safety.md#what-visitors-see-of-a-run`.
+- **Tests:** `tests/test_public_redaction.py` (37): events, paging, detail,
+  list, the stream of a stored trace and of events recorded while it is
+  open, a real public catalog run through the sandbox launcher (no
+  interpreter, home, temp or project path anywhere), nested payloads and
+  keys, Windows/UNC/POSIX/`~`/repr paths, fake keys, URLs, hosts and
+  addresses, unchanged ordinary text, unchanged storage, and local mode.
+  With the redaction switched off, the 7 endpoint tests fail.
+- **Verified against a real server** (scratch copy of the M6.3 database:
+  73 runs recorded before the fix, 71 of them with host paths; public mode
+  with a fake endpoint, key and model set): 255 API responses (every run's
+  detail, events and stream, the list, config, health and every benchmark
+  experiment) contained no host path or canary. A new catalog run was
+  streamed live (19 reads over 0.7 s) and checked the same way: stored with
+  the launcher and a drive path, served as `[redacted]`, with the
+  configured `python -m pytest -q` shown. Stream ids equal event seqs for
+  all 74 runs. Run Detail in headless Chrome showed `$ python -m pytest -q`;
+  its markup's only path-like matches were static SVG and link URLs. Local
+  mode served the full 418-character command unchanged in the events, the
+  detail and the stream. (Run twice on fresh copies, with the same results.)
 
 ### M6.3 — benchmark pages
 
@@ -118,7 +159,7 @@ cancelled, interrupted) were compared field by field with the API's JSON:
 | Public demo: read-only note, no form, no non-GET request, experiments readable, host details "not disclosed", `/legacy` closed | passed |
 | Public demo API: create, cancel, free-form run and inline run all `403`; no run started | passed |
 | Public demo with fake endpoint, key and model set: no key, URL or local path in any benchmark, config or health response | passed |
-| Public demo run traces: absolute server paths visible | **failed** (pre-existing; known issue 8) |
+| Public demo run traces: absolute server paths visible | **failed** (pre-existing); fixed since, see "Public trace redaction" |
 | Regression: `/`, `/console`, `/history`, `/legacy` (local), `/runs/new`, a live run streamed to completion, replay, the 3D scene, 404 | passed |
 | `queued` state seen in a browser | not observed (an experiment starts running at once) |
 | Trial `error` state ("the run could not be started") end to end | not tested (no configuration triggers it without code changes) |
@@ -431,11 +472,12 @@ restrictions instead (details in `docs/safety.md`):
    killed process exits.
 7. There are no "agent started" events yet. In-flight agent state must be
    inferred from dispatch events (M3).
-8. **Blocks deployment (M7):** run traces record the verification command
-   with absolute server paths (interpreter, launcher, temporary workspace,
-   and so the account's home directory), and the public demo serves them
-   (`GET /api/runs/{id}/events`). Found in M6.3 integration; pre-existing,
-   not fixed. See `docs/safety.md`.
+8. Resolved: public run data exposed absolute server paths. The public
+   demo now redacts every response that carries a run
+   (`app/redaction.py`; see "Public trace redaction" above). It is
+   pattern-based redaction, not an explicit public response schema: beyond
+   the command allowlist, a new free-text field with host details in an
+   unrecognised form would need a new rule and test.
 9. The browser console warns "No `HydrateFallback` element provided" on
    every page load (lazy routes without a hydrate fallback; harmless, since
    nothing is server-rendered), and `THREE.Clock` is deprecated in the 3D

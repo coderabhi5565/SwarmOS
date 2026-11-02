@@ -60,6 +60,7 @@ restrictions so that no visitor input ever becomes executed code or a prompt:
 | Resource limits (POSIX) | CPU seconds, 1 GiB address space, 16 MiB file size, 256 open files, no core dumps, plus the parent's wall-clock timeout | `apply_resource_limits` |
 | Abuse limits | Per-client sliding-window rate limit, global cap on concurrent runs; live trace streams capped at 4 per client and 40 in total, each closed after a maximum lifetime; endpoint probe and cancellation are disabled; `base_url` is redacted from `/api/config` | `app/rate_limit.py`, `app/streaming.py`, `app/main.py` |
 | Fail closed | The API and `swarmos serve` refuse to start in `public_demo` if the sandbox or the code policy is off, or repository checkout is on | `Settings.startup_errors` |
+| Redacted run data | Every response that carries a run is redacted at the response boundary: no host path, executed command line, endpoint, key, credential or IP address. Stored traces are unchanged | `app/redaction.py` |
 
 What this is **not**: kernel isolation. An audit hook does not stop native
 code, and a static policy can in principle be evaded. These layers are
@@ -73,13 +74,57 @@ Validated so far: the launcher's escape tests pass on Windows
 (`tests/test_public_demo.py`). Linux, the deployment target, must be validated
 in CI before deploying.
 
-Known disclosure (open): a run's trace records the verification command as
-it was executed, with absolute server paths (the interpreter, the launcher
-and the temporary workspace, and so the account's home directory). The
-public demo serves traces, so visitors can read those paths. The recorded
-command is the argument list only (no key or endpoint), and the benchmark
-API omits host details. Fix before deploying: record the command with paths
-relative to the workspace, or redact it in public traces.
+### What visitors see of a run
+
+Runs and traces are stored exactly as recorded, so `local` mode keeps every
+detail for debugging (including the full command line verification
+executed). Before M6.3 closed, the public demo served them as stored too.
+The verification result records the command it executed:
+`Workspace.run_command` replaces `python` with the absolute interpreter
+path, and the restricted runner adds the launcher's path, the temporary
+workspace and its pytest temp directory. Those absolute paths, and the
+account's home directory with them, reached visitors through the run
+detail, the polled events and the live stream.
+
+`app.redaction.PublicRedactor` now builds the public representation, and
+`app/main.py` applies it in `public_demo` mode to every route that returns
+run data, for traces recorded before the fix as much as for new ones:
+
+| Route | Redacted |
+| --- | --- |
+| `GET /api/runs/{id}`, `POST /api/runs` | the run record and its events |
+| `GET /api/runs/{id}/events` | each event |
+| `GET /api/runs/{id}/stream` | each event, before it is framed (ids and order unchanged) |
+| `GET /api/runs` | each listed run |
+| `GET /api/config` | the configured verification command |
+| `POST /api/runs` errors (400) | the message |
+| Benchmark experiments | free-text errors and the verification command (`app/benchmarks/views.py`) |
+
+The representation:
+
+- **Commands are an allowlist.** A `command` field is shown only when it is
+  the server's configured verification command (e.g. `python -m pytest -q`);
+  the executed command line becomes `[redacted]`.
+- **Truncated output** (stdout and stderr are kept up to the last 4000
+  characters) loses its first, partial line, which can begin inside a path.
+- **Every other string, at any depth** (dict keys too), loses the configured
+  key, endpoint URL and endpoint host; credential-like tokens and
+  `*_KEY=value` style assignments; URLs; absolute Windows, UNC, POSIX and
+  `~` paths (repr-escaped ones too); and IPv4 and bracketed IPv6 addresses.
+  A path inside a run's temporary workspace keeps only its workspace-relative
+  part (`tests/test_target.py:12`).
+- **Kept:** event ids, sequence numbers, times, kinds, agents and steps,
+  statuses, verification outcomes and counts, timings, error classes, and
+  dependency and revision relationships. No event is dropped.
+
+This redacts the stored representation; it is not an explicit public
+response schema that names every field a visitor may see, and so not
+proof against every future free-text format. The rules are pattern-based
+beyond the command allowlist: they can redact a little too much (an IPv4-like version string, an API path such as
+`/api/demo-tasks`, text between two slashes), which is the safe direction.
+A new free-text field that holds host details in a form the rules do not
+recognise would not be caught; `tests/test_public_redaction.py` is where
+such a form should be added.
 
 ## Repository workflow
 
