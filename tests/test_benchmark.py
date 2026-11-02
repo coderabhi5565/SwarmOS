@@ -4,7 +4,7 @@ import asyncio
 import json
 from pathlib import Path
 
-from app.benchmark import (
+from app.benchmarks.legacy import (
     POLICIES,
     load_tasks,
     request_for,
@@ -103,7 +103,7 @@ def test_results_are_written_as_jsonl(tmp_path):
         store.close()
 
 def _result(policy: str, escalation_available: bool | None, **overrides):
-    from app.benchmark import BenchmarkResult
+    from app.benchmarks.legacy import BenchmarkResult
 
     base = {
         "run_id": f"run_{policy}",
@@ -184,3 +184,11 @@ def test_result_records_escalation_availability(tmp_path):
         assert item.escalation_available is False
     finally:
         store.close()
+
+
+def test_the_old_module_still_exports_the_harness():
+    import app.benchmark as shim
+    import app.benchmarks.legacy as legacy
+
+    for name in shim.__all__:
+        assert getattr(shim, name) is getattr(legacy, name)
