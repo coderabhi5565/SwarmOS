@@ -9,9 +9,10 @@ different product:
 * ``multi-agent``  - role-routed profiles (planner/reviewer may use strong) with
                      escalation allowed.
 
-The harness records only what it observed. Token and USD fields stay zero with
-``usage_available``/``monetary_enforced`` false unless the provider reported
-usage and rates were configured. It never declares a winner.
+The harness records only what it observed. Token fields are null unless every
+model call in the run reported usage, and USD is null unless, in addition,
+pricing made the budget enforceable: an unreported value is never written as
+zero. It never declares a winner.
 """
 
 from __future__ import annotations
@@ -70,10 +71,13 @@ class BenchmarkResult(BaseModel):
     escalations: int = 0
     revisions: int = 0
     duration_ms: int = 0
-    input_tokens: int = 0
-    output_tokens: int = 0
+    # Null unless every model call in the run reported usage.
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    # Some call reported usage (the run record's flag); not "all calls did".
     usage_available: bool = False
-    cost_usd: float = 0.0
+    # Null unless usage is complete and pricing made the budget enforceable.
+    cost_usd: float | None = None
     monetary_enforced: bool = False
     error: str | None = None
 
@@ -102,6 +106,9 @@ def result_from_run(
         if event.kind == "agent_invocation"
     ]
     retries = sum(1 for item in invocations if int(item.get("attempt", 1) or 1) > 1)
+    # Token counts are facts only when every call reported them; a call
+    # without usage metadata (or the demo fixture) leaves the totals unknown.
+    usage_complete = all(bool(item.get("usage_available")) for item in invocations)
     return BenchmarkResult(
         run_id=record.run_id,
         task_id=task_id,
@@ -118,10 +125,20 @@ def result_from_run(
         escalations=record.escalations,
         revisions=record.revisions,
         duration_ms=record.duration_ms,
-        input_tokens=sum(int(item.get("input_tokens", 0) or 0) for item in invocations),
-        output_tokens=sum(int(item.get("output_tokens", 0) or 0) for item in invocations),
+        input_tokens=(
+            sum(int(item.get("input_tokens", 0) or 0) for item in invocations)
+            if usage_complete
+            else None
+        ),
+        output_tokens=(
+            sum(int(item.get("output_tokens", 0) or 0) for item in invocations)
+            if usage_complete
+            else None
+        ),
         usage_available=record.usage_available,
-        cost_usd=round(record.cost_usd, 8),
+        cost_usd=(
+            round(record.cost_usd, 8) if usage_complete and record.monetary_enforced else None
+        ),
         monetary_enforced=record.monetary_enforced,
         error=record.error,
     )
@@ -177,7 +194,7 @@ def summarise(results: list[BenchmarkResult]) -> dict[str, object]:
     }
 
     comparable = bool(results) and all(
-        i.usage_available and i.monetary_enforced for i in results
+        i.usage_available and i.monetary_enforced and i.cost_usd is not None for i in results
     )
 
     escalatable = [

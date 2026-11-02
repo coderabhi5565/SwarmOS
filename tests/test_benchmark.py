@@ -66,7 +66,9 @@ def test_summary_withholds_cost_when_usage_is_missing(tmp_path):
         assert all(item.status == "completed" for item in results)
         assert all(item.verification_passed for item in results)
         assert all(item.usage_available is False for item in results)
-        assert all(item.cost_usd == 0 for item in results)
+        # Unreported usage is unknown, never zero.
+        assert all(item.cost_usd is None for item in results)
+        assert all(item.input_tokens is None and item.output_tokens is None for item in results)
         assert summary["cost_comparable"] is False
         assert "withheld" in summary["cost_note"]
         assert "declared best" in summary["note"]
@@ -192,3 +194,70 @@ def test_the_old_module_still_exports_the_harness():
 
     for name in shim.__all__:
         assert getattr(shim, name) is getattr(legacy, name)
+
+
+def _invocation_event(**invocation):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(kind="agent_invocation", payload={"invocation": invocation})
+
+
+def _record(**overrides):
+    from types import SimpleNamespace
+
+    base = {
+        "run_id": "run_x",
+        "provider": "openai-compatible:remote",
+        "provider_kind": "remote",
+        "model_policy": "config",
+        "models_by_role": {},
+        "status": "completed",
+        "verification": None,
+        "agent_calls": 2,
+        "escalations": 0,
+        "revisions": 0,
+        "duration_ms": 10,
+        "usage_available": True,
+        "cost_usd": 0.0123,
+        "monetary_enforced": True,
+        "error": None,
+    }
+    base.update(overrides)
+    return SimpleNamespace(**base)
+
+
+def test_tokens_and_cost_are_reported_only_when_every_call_reported_usage():
+    complete = [
+        _invocation_event(usage_available=True, input_tokens=100, output_tokens=20),
+        _invocation_event(usage_available=True, input_tokens=50, output_tokens=5),
+    ]
+    item = result_from_run(task_id="t", policy="adaptive", record=_record(), events=complete)
+    assert (item.input_tokens, item.output_tokens, item.cost_usd) == (150, 25, 0.0123)
+
+    partial = [complete[0], _invocation_event(usage_available=False, input_tokens=0, output_tokens=0)]
+    item = result_from_run(task_id="t", policy="adaptive", record=_record(), events=partial)
+    assert (item.input_tokens, item.output_tokens, item.cost_usd) == (None, None, None)
+
+
+def test_cost_is_unknown_without_enforceable_pricing_even_with_usage():
+    complete = [_invocation_event(usage_available=True, input_tokens=10, output_tokens=2)]
+    item = result_from_run(
+        task_id="t", policy="adaptive", record=_record(monetary_enforced=False), events=complete
+    )
+    assert item.input_tokens == 10
+    assert item.cost_usd is None
+
+
+def test_jsonl_writes_unknown_usage_as_null(tmp_path):
+    item = result_from_run(
+        task_id="t",
+        policy="adaptive",
+        record=_record(usage_available=False, monetary_enforced=False),
+        events=[_invocation_event(usage_available=False, input_tokens=7, output_tokens=7)],
+    )
+    out = tmp_path / "r.jsonl"
+    write_results(out, [item])
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["input_tokens"] is None
+    assert payload["output_tokens"] is None
+    assert payload["cost_usd"] is None
