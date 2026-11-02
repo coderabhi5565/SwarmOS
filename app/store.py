@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +62,53 @@ CREATE TABLE IF NOT EXISTS trace_events (
 
 CREATE INDEX IF NOT EXISTS idx_trace_run ON trace_events(run_id, seq);
 CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at DESC);
+
+-- Benchmarks (M6). Additive: runs and trace_events are unchanged, and each
+-- trial's run is an ordinary run, linked here rather than in the run record.
+CREATE TABLE IF NOT EXISTS benchmark_experiments (
+    experiment_id       TEXT PRIMARY KEY,
+    created_at          TEXT NOT NULL,
+    updated_at          TEXT NOT NULL,
+    started_at          TEXT,
+    finished_at         TEXT,
+    status              TEXT NOT NULL,
+    origin              TEXT NOT NULL,
+    suite_id            TEXT NOT NULL,
+    suite_version       TEXT NOT NULL,
+    provider            TEXT NOT NULL,
+    provider_kind       TEXT NOT NULL,
+    scripted            INTEGER NOT NULL,
+    repetitions         INTEGER NOT NULL,
+    order_seed          INTEGER NOT NULL,
+    arm_ids_json        TEXT NOT NULL,
+    configurations_json TEXT NOT NULL,
+    provenance_json     TEXT NOT NULL,
+    error               TEXT
+);
+
+CREATE TABLE IF NOT EXISTS benchmark_trials (
+    trial_id        TEXT PRIMARY KEY,
+    experiment_id   TEXT NOT NULL
+                    REFERENCES benchmark_experiments(experiment_id) ON DELETE CASCADE,
+    ordinal         INTEGER NOT NULL,
+    arm_id          TEXT NOT NULL,
+    task_id         TEXT NOT NULL,
+    repetition      INTEGER NOT NULL,
+    fingerprint     TEXT NOT NULL,
+    status          TEXT NOT NULL,
+    run_id          TEXT REFERENCES runs(run_id) ON DELETE SET NULL,
+    started_at      TEXT,
+    finished_at     TEXT,
+    metrics_json    TEXT,
+    metrics_version INTEGER,
+    error           TEXT,
+    UNIQUE (experiment_id, arm_id, task_id, repetition),
+    UNIQUE (experiment_id, ordinal)
+);
+
+CREATE INDEX IF NOT EXISTS idx_bench_experiments_created
+    ON benchmark_experiments(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bench_trials_run ON benchmark_trials(run_id);
 """
 
 # Columns added after the first release, with their backfill defaults.
@@ -138,6 +186,19 @@ class RunStore:
     def close(self) -> None:
         with self._lock:
             self._conn.close()
+
+    @contextmanager
+    def transaction(self) -> Iterator[sqlite3.Connection]:
+        """The connection under the store's lock: committed when the block
+        succeeds, rolled back when it raises. For modules that keep their own
+        tables in this database (benchmarks)."""
+        with self._lock:
+            try:
+                yield self._conn
+            except BaseException:
+                self._conn.rollback()
+                raise
+            self._conn.commit()
 
     def add_listener(self, listener: Callable[[str], None]) -> None:
         """Call ``listener(run_id)`` after each committed change to a run.
