@@ -1,8 +1,14 @@
 import { ArrowRight, Loader2, RotateCw } from "lucide-react";
 import { Link } from "react-router";
-import { experimentsFromPages, isActiveExperiment, useBenchmarkExperiments } from "@/api/benchmarkQueries";
+import {
+  experimentsFromPages,
+  isActiveExperiment,
+  useBenchmarkExperiments,
+  useBenchmarkSuites,
+} from "@/api/benchmarkQueries";
 import type { BenchmarkExperimentSummary } from "@/api/types";
 import { ExperimentStatusBadge, ProvenanceBadge } from "@/components/benchmarks/badges";
+import { CreateExperimentForm } from "@/components/benchmarks/CreateExperimentForm";
 import { formatDate, formatDuration } from "@/components/execution/format";
 import { Unknown, Value } from "@/components/execution/primitives";
 import { Button } from "@/components/ui/button";
@@ -29,6 +35,8 @@ export function BenchmarksPage() {
           orchestration as any run. No arm is declared best: open an experiment for its trials and runs.
         </p>
       </header>
+
+      <CreateExperimentPanel />
 
       {scripted && (
         <p role="note" className="glass rounded-xl border-status-findings/30 px-4 py-3 text-sm text-status-findings">
@@ -92,6 +100,32 @@ export function BenchmarksPage() {
       )}
     </div>
   );
+}
+
+/**
+ * Experiment creation, only where the server says it accepts experiments
+ * (its suites response's can_create; false in the public demo). The form,
+ * and with it the create mutation, is never mounted otherwise.
+ */
+function CreateExperimentPanel() {
+  const suites = useBenchmarkSuites();
+  if (suites.isPending) return null;
+  if (suites.isError) {
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        Could not load the benchmark options ({suites.error.message}); the experiment list below still works.
+      </p>
+    );
+  }
+  if (!suites.data.can_create) {
+    return (
+      <p role="note" aria-label="Read-only" className="glass rounded-xl px-4 py-3 text-sm text-muted-foreground">
+        Read-only: this server does not accept new experiments. The experiments below were started by its operator;
+        open one for its trials and runs.
+      </p>
+    );
+  }
+  return <CreateExperimentForm suites={suites.data} />;
 }
 
 function ExperimentRow({ experiment }: { experiment: BenchmarkExperimentSummary }) {
