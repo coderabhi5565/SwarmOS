@@ -23,6 +23,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from app.benchmarks.arms import ARMS
 from app.models import Limits, RunRequest, utc_now
 
 
@@ -34,16 +35,11 @@ class BenchmarkPolicy:
     description: str
 
 
+# The model-policy arms are the single definition of these policies.
 POLICIES: dict[str, BenchmarkPolicy] = {
-    "fixed-fast": BenchmarkPolicy(
-        "fixed-fast", "fast_only", 0, "fast profile for every role; no escalation"
-    ),
-    "adaptive": BenchmarkPolicy(
-        "adaptive", "adaptive", 1, "fast first, one escalation to strong if configured"
-    ),
-    "multi-agent": BenchmarkPolicy(
-        "multi-agent", "role_routed", 1, "role-routed profiles with escalation allowed"
-    ),
+    arm.id: BenchmarkPolicy(arm.id, str(arm.model_policy), int(arm.max_escalations or 0), arm.description)
+    for arm in ARMS.values()
+    if arm.kind == "model_policy"
 }
 
 
