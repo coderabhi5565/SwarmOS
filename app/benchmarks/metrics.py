@@ -1,0 +1,382 @@
+"""Benchmark metrics: what a trial's persisted run establishes, and per-arm aggregates.
+
+Pure functions over a ``RunRecord`` and its trace events. Nothing is
+estimated: a value the record and trace do not establish is null, with the
+reason in ``null_reasons``. In particular:
+
+* **Task success** (the run finished ``completed``) and **verification
+  passed** (the run's last non-diagnostic verification passed) are separate
+  facts with separate rates. Diagnostic verifications, which record test
+  evidence after a rejected review without approving anything, never count
+  as a verification pass; their result is reported on its own.
+* **Excluded** trials ended for infrastructure reasons (cancelled, the
+  server restarted, the orchestrator crashed). They are counted and listed
+  but are in no rate's denominator. Provider errors are task outcomes: a
+  run that failed because the model endpoint failed is a failure.
+* **Tokens** are reported only when every model call reported usage;
+  **cost** only when, in addition, the provider is real and priced.
+* **Model-call latency** is null for scripted runs: no model was called.
+"""
+
+from __future__ import annotations
+
+import math
+import statistics
+from collections import Counter
+from collections.abc import Iterable, Sequence
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field
+
+from app.models import RunRecord, TraceEvent
+
+METRICS_VERSION = 1
+
+TERMINAL_STATUSES = frozenset(
+    {
+        "completed",
+        "completed_with_findings",
+        "review_invalid",
+        "failed",
+        "cancelled",
+        "budget_exceeded",
+        "limit_exceeded",
+        "timed_out",
+    }
+)
+# Failure classes that describe the system, not the task.
+INFRASTRUCTURE_ERRORS = frozenset({"run_crashed", "graph_error"})
+
+# Below this many runs, a nearest-rank P95 is one of the slowest few runs.
+P95_MIN_SAMPLE = 20
+
+Outcome = Literal["success", "failure", "excluded", "incomplete"]
+
+
+class TrialMetrics(BaseModel):
+    """What one trial's run establishes. Null means "not established"."""
+
+    metrics_version: int = METRICS_VERSION
+    run_id: str
+    status: str
+    outcome: Outcome
+    excluded_reason: str | None = None
+
+    # Execution success: the run finished "completed". Null unless counted.
+    task_success: bool | None = None
+    # The run's last non-diagnostic verification passed (False when none
+    # ran). Null unless counted.
+    verification_passed: bool | None = None
+    verification_runs: int = 0
+    # The latest diagnostic verification (evidence only, never a pass).
+    diagnostic_tests_passed: bool | None = None
+
+    provider: str
+    provider_kind: str
+    scripted: bool
+    model_policy: str
+    models_by_role: dict[str, str] = Field(default_factory=dict)
+
+    # Wall time of the run (orchestration, model calls and test runs).
+    latency_ms: int | None = None
+    # Sum of model-call latencies; null for scripted runs.
+    model_latency_ms: int | None = None
+    # Sum of verification run durations (0 when none ran).
+    verification_ms: int | None = None
+
+    agent_calls: int | None = None
+    # Coding steps re-dispatched after a failed attempt.
+    step_retries: int | None = None
+    # Model calls retried after a transient provider error.
+    call_retries: int | None = None
+    # Unparseable model output retried with a repair note.
+    output_repairs: int | None = None
+    # Coding rounds dispatched after a failed verification.
+    repair_rounds: int | None = None
+    revisions: int | None = None
+    escalations: int | None = None
+
+    model_calls: int = 0
+    calls_with_usage: int = 0
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cost_usd: float | None = None
+
+    null_reasons: dict[str, str] = Field(default_factory=dict)
+
+    @property
+    def counted(self) -> bool:
+        return self.outcome in {"success", "failure"}
+
+    @property
+    def retries(self) -> int | None:
+        if self.step_retries is None or self.call_retries is None:
+            return None
+        return self.step_retries + self.call_retries
+
+
+def _payloads(events: Iterable[TraceEvent], kind: str) -> list[dict[str, Any]]:
+    return [dict(event.payload or {}) for event in events if event.kind == kind]
+
+
+def _excluded_reason(record: RunRecord, events: Sequence[TraceEvent]) -> str | None:
+    if record.status == "cancelled":
+        return "cancelled"
+    for payload in _payloads(events, "run_finished"):
+        if payload.get("recovered"):
+            return "interrupted: the server stopped during the run"
+    for payload in _payloads(events, "failure"):
+        if payload.get("error_class") in INFRASTRUCTURE_ERRORS:
+            return f"orchestration error ({payload['error_class']})"
+    return None
+
+
+def trial_metrics(record: RunRecord, events: Sequence[TraceEvent]) -> TrialMetrics:
+    """The metrics one run establishes, from its record and trace."""
+    ordered = sorted(events, key=lambda event: event.seq)
+    scripted = record.provider_kind == "demo"
+    base = {
+        "run_id": record.run_id,
+        "status": record.status,
+        "provider": record.provider,
+        "provider_kind": record.provider_kind,
+        "scripted": scripted,
+        "model_policy": record.model_policy,
+        "models_by_role": dict(record.models_by_role),
+    }
+
+    if record.status not in TERMINAL_STATUSES:
+        return TrialMetrics(
+            **base,
+            outcome="incomplete",
+            null_reasons={"*": "the run has not finished"},
+        )
+    excluded = _excluded_reason(record, ordered)
+    if excluded is not None:
+        return TrialMetrics(
+            **base,
+            outcome="excluded",
+            excluded_reason=excluded,
+            null_reasons={"*": f"excluded from the comparison: {excluded}"},
+        )
+
+    reasons: dict[str, str] = {}
+
+    verifications = _payloads(ordered, "verification")
+    checks = [item for item in verifications if not item.get("diagnostic")]
+    diagnostics = [item for item in verifications if item.get("diagnostic")]
+    durations = [item.get("duration_ms") for item in verifications]
+
+    invocations = [item.get("invocation") or {} for item in _payloads(ordered, "agent_invocation")]
+    with_usage = [item for item in invocations if item.get("usage_available")]
+    usage_complete = len(with_usage) == len(invocations)
+
+    if scripted:
+        model_latency = None
+        reasons["model_latency_ms"] = "scripted provider: no model was called"
+    else:
+        model_latency = sum(int(item.get("latency_ms") or 0) for item in invocations)
+
+    if usage_complete:
+        input_tokens: int | None = sum(int(item.get("input_tokens") or 0) for item in invocations)
+        output_tokens: int | None = sum(int(item.get("output_tokens") or 0) for item in invocations)
+    else:
+        input_tokens = output_tokens = None
+        missing = len(invocations) - len(with_usage)
+        reasons["tokens"] = (
+            "scripted provider: no usage is reported"
+            if scripted
+            else f"{missing} of {len(invocations)} model calls reported no usage"
+        )
+
+    cost: float | None = None
+    if scripted:
+        reasons["cost_usd"] = "scripted provider: nothing was billed"
+    elif not usage_complete:
+        reasons["cost_usd"] = "token usage is incomplete"
+    elif not record.monetary_enforced:
+        reasons["cost_usd"] = "token pricing is not configured, so any cost would be an estimate"
+    else:
+        cost = round(record.cost_usd, 8)
+
+    dispatch_modes = Counter(
+        item.get("mode")
+        for item in _payloads(ordered, "routing_decision")
+        if item.get("decision") == "dispatch_coding"
+    )
+    retries = _payloads(ordered, "retry")
+
+    return TrialMetrics(
+        **base,
+        outcome="success" if record.status == "completed" else "failure",
+        task_success=record.status == "completed",
+        verification_passed=bool(checks and checks[-1].get("passed")),
+        verification_runs=len(checks),
+        diagnostic_tests_passed=bool(diagnostics[-1].get("passed")) if diagnostics else None,
+        latency_ms=record.duration_ms,
+        model_latency_ms=model_latency,
+        verification_ms=sum(int(item or 0) for item in durations),
+        agent_calls=record.agent_calls,
+        step_retries=dispatch_modes.get("retry", 0),
+        call_retries=sum(1 for item in retries if item.get("scope") == "call"),
+        output_repairs=len(_payloads(ordered, "repair")),
+        repair_rounds=dispatch_modes.get("repair", 0),
+        revisions=record.revisions,
+        escalations=record.escalations,
+        model_calls=len(invocations),
+        calls_with_usage=len(with_usage),
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cost_usd=cost,
+        null_reasons=reasons,
+    )
+
+
+# ----------------------------------------------------------------------
+# aggregates
+# ----------------------------------------------------------------------
+def percentile(values: Sequence[float], p: float) -> float | None:
+    """Nearest-rank percentile (an observed value); None for no values."""
+    if not values:
+        return None
+    if not 0 < p <= 100:
+        raise ValueError("p must be in (0, 100]")
+    ordered = sorted(values)
+    rank = math.ceil(p / 100 * len(ordered))
+    return float(ordered[rank - 1])
+
+
+class Distribution(BaseModel):
+    n: int
+    median: float | None = None
+    p95: float | None = None
+    mean: float | None = None
+    min: float | None = None
+    max: float | None = None
+
+
+def distribution(values: Sequence[float]) -> Distribution:
+    if not values:
+        return Distribution(n=0)
+    return Distribution(
+        n=len(values),
+        median=float(statistics.median(values)),
+        p95=percentile(values, 95),
+        mean=round(statistics.fmean(values), 3),
+        min=float(min(values)),
+        max=float(max(values)),
+    )
+
+
+class ArmAggregate(BaseModel):
+    """One arm's results. Rates and means are over counted trials only."""
+
+    arm_id: str
+    trials: int
+    counted: int
+    excluded: int
+    incomplete: int
+    excluded_reasons: dict[str, int] = Field(default_factory=dict)
+
+    task_successes: int
+    task_success_rate: float | None
+    verification_passes: int
+    verification_pass_rate: float | None
+
+    latency_ms: Distribution
+    model_latency_ms: Distribution
+    verification_ms: Distribution
+
+    mean_agent_calls: float | None
+    mean_retries: float | None
+    mean_step_retries: float | None
+    mean_call_retries: float | None
+    mean_output_repairs: float | None
+    mean_repair_rounds: float | None
+    mean_revisions: float | None
+    mean_escalations: float | None
+
+    runs_with_usage: int
+    mean_input_tokens: float | None
+    mean_output_tokens: float | None
+    runs_with_cost: int
+    mean_cost_usd: float | None
+    total_cost_usd: float | None
+
+    notes: list[str] = Field(default_factory=list)
+
+
+def _rate(numerator: int, denominator: int) -> float | None:
+    return None if denominator == 0 else round(numerator / denominator, 4)
+
+
+def _mean(values: Sequence[float | None]) -> float | None:
+    known = [value for value in values if value is not None]
+    return round(statistics.fmean(known), 4) if known else None
+
+
+def aggregate(arm_id: str, trials: Sequence[TrialMetrics]) -> ArmAggregate:
+    counted = [trial for trial in trials if trial.counted]
+    excluded = [trial for trial in trials if trial.outcome == "excluded"]
+    latencies = [trial.latency_ms for trial in counted if trial.latency_ms is not None]
+    model_latencies = [trial.model_latency_ms for trial in counted if trial.model_latency_ms is not None]
+    with_usage = [trial for trial in counted if trial.input_tokens is not None]
+    with_cost = [trial for trial in counted if trial.cost_usd is not None]
+
+    notes: list[str] = []
+    if counted and all(trial.scripted for trial in counted):
+        notes.append(
+            "Scripted provider: the agents follow a script, so success, retries and "
+            "revisions describe the orchestration, not a model's ability."
+        )
+    if 0 < len(latencies) < P95_MIN_SAMPLE:
+        notes.append(
+            f"P95 latency is from {len(latencies)} runs (fewer than {P95_MIN_SAMPLE}); "
+            "it is one of the slowest runs observed, not a stable tail estimate."
+        )
+    if counted and not with_usage:
+        notes.append("No counted run reported complete token usage; token figures are unknown.")
+    elif with_usage and len(with_usage) < len(counted):
+        notes.append(
+            f"Token means cover the {len(with_usage)} of {len(counted)} runs that reported "
+            "usage for every call."
+        )
+    if counted and not with_cost:
+        notes.append("Cost is unknown: no counted run had complete usage with configured pricing.")
+
+    return ArmAggregate(
+        arm_id=arm_id,
+        trials=len(trials),
+        counted=len(counted),
+        excluded=len(excluded),
+        incomplete=sum(1 for trial in trials if trial.outcome == "incomplete"),
+        excluded_reasons=dict(Counter(trial.excluded_reason or "unknown" for trial in excluded)),
+        task_successes=sum(1 for trial in counted if trial.task_success),
+        task_success_rate=_rate(sum(1 for trial in counted if trial.task_success), len(counted)),
+        verification_passes=sum(1 for trial in counted if trial.verification_passed),
+        verification_pass_rate=_rate(
+            sum(1 for trial in counted if trial.verification_passed), len(counted)
+        ),
+        latency_ms=distribution(latencies),
+        model_latency_ms=distribution(model_latencies),
+        verification_ms=distribution(
+            [trial.verification_ms for trial in counted if trial.verification_ms is not None]
+        ),
+        mean_agent_calls=_mean([trial.agent_calls for trial in counted]),
+        mean_retries=_mean([trial.retries for trial in counted]),
+        mean_step_retries=_mean([trial.step_retries for trial in counted]),
+        mean_call_retries=_mean([trial.call_retries for trial in counted]),
+        mean_output_repairs=_mean([trial.output_repairs for trial in counted]),
+        mean_repair_rounds=_mean([trial.repair_rounds for trial in counted]),
+        mean_revisions=_mean([trial.revisions for trial in counted]),
+        mean_escalations=_mean([trial.escalations for trial in counted]),
+        runs_with_usage=len(with_usage),
+        mean_input_tokens=_mean([trial.input_tokens for trial in with_usage]),
+        mean_output_tokens=_mean([trial.output_tokens for trial in with_usage]),
+        runs_with_cost=len(with_cost),
+        mean_cost_usd=_mean([trial.cost_usd for trial in with_cost]),
+        total_cost_usd=round(sum(trial.cost_usd or 0.0 for trial in with_cost), 8)
+        if with_cost
+        else None,
+        notes=notes,
+    )
