@@ -8,23 +8,20 @@ import json
 import sys
 from pathlib import Path
 
-from app.benchmark import (
-    POLICIES,
-    load_tasks,
-    request_for,
-    result_from_run,
-    summarise,
-    write_results,
-)
+from app.benchmarks.arms import ARMS
+from app.benchmarks.legacy import result_from_run, summarise, write_results
+from app.benchmarks.provenance import identical_by_design
+from app.benchmarks.runner import ExperimentError, ExperimentRunner
+from app.benchmarks.store import BenchmarkStore, ExperimentBusyError
+from app.benchmarks.suites import all_suites, get_suite
 from app.config import settings
 from app.demo_tasks import SAMPLE_GOAL, SAMPLE_LIMITS, SAMPLE_TASK_ID
 from app.models import Limits, RunRequest
-from app.providers import resolve_provider
+from app.providers import provider_name_for, resolve_provider
 from app.providers.base import ProbeableProvider, ProviderConfigError, ProviderError
-from app.service import RunService
+from app.service import RunService, effective_provider_choice
 from app.store import RunStore
 
-BENCHMARKS = Path(__file__).resolve().parent.parent / "benchmarks" / "tasks.jsonl"
 ROLLING_POLICIES = ("fixed-fast", "adaptive", "multi-agent")
 
 
@@ -141,64 +138,124 @@ def _cmd_trace(args: argparse.Namespace) -> int:
     return 0
 
 
+def _default_suite(provider: str) -> str:
+    """The demo fixture only scripts the catalog recipes; a real model runs
+    the free-form fixtures (the tasks bench has always run)."""
+    try:
+        name = provider_name_for(effective_provider_choice(provider, settings), settings)
+    except ProviderConfigError:
+        return "local-fixtures"
+    return "catalog" if name == "demo" else "local-fixtures"
+
+
 def _cmd_bench(args: argparse.Namespace) -> int:
     service, store = _service(args.db)
-    _warn_zero_budget(args.provider)
-    tasks = load_tasks(BENCHMARKS)
-    if args.limit:
-        tasks = tasks[: args.limit]
-    selected = args.policy or list(ROLLING_POLICIES)
-    results = []
-    exit_code = 0
+    runner = ExperimentRunner(service, BenchmarkStore(store))
     try:
-        for task in tasks:
-            for policy_name in selected:
-                policy = POLICIES[policy_name]
-                request = request_for(task, policy, args.provider, args.budget)
-                try:
-                    record = asyncio.run(service.run_request(request))
-                except ProviderConfigError as exc:
-                    print(f"provider configuration error: {exc}", file=sys.stderr)
-                    return 2
-                events = store.get_events(record.run_id)
-                results.append(
-                    result_from_run(
-                        task_id=task.id,
-                        policy=policy.name,
-                        record=record,
-                        events=events,
-                        escalation_available=settings.escalation_available,
-                    )
-                )
-                if record.status != "completed":
-                    exit_code = 1
+        if args.recover:
+            recovered = runner.recover_interrupted()
+            print(
+                f"marked {len(recovered)} experiment(s) interrupted: {', '.join(recovered)}"
+                if recovered
+                else "no queued or running experiments"
+            )
+            return 0
+        return _run_bench(args, runner, store)
     finally:
         store.close()
 
+
+def _run_bench(args: argparse.Namespace, runner: ExperimentRunner, store: RunStore) -> int:
+    _warn_zero_budget(args.provider)
+    suite_id = args.suite or _default_suite(args.provider)
+    arm_ids = list(dict.fromkeys([*(args.arm or []), *(args.policy or [])])) or list(ROLLING_POLICIES)
+    task_ids = None
+    if args.limit:
+        task_ids = [task.id for task in get_suite(suite_id).tasks[: args.limit]]
+    try:
+        experiment = runner.create(
+            suite_id,
+            arm_ids,
+            args.repetitions,
+            origin="cli",
+            provider=args.provider,
+            task_ids=task_ids,
+            order_seed=args.seed,
+            budget_usd=args.budget,
+        )
+    except (ExperimentError, ExperimentBusyError) as exc:
+        print(f"cannot start the benchmark: {exc}", file=sys.stderr)
+        if isinstance(exc, ExperimentBusyError):
+            print(
+                "If no server or other bench process is running it, close it with "
+                "`swarmos bench --recover`.",
+                file=sys.stderr,
+            )
+        return 2
+
     print(
-        f"{'task':<14} {'policy':<12} {'status':<20} {'calls':>5} {'retry':>5} "
+        f"experiment {experiment.experiment_id}: suite {experiment.suite_id} "
+        f"{experiment.suite_version}, provider {experiment.provider}, "
+        f"seed {experiment.order_seed}"
+    )
+    if experiment.scripted:
+        print(
+            "Scripted provider: the agents follow a script, so these results describe the "
+            "orchestration, not a model."
+        )
+    print()
+    try:
+        finished = asyncio.run(runner.run(experiment.experiment_id))
+    except KeyboardInterrupt:
+        print("\ninterrupted; the experiment is recorded as interrupted", file=sys.stderr)
+        return 130
+
+    configurations = {(c.arm_id, c.task_id): c for c in finished.configurations}
+    results = []
+    for trial in runner.benchmarks.get_trials(finished.experiment_id):
+        record = store.get_run(trial.run_id) if trial.run_id else None
+        if record is None:
+            print(f"{trial.task_id} / {trial.arm_id}: {trial.status} ({trial.error or 'no run'})")
+            continue
+        results.append(
+            result_from_run(
+                task_id=trial.task_id,
+                policy=trial.arm_id,
+                record=record,
+                events=store.get_events(record.run_id),
+                escalation_available=configurations[(trial.arm_id, trial.task_id)].escalation_possible,
+            )
+        )
+
+    print(
+        f"{'task':<26} {'arm':<12} {'status':<24} {'calls':>5} {'retry':>5} "
         f"{'ms':>6} {'verified':>8} {'usage':>6}"
     )
     for item in results:
         print(
-            f"{item.task_id:<14} {item.policy:<12} {item.status:<20} "
+            f"{item.task_id:<26} {item.policy:<12} {item.status:<24} "
             f"{item.agent_calls:>5} {item.retries:>5} {item.duration_ms:>6} "
             f"{('yes' if item.verification_passed else 'no'):>8} "
             f"{('yes' if item.usage_available else 'no'):>6}"
         )
 
     summary = summarise(results)
+    kinds = {arm.id: arm.kind for arm in ARMS.values()}
+    identical = identical_by_design(finished.configurations, kinds)
+    warnings = [*summary.get("warnings", []), *(group.explanation + " Reasons: " + "; ".join(group.reasons) + "." for group in identical)]
     print()
-    for warning in summary.get("warnings", []):
+    print(f"experiment {finished.experiment_id}: {finished.status}" + (f" ({finished.error})" if finished.error else ""))
+    for warning in warnings:
         print(f"WARNING: {warning}")
-    if summary.get("warnings"):
+    if warnings:
         print()
     print(json.dumps(summary, indent=2))
 
     if args.out:
         write_results(Path(args.out), results)
         print(f"\nwrote {len(results)} result(s) to {args.out}")
-    return exit_code
+    succeeded = finished.status == "completed" and all(item.status == "completed" for item in results)
+    return 0 if succeeded else 1
 
 
 def _cmd_doctor(_: argparse.Namespace) -> int:
@@ -331,16 +388,36 @@ def build_parser() -> argparse.ArgumentParser:
     demo.add_argument("--json", nargs="?", const="record", choices=["record", "events"])
     demo.set_defaults(func=_cmd_demo)
 
-    bench = sub.add_parser("bench", help="run reproducible benchmark tasks")
+    bench = sub.add_parser(
+        "bench",
+        help="run a reproducible benchmark experiment (stored in the database)",
+    )
     bench.add_argument(
         "--provider", default="demo", choices=["auto", "demo", "openai"]
     )
     bench.add_argument(
-        "--policy", nargs="*", choices=list(ROLLING_POLICIES), default=None
+        "--suite",
+        choices=sorted(all_suites()),
+        default=None,
+        help="default: catalog with the demo fixture, local-fixtures with a real model",
     )
+    bench.add_argument(
+        "--policy", nargs="*", choices=list(ROLLING_POLICIES), default=None,
+        help="model-policy arms (default: all three when no --arm is given)",
+    )
+    bench.add_argument(
+        "--arm", nargs="*", choices=sorted(ARMS), default=None,
+        help="arms to compare, including the execution arms parallel and sequential",
+    )
+    bench.add_argument("--repetitions", type=int, default=1)
+    bench.add_argument("--seed", type=int, default=None, help="trial order seed (default: random, stored)")
     bench.add_argument("--budget", type=float, default=0.0)
-    bench.add_argument("--limit", type=int, default=0)
+    bench.add_argument("--limit", type=int, default=0, help="run only the suite's first N tasks")
     bench.add_argument("--out", default=None, help="write JSONL results here")
+    bench.add_argument(
+        "--recover", action="store_true",
+        help="mark experiments left queued or running by a stopped process as interrupted",
+    )
     bench.set_defaults(func=_cmd_bench)
 
     doctor = sub.add_parser("doctor", help="report configuration and probe the endpoint")

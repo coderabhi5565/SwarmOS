@@ -237,8 +237,9 @@ def summarise(results: list[BenchmarkResult]) -> dict[str, object]:
             "missing, so USD figures are estimates, not comparable measurements"
         ),
         "warnings": warnings,
-        "note": "All policies run the same orchestration graph; they differ only in "
-        "model selection and escalation. No policy is declared best from this run.",
+        "note": "All arms run the same orchestration graph; each differs only in its "
+        "own configuration (model selection and escalation, or how coding steps are "
+        "scheduled). No policy is declared best from this run.",
     }
 
 
