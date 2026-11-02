@@ -4,6 +4,11 @@
  */
 import type {
   AppConfig,
+  BenchmarkCancel,
+  BenchmarkCreateRequest,
+  BenchmarkExperimentDetail,
+  BenchmarkExperimentList,
+  BenchmarkSuites,
   DemoTasks,
   Health,
   RunDetail,
@@ -89,6 +94,8 @@ function describeValidationError(item: unknown): string {
 }
 
 const runPath = (runId: string) => `/api/runs/${encodeURIComponent(runId)}`;
+const experimentPath = (experimentId: string) =>
+  `/api/benchmarks/experiments/${encodeURIComponent(experimentId)}`;
 
 export const api = {
   health: () => apiFetch<Health>("/health"),
@@ -111,4 +118,26 @@ export const api = {
     apiFetch<{ run_id: string; status: "cancelling" }>(`${runPath(runId)}/cancel`, {
       method: "POST",
     }),
+
+  /** Benchmark suites, the fixed arms, the caps, and whether this server accepts experiments. */
+  benchmarkSuites: () => apiFetch<BenchmarkSuites>("/api/benchmarks/suites"),
+
+  listBenchmarkExperiments: (params: { limit?: number; cursor?: string | null } = {}) =>
+    apiFetch<BenchmarkExperimentList>("/api/benchmarks/experiments", {
+      query: { limit: params.limit, cursor: params.cursor },
+    }),
+
+  getBenchmarkExperiment: (experimentId: string) =>
+    apiFetch<BenchmarkExperimentDetail>(experimentPath(experimentId)),
+
+  /** Local mode only: the public demo answers 403. */
+  createBenchmarkExperiment: (body: BenchmarkCreateRequest) =>
+    apiFetch<BenchmarkExperimentDetail>("/api/benchmarks/experiments", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  /** Local mode only: the public demo answers 403. */
+  cancelBenchmarkExperiment: (experimentId: string) =>
+    apiFetch<BenchmarkCancel>(`${experimentPath(experimentId)}/cancel`, { method: "POST" }),
 };

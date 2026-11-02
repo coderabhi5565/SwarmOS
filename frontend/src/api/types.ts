@@ -61,7 +61,14 @@ export function isEventKind<K extends TraceKind>(
 export type BenchmarkSuites = Schemas["BenchmarkSuitesResponse"];
 export type BenchmarkSuite = Schemas["BenchmarkSuiteInfo"];
 export type BenchmarkArm = Schemas["BenchmarkArmInfo"];
-export type BenchmarkCreateRequest = Schemas["BenchmarkCreateRequest"];
+/**
+ * The body of POST /api/benchmarks/experiments. As with RunRequest, the
+ * generated type marks server-defaulted fields as present; only suite_id and
+ * arm_ids are required (the schema's `required` list).
+ */
+type RawBenchmarkCreateRequest = Schemas["BenchmarkCreateRequest"];
+export type BenchmarkCreateRequest = Pick<RawBenchmarkCreateRequest, "suite_id" | "arm_ids"> &
+  Partial<Omit<RawBenchmarkCreateRequest, "suite_id" | "arm_ids">>;
 export type BenchmarkExperimentList = Schemas["BenchmarkExperimentListResponse"];
 export type BenchmarkExperimentSummary = Schemas["BenchmarkExperimentSummary"];
 export type BenchmarkExperimentDetail = Schemas["BenchmarkExperimentDetail"];
@@ -69,3 +76,4 @@ export type BenchmarkAggregate = Schemas["BenchmarkAggregate"];
 export type BenchmarkTrial = Schemas["BenchmarkTrialInfo"];
 export type BenchmarkTrialMetrics = Schemas["BenchmarkTrialMetrics"];
 export type BenchmarkCancel = Schemas["BenchmarkCancelResponse"];
+export type BenchmarkExperimentStatus = BenchmarkExperimentSummary["status"];
