@@ -34,6 +34,16 @@ def model_profiles(provider_name: str, settings: Settings) -> dict[str, ModelPro
     return profiles
 
 
+def escalation_possible(profiles: dict[str, ModelProfile]) -> bool:
+    """Whether a run can escalate: its provider offers a distinct strong model.
+
+    Judged from the run's own profiles, never from the configured endpoint
+    alone: a demo-fixture run has a single scripted model even when the
+    endpoint has a strong one.
+    """
+    return "strong" in profiles
+
+
 def select_role_profile(
     role: str, policy: str, profiles: dict[str, ModelProfile], settings: Settings
 ) -> ModelProfile:
@@ -42,7 +52,7 @@ def select_role_profile(
     if policy in {"fast_only", "adaptive"}:
         return fast
     # config / role_routed
-    if settings.escalation_available:
+    if escalation_possible(profiles):
         name = settings.role_routing().get(role, "fast")
         if name in profiles:
             return profiles[name]
@@ -140,7 +150,7 @@ class RunRuntime:
         profiles = self.profiles
         if tier == "strong":
             strong = profiles.get("strong")
-            if strong is None or not self.settings.escalation_available:
+            if strong is None:
                 raise ModelUnavailableError(
                     "no distinct strong model is configured; escalation is "
                     "impossible. Set OPENAI_COMPAT_MODEL_STRONG to a different "
@@ -157,7 +167,8 @@ class RunRuntime:
 
     @property
     def escalation_available(self) -> bool:
-        return self.settings.escalation_available
+        """Whether this run can escalate, from its provider's profiles."""
+        return escalation_possible(self.profiles)
 
     # ------------------------------------------------------------------
     # cost

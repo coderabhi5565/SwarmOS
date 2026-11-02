@@ -29,7 +29,12 @@ from app.benchmarks.suites import SuiteTask
 from app.config import Settings
 from app.models import Limits, utc_now
 from app.providers import provider_kind, provider_name_for
-from app.runtime.runtime import VALID_POLICIES, model_profiles, select_role_profile
+from app.runtime.runtime import (
+    VALID_POLICIES,
+    escalation_possible,
+    model_profiles,
+    select_role_profile,
+)
 from app.service import clamp_limits, demo_limits, effective_provider_choice
 
 VERIFIER = "deterministic-subprocess"
@@ -97,7 +102,7 @@ def arm_configuration(
             unavailable.append(f"the task {task.id!r} allows no escalation")
         else:
             unavailable.append("the server's limits allow no escalation")
-    if "strong" not in profiles:
+    if not escalation_possible(profiles):
         unavailable.append(
             "the demo fixture has a single scripted model"
             if name == "demo"
