@@ -23,6 +23,8 @@ from app.api_models import (
     RunStreamEnd,
     RunSummary,
 )
+from app.benchmarks.runner import ExperimentRunner
+from app.benchmarks.store import BenchmarkStore
 from app.config import settings
 from app.demo_tasks import DemoTaskError, demo_catalog
 from app.events import openapi_components
@@ -54,6 +56,10 @@ async def lifespan(app: FastAPI):
     app.state.store = store
     app.state.broker = broker
     app.state.service = RunService(settings, store)
+    # Experiments a stopped process left running are closed as interrupted
+    # (after run recovery, so their runs are already closed); none resumes.
+    app.state.experiments = ExperimentRunner(app.state.service, BenchmarkStore(store))
+    app.state.experiments.recover_interrupted()
     try:
         yield
     finally:

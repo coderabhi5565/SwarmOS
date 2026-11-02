@@ -151,6 +151,14 @@ class RunService:
         return await self.execute(record, provider, request.files, policy, demo)
 
     def submit(self, request: RunRequest) -> RunRecord:
+        return self.start(request)[0]
+
+    def start(self, request: RunRequest) -> tuple[RunRecord, asyncio.Task[RunRecord]]:
+        """Start a run in the background; returns its record and its task.
+
+        Raises like ``prepare`` (public demo, capacity, provider) before any
+        run is created. Cancel the run with ``cancel``, not the task.
+        """
         record, provider, policy, demo = self.prepare(request)
         task = asyncio.create_task(
             self.execute(record, provider, request.files, policy, demo)
@@ -158,7 +166,7 @@ class RunService:
         self._tasks.add(task)
         self._active[record.run_id] = _ActiveRun(task=task)
         task.add_done_callback(self._tasks.discard)
-        return record
+        return record, task
 
     async def execute(
         self,

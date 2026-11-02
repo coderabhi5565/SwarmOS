@@ -58,6 +58,10 @@ class BenchmarkStoreError(ValueError):
     """A write that would make the stored benchmark inconsistent."""
 
 
+class ExperimentBusyError(BenchmarkStoreError):
+    """Another experiment is queued or running; only one may be active."""
+
+
 def _experiment_row(item: BenchmarkExperiment) -> tuple[object, ...]:
     return (
         item.experiment_id,
@@ -150,9 +154,19 @@ class BenchmarkStore:
 
     # ------------------------------------------------------------------
     def create_experiment(
-        self, experiment: BenchmarkExperiment, trials: list[BenchmarkTrial]
+        self,
+        experiment: BenchmarkExperiment,
+        trials: list[BenchmarkTrial],
+        *,
+        exclusive: bool = False,
     ) -> None:
-        """Insert an experiment with all its trials, atomically."""
+        """Insert an experiment with all its trials, atomically.
+
+        ``exclusive``: refuse (ExperimentBusyError) while another experiment
+        is queued or running. The check and the insert share one write
+        transaction, so two creators (say the API and the CLI on the same
+        database) cannot both pass it.
+        """
         if not trials:
             raise BenchmarkStoreError("an experiment needs at least one trial")
         foreign = [t.trial_id for t in trials if t.experiment_id != experiment.experiment_id]
@@ -162,6 +176,17 @@ class BenchmarkStore:
         if unknown:
             raise BenchmarkStoreError(f"trials for arms the experiment does not compare: {unknown}")
         with self.store.transaction() as conn:
+            if exclusive:
+                conn.execute("BEGIN IMMEDIATE")
+                busy = conn.execute(
+                    "SELECT experiment_id, status FROM benchmark_experiments "
+                    "WHERE status IN ('queued', 'running') LIMIT 1"
+                ).fetchone()
+                if busy is not None:
+                    raise ExperimentBusyError(
+                        f"experiment {busy['experiment_id']} is {busy['status']}; "
+                        "only one experiment may be active"
+                    )
             conn.execute(
                 f"INSERT INTO benchmark_experiments ({','.join(_EXPERIMENT_COLUMNS)}) "
                 f"VALUES ({','.join('?' for _ in _EXPERIMENT_COLUMNS)})",
@@ -196,6 +221,48 @@ class BenchmarkStore:
             )
             if cursor.rowcount != 1:
                 raise BenchmarkStoreError(f"unknown trial: {trial.trial_id}")
+
+    def transition_experiment(
+        self, experiment: BenchmarkExperiment, from_statuses: tuple[str, ...]
+    ) -> BenchmarkExperiment | None:
+        """Save ``experiment`` only if its stored status is one of
+        ``from_statuses``; returns the saved experiment, or None when the
+        stored status had moved on (someone else got there first)."""
+        saved = experiment.model_copy(update={"updated_at": utc_now()})
+        updates = ",".join(f"{column}=?" for column in _EXPERIMENT_COLUMNS[1:])
+        marks = ",".join("?" for _ in from_statuses)
+        with self.store.transaction() as conn:
+            cursor = conn.execute(
+                f"UPDATE benchmark_experiments SET {updates} "
+                f"WHERE experiment_id = ? AND status IN ({marks})",
+                (*_experiment_row(saved)[1:], saved.experiment_id, *from_statuses),
+            )
+        return saved if cursor.rowcount == 1 else None
+
+    def transition_trial(self, trial: BenchmarkTrial, from_status: str) -> bool:
+        """Save ``trial`` only if its stored status is ``from_status``.
+
+        This is how a trial is claimed (pending to running) and finished
+        (running to done or error): a second attempt finds the status moved
+        on and changes nothing, so a trial is never started or finished twice.
+        """
+        updates = ",".join(f"{column}=?" for column in _TRIAL_COLUMNS[1:])
+        with self.store.transaction() as conn:
+            cursor = conn.execute(
+                f"UPDATE benchmark_trials SET {updates} WHERE trial_id = ? AND status = ?",
+                (*_trial_row(trial)[1:], trial.trial_id, from_status),
+            )
+        return cursor.rowcount == 1
+
+    def mark_unstarted(self, experiment_id: str, reason: str) -> int:
+        """Every pending trial of the experiment becomes not_run; returns how many."""
+        with self.store.transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE benchmark_trials SET status = 'not_run', error = ? "
+                "WHERE experiment_id = ? AND status = 'pending'",
+                (reason, experiment_id),
+            )
+        return cursor.rowcount
 
     # ------------------------------------------------------------------
     def get_experiment(self, experiment_id: str) -> BenchmarkExperiment | None:
