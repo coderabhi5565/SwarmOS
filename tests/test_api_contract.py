@@ -262,11 +262,17 @@ def test_no_public_response_leaks_the_endpoint_or_key(tmp_path, monkeypatch):
             client.get(f"/api/runs/{run_id}/events", params={"after_seq": 2}).text,
             client.get("/api/demo-tasks").text,
             client.get("/health").text,
+            client.get("/api/benchmarks/suites").text,
+            client.get("/api/benchmarks/experiments").text,
         ]
         # The restrictions themselves are unchanged by the new parameters.
         assert client.post("/api/runs", json={"goal": "arbitrary goal text"}).status_code == 403
         assert client.post(f"/api/runs/{run_id}/cancel").status_code == 403
         assert client.get("/api/provider/models").status_code == 403
+        # Benchmarks are read-only in the public demo.
+        experiment = {"suite_id": "catalog", "arm_ids": ["parallel"]}
+        assert client.post("/api/benchmarks/experiments", json=experiment).status_code == 403
+        assert client.post("/api/benchmarks/experiments/bex_any/cancel").status_code == 403
 
     for body in bodies:
         assert SECRET_KEY not in body
