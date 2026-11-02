@@ -16,7 +16,7 @@ from app.runtime.runtime import VALID_POLICIES, RunRuntime
 from app.store import RunStore
 
 
-def _demo_limits(requested: Limits, recipe: Limits) -> Limits:
+def demo_limits(requested: Limits, recipe: Limits) -> Limits:
     """The recipe is a ceiling for its demo: callers may lower it, never raise it."""
     return Limits(
         max_agent_calls=min(requested.max_agent_calls, recipe.max_agent_calls),
@@ -25,6 +25,36 @@ def _demo_limits(requested: Limits, recipe: Limits) -> Limits:
         max_retries=min(requested.max_retries, recipe.max_retries),
         max_revisions=min(requested.max_revisions, recipe.max_revisions),
         max_escalations=min(requested.max_escalations, recipe.max_escalations),
+        parallel_coding=requested.parallel_coding,
+    )
+
+
+def effective_provider_choice(requested: str, settings: Settings) -> str:
+    """A per-request choice wins; ``auto`` honours the process default.
+
+    Without this, SWARMOS_PROVIDER was displayed but never applied.
+    """
+    choice = (requested or "auto").strip().lower()
+    if choice != "auto":
+        return choice
+    configured = (settings.provider or "auto").strip().lower()
+    return configured if configured in {"demo", "openai"} else "auto"
+
+
+def clamp_limits(requested: Limits, policy: str, settings: Settings) -> Limits:
+    """The limits a run gets: the request, never above the process ceiling."""
+    max_escalations = min(requested.max_escalations, settings.max_escalations)
+    if policy == "fast_only":
+        # A policy that pins every role to the fast profile cannot escalate;
+        # silently escalating would contradict the policy.
+        max_escalations = 0
+    return Limits(
+        max_agent_calls=min(requested.max_agent_calls, settings.max_agent_calls),
+        max_budget_usd=min(requested.max_budget_usd, settings.max_budget_usd),
+        max_wall_seconds=min(requested.max_wall_seconds, settings.max_wall_seconds),
+        max_retries=min(requested.max_retries, settings.max_retries),
+        max_revisions=min(requested.max_revisions, settings.max_revisions),
+        max_escalations=max_escalations,
         parallel_coding=requested.parallel_coding,
     )
 
@@ -57,32 +87,10 @@ class RunService:
         return policy if policy in VALID_POLICIES else "config"
 
     def effective_provider(self, requested: str) -> str:
-        """A per-request choice wins; ``auto`` honours the process default.
-
-        Without this, SWARMOS_PROVIDER was displayed but never applied.
-        """
-        choice = (requested or "auto").strip().lower()
-        if choice != "auto":
-            return choice
-        configured = (self.settings.provider or "auto").strip().lower()
-        return configured if configured in {"demo", "openai"} else "auto"
+        return effective_provider_choice(requested, self.settings)
 
     def clamp_limits(self, requested: Limits, policy: str) -> Limits:
-        ceiling = self.settings
-        max_escalations = min(requested.max_escalations, ceiling.max_escalations)
-        if policy == "fast_only":
-            # A policy that pins every role to the fast profile cannot escalate;
-            # silently escalating would contradict the policy.
-            max_escalations = 0
-        return Limits(
-            max_agent_calls=min(requested.max_agent_calls, ceiling.max_agent_calls),
-            max_budget_usd=min(requested.max_budget_usd, ceiling.max_budget_usd),
-            max_wall_seconds=min(requested.max_wall_seconds, ceiling.max_wall_seconds),
-            max_retries=min(requested.max_retries, ceiling.max_retries),
-            max_revisions=min(requested.max_revisions, ceiling.max_revisions),
-            max_escalations=max_escalations,
-            parallel_coding=requested.parallel_coding,
-        )
+        return clamp_limits(requested, policy, self.settings)
 
     def check_public_demo(self, request: RunRequest) -> None:
         """In the public demo, visitors choose a catalog task and nothing else.
@@ -121,7 +129,7 @@ class RunService:
         )
         policy = self.resolve_policy(request.model_policy)
         limits = (
-            self.clamp_limits(_demo_limits(request.limits, demo.limits), policy)
+            self.clamp_limits(demo_limits(request.limits, demo.limits), policy)
             if demo is not None
             else self.clamp_limits(request.limits, policy)
         )

@@ -21,6 +21,34 @@ from app.runtime.workspace import Workspace
 VALID_POLICIES = {"config", "fast_only", "adaptive", "role_routed"}
 
 
+def model_profiles(provider_name: str, settings: Settings) -> dict[str, ModelProfile]:
+    """The model profiles a run on ``provider_name`` can use."""
+    # The demo fixture never calls the configured endpoint, so it must not
+    # inherit that endpoint's model ids into the run record.
+    if provider_name == "demo":
+        return {"fast": ModelProfile("fast", "demo-fast")}
+    profiles = settings.configured_profiles()
+    if not profiles:
+        # Unconfigured runs still carry a coherent label.
+        profiles = {"fast": ModelProfile("fast", settings.model_for("fast"))}
+    return profiles
+
+
+def select_role_profile(
+    role: str, policy: str, profiles: dict[str, ModelProfile], settings: Settings
+) -> ModelProfile:
+    """The profile ``role`` uses under ``policy``, from the available profiles."""
+    fast = profiles.get("fast") or next(iter(profiles.values()))
+    if policy in {"fast_only", "adaptive"}:
+        return fast
+    # config / role_routed
+    if settings.escalation_available:
+        name = settings.role_routing().get(role, "fast")
+        if name in profiles:
+            return profiles[name]
+    return fast
+
+
 class RunRuntime:
     def __init__(
         self,
@@ -100,31 +128,11 @@ class RunRuntime:
     # ------------------------------------------------------------------
     @property
     def profiles(self) -> dict[str, ModelProfile]:
-        # The demo fixture never calls the configured endpoint, so it must not
-        # inherit that endpoint's model ids into the run record.
-        if self.provider_name == "demo":
-            return {"fast": ModelProfile("fast", "demo-fast")}
-        profiles = self.settings.configured_profiles()
-        if not profiles:
-            # Unconfigured runs still carry a coherent label.
-            profiles = {"fast": ModelProfile("fast", self.settings.model_for("fast"))}
-        return profiles
+        return model_profiles(self.provider_name, self.settings)
 
     def selection_for_role(self, role: str) -> ModelProfile:
         """Return the profile a role should use under the active policy."""
-        profiles = self.profiles
-        fast = profiles.get("fast") or next(iter(profiles.values()))
-
-        if self.model_policy == "fast_only":
-            return fast
-        if self.model_policy == "adaptive":
-            return fast
-        # config / role_routed
-        if self.settings.escalation_available:
-            name = self.settings.role_routing().get(role, "fast")
-            if name in profiles:
-                return profiles[name]
-        return fast
+        return select_role_profile(role, self.model_policy, self.profiles, self.settings)
 
     def selection_for_tier(self, tier: ModelTier) -> ModelProfile:
         """Resolve an explicit tier. A missing strong profile is an error, not a

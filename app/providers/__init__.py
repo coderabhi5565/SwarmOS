@@ -40,6 +40,7 @@ __all__ = [
     "ProviderServerError",
     "ProviderTimeoutError",
     "provider_kind",
+    "provider_name_for",
     "resolve_provider",
 ]
 
@@ -57,6 +58,23 @@ def provider_kind(provider_name: str, settings: Settings) -> str:
     if provider_name.endswith(":remote"):
         return "remote"
     return settings.provider_kind if settings.openai_configured else "unknown"
+
+
+def provider_name_for(name: str, settings: Settings) -> str:
+    """The provider name ``resolve_provider`` would give a run, without
+    constructing the provider. Raises ProviderConfigError like it does."""
+    choice = (name or "auto").strip().lower()
+    if choice == "demo":
+        return "demo"
+    if choice == "openai" and not settings.openai_configured:
+        raise ProviderConfigError(
+            "OPENAI_COMPAT_BASE_URL and OPENAI_COMPAT_MODEL_FAST must be set "
+            "to use the openai provider. An API key is optional for local "
+            "inference."
+        )
+    if choice == "openai" or settings.openai_configured:
+        return f"openai-compatible:{settings.provider_kind}"
+    return "demo"
 
 
 def resolve_provider(name: str, settings: Settings) -> tuple[Provider, str, str | None]:
