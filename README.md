@@ -23,7 +23,7 @@ It runs fully offline with a deterministic demo fixture, and against local open-
 | OpenAI-compatible adapter (local first) | Implemented, mock-tested; used against local Ollama `qwen2.5-coder:1.5b` |
 | Role → model-profile routing, honest fallback | Implemented, tested |
 | React dashboard with provider/model provenance | Implemented, type-checked, built |
-| Benchmark harness (fixed / adaptive / multi-agent) | Implemented, demo-measured |
+| Benchmark experiments (versioned suites, fixed arms, provenance, per-arm metrics) and their dashboard pages | Implemented, tested; verified in a browser with the demo fixture only |
 | Live local-model end-to-end run | Performed with `qwen2.5-coder:1.5b`; **no run has reached `completed` yet** (see PROJECT_STATUS.md) |
 | Restricted public demo mode (catalog tasks, code policy, audited test runner, rate limits) | Implemented, tested on Windows; Linux validation pending |
 | Kernel sandbox / network isolation | **Not implemented** (not available on the free hosting target; see [safety](docs/safety.md)) |
@@ -206,6 +206,17 @@ React Router, TanStack Query and Motion. Routes:
 | `/console` | Live execution monitor: what is in flight right now, followed trace, counters |
 | `/history` | Paginated run history |
 | `/legacy` | The original dashboard (free-form goals, policy comparison); local mode only |
+| `/benchmarks` | Benchmark experiments, newest first (cursor-paged), and a form to start one where the server accepts experiments |
+| `/benchmarks/:experimentId` | One experiment: provenance, arm configurations, identical-by-design warnings, results by arm and by task, and every trial with its run |
+
+The benchmark pages show what the backend computed and nothing more. A
+value the backend leaves unknown is shown as unknown, with its reason, never
+as zero; task success (the run completed) and verification (the tests
+passed) are separate columns; excluded trials are listed with their reasons;
+and results from the demo fixture are labelled as scripted, not as a
+model's performance. The form appears only when `/api/benchmarks/suites`
+says `can_create` (never in the public demo, where the API refuses creation
+anyway), and offers only the server's suites, arms and caps.
 
 Every run view renders the frontend execution model
 (`src/domain/execution`): a live run's events arrive over the event stream

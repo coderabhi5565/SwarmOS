@@ -336,6 +336,46 @@ ones), creation and cancellation are `403`, host details are left out, and
 free-text errors are redacted (the endpoint URL and key never appear, and
 no URL at all in the public demo).
 
+### Benchmark pages
+
+`/benchmarks` and `/benchmarks/:experimentId` are lazy routes over one data
+layer (`frontend/src/api/benchmarkQueries.ts`); no page fetches on its own.
+
+| Query | Key | Refresh |
+| --- | --- | --- |
+| Suites, arms, caps, `can_create` | `["benchmarks","suites"]` | stale after 60 s |
+| Experiment list (infinite) | `["benchmarks","experiments",{limit}]` | every 2 s while any loaded experiment is `queued` or `running` |
+| One experiment | `["benchmarks","experiment",id]` | every 2 s while it is `queued` or `running` |
+
+- **Paging.** The list follows the API's keyset cursor (`next_cursor`).
+  Rows are deduplicated by id across pages. A refresh refetches every
+  loaded page with cursors recomputed from the fresh pages, so loaded
+  pages stay on screen and an experiment never appears twice.
+- **Polling ends with the experiment.** Both intervals return `false` once
+  every relevant experiment is terminal (`completed`, `partial`,
+  `cancelled`, `failed`, `interrupted`); nothing polls a finished
+  experiment. A failed refresh keeps the last data on screen and says the
+  refresh failed.
+- **Mutations.** Creation never retries automatically (mutations have
+  `retry: false`). On success its response seeds the detail cache, so the
+  new page renders without another request, and the lists are invalidated.
+  The cancel hook invalidates the detail and the lists; no page offers
+  cancellation yet.
+- **Creation is the server's decision.** The form is mounted only when the
+  suites response says `can_create`, offers only the server's suites,
+  tasks, arms and caps, validates the trial count against `max_trials`,
+  and reports 400/403/409/422/429/5xx as the server worded them. It is a
+  convenience, not a guard: the API enforces every rule itself, and the
+  public demo answers `403` whatever the client sends.
+- **Metrics are displayed, never computed.** Rates, distributions, means,
+  exclusions and identical-by-design groups come from the backend. A null
+  value is shown as unknown with the backend's `null_reasons` entry (or
+  its `*` reason), never as `0`; a rate is shown with its denominator
+  ("50% (1 of 2)"). Task success (the run completed) and verification (the
+  tests passed) are separate. Durations are formatted from recorded
+  milliseconds; the only derived figure is an experiment's elapsed time,
+  from its recorded start and finish. No chart is drawn yet.
+
 ## Trust boundaries
 
 ```mermaid

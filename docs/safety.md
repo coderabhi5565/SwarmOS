@@ -73,6 +73,14 @@ Validated so far: the launcher's escape tests pass on Windows
 (`tests/test_public_demo.py`). Linux, the deployment target, must be validated
 in CI before deploying.
 
+Known disclosure (open): a run's trace records the verification command as
+it was executed, with absolute server paths (the interpreter, the launcher
+and the temporary workspace, and so the account's home directory). The
+public demo serves traces, so visitors can read those paths. The recorded
+command is the argument list only (no key or endpoint), and the benchmark
+API omits host details. Fix before deploying: record the command with paths
+relative to the workspace, or redact it in public traces.
+
 ## Repository workflow
 
 There is no live-repository workflow yet: no clone, branch, commit, push, or PR.

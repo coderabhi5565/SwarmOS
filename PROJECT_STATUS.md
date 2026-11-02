@@ -20,24 +20,31 @@ Milestones (revised 2026-11-01):
 - M4 visual execution engine (2D graph, lazy 3D scene) ✅
 - M5 real-time execution (SSE streaming, polling fallback) and playback ✅
 - M6 benchmarks, docs, landing page
+  - M6.0–M6.2 benchmark backend: suites, arms, metrics, runner, CLI, API ✅
+  - M6.3 benchmark pages (list, creation, detail) ✅
+  - M6.4 benchmark charts: not started
+  - docs and landing page: not started
 - M7 security review, testing, free deployment
 - M8 release
 
 ## Current milestone
 
-**M5 — Real-time execution and playback: complete and pushed** (last M5 feature commit `fb70f59`).
-Next: **M6 — benchmarks, docs, landing page**, awaiting approval (not started).
+**M6.3 — Benchmark pages: complete.** Feature commits `8fb1f38`,
+`a900fdc`, `cdde8fb` and `83c9c23` are pushed. The integration,
+browser-verification and documentation commit is local until approved.
+Next: **M6.4 — benchmark charts**, awaiting approval (not started).
 
 ## Validation at the last milestone boundary
 
+M6.3, 2026-11-02:
+
 | Check | Result |
 | --- | --- |
-| `python -m pytest` | 381 passed, 2 skipped (symlink test needs privilege on Windows; POSIX rlimit test is Linux-only) |
-| frontend `npm run typecheck` / `npm test` / `npm run build` | clean / 226 passed (24 files) / builds |
-| `ruff format --check` | not configured; the codebase has never been formatted (56/62 files would change before M3.0) |
+| `python -m pytest` (`.env` loading disabled) | 574 passed, 2 skipped |
+| frontend `npx tsc --noEmit` / `vitest run` / `npm run build` | clean / 305 passed (28 files) / builds |
 | `ruff check .` | clean |
-| `npx tsc --noEmit` (frontend) | clean |
-| `npm run build` (frontend) | builds |
+| `ruff format --check` | not configured; the codebase has never been formatted |
+| Browser verification against the real backend | see M6.3 below |
 | Live local-model run with the guard | **not yet performed** |
 
 Suite wall time varies a lot on this machine (80 s to 300 s for the same code).
@@ -47,6 +54,94 @@ frontend runs used `vitest run --maxWorkers=2`, and a few `tsc`/build runs
 were killed by out-of-memory and passed unchanged on retry.
 
 ## Completed
+
+### M6.3 — benchmark pages
+
+- **Routes** (lazy, in the main navigation):
+  - `/benchmarks` (`BenchmarksPage`): experiments newest first, cursor
+    paging with "Load more", and the creation form where allowed;
+  - `/benchmarks/:experimentId` (`BenchmarkExperimentPage`): the experiment
+    as the backend reports it.
+- **Data layer** (`src/api/benchmarkQueries.ts`, client functions in
+  `src/api/client.ts`): suites (stale after 60 s); an infinite experiment
+  list refreshed every 2 s while any loaded experiment is queued or
+  running; the detail refreshed every 2 s while it is. Polling stops at
+  every terminal status. Creation seeds the detail cache and invalidates
+  the lists; mutations never retry. Details: `docs/architecture.md#benchmark-pages`.
+- **Creation** (`components/benchmarks/CreateExperimentForm.tsx`): mounted
+  only when the server's `can_create` is true; only the server's suites,
+  tasks, arms and caps; client validation (arms, tasks, repetitions, seed,
+  `max_trials`, a real-model suite with the demo provider); one request in
+  flight; navigates to the new experiment. The server's 400/403/409/422/
+  429/5xx messages are shown as it worded them. No cancel button yet (the
+  hook exists).
+- **Detail:** header with status, provenance and refresh state; the
+  backend's notes; overview; provenance (host details "not disclosed" when
+  withheld); arm configurations with escalation reasons; identical-by-design
+  groups from the backend only; results by arm and by arm and task; and a
+  trial table (status, outcome, task success, verification, latency,
+  calls and retries, exclusion reason or error, and a link to the run).
+- **Interpretation rules:** unknown is never zero (null values show the
+  backend's `null_reasons`); a rate shows its denominator; task success and
+  verification are separate; excluded and not-run trials are listed with
+  their reasons; scripted results are labelled as describing the
+  orchestration, not a model. No metric is computed in the browser except
+  an experiment's elapsed time, from its recorded start and finish. No
+  charts (M6.4).
+- **Tests:** 79 new frontend tests (data layer, list, form, detail).
+
+**Integration and browser verification.** All of this was checked against
+the real backend in scratch SQLite databases (the project's `swarmos.db`
+was byte-identical before and after), with `.env` loading disabled, the
+demo provider, and no endpoint or key. A headless Chrome was driven over
+the DevTools protocol with a throwaway profile: real page loads, mouse and
+keyboard input, network capture and screenshots. The rendered trial rows,
+aggregates and identical-by-design groups of three experiments (completed,
+cancelled, interrupted) were compared field by field with the API's JSON:
+93, 104 and 95 checks, no mismatch.
+
+| Scenario | Result |
+| --- | --- |
+| Empty list, form with the server's 2 suites, 5 arms, `max_trials` 60 | passed |
+| Client validation (no arm; 70 trials > 60): nothing sent | passed |
+| Server refusal (local-fixtures without a real model): one POST, 400 shown, not retried | passed |
+| Real double click on Start: exactly one POST (202), navigation to the new experiment | passed |
+| Detail while running: GET every ~2.0 s, "refreshing every 2 s", trials done 0 → 6 of 6 | passed |
+| Polling stops at the terminal status (no request in the following ~5 min) | passed |
+| Trial → run link opens `/runs/:runId` | passed |
+| 20 + "Load more": 22 unique experiments, same order as the API, one cursor request | passed |
+| List refresh while active refetches both loaded pages, keeps 22 rows, stops when terminal | passed |
+| Cancellation (API): in-flight trial excluded ("cancelled"), the rest not run with the reason | passed |
+| Backend killed mid-experiment: "Could not refresh" after 16 s with the last data kept; after restart, `interrupted`, in-flight trial excluded, polling stopped | passed |
+| List error (request blocked in the browser): alert after 4 retries; "Try again" recovers | passed (failure injected) |
+| Unknown experiment and unknown run: real 404 pages | passed |
+| Public demo: read-only note, no form, no non-GET request, experiments readable, host details "not disclosed", `/legacy` closed | passed |
+| Public demo API: create, cancel, free-form run and inline run all `403`; no run started | passed |
+| Public demo with fake endpoint, key and model set: no key, URL or local path in any benchmark, config or health response | passed |
+| Public demo run traces: absolute server paths visible | **failed** (pre-existing; known issue 8) |
+| Regression: `/`, `/console`, `/history`, `/legacy` (local), `/runs/new`, a live run streamed to completion, replay, the 3D scene, 404 | passed |
+| `queued` state seen in a browser | not observed (an experiment starts running at once) |
+| Trial `error` state ("the run could not be started") end to end | not tested (no configuration triggers it without code changes) |
+| SSE polling fallback in a browser | not tested in M6.3 (covered by M5 tests) |
+
+### M6.0–M6.2 — benchmark backend
+
+- **M6.0** (`app/benchmarks/`): versioned suites (`catalog`, public;
+  `local-fixtures`, local and real-model only); fixed arms (execution:
+  `parallel`, `sequential`; model policy: `fixed-fast`, `adaptive`,
+  `multi-agent`); configuration fingerprints, identical-by-design
+  detection and provenance; trial metrics and per-arm aggregates (task
+  success separate from verification, exclusions, null with reasons,
+  nearest-rank P95); tokens and cost null unless reported.
+- **M6.1:** the experiment runner (one active experiment per database, a
+  seeded trial order, conditional claims, cancellation, recovery as
+  `interrupted` at startup) and `swarmos bench` on it, with an
+  operator-only `--recover`. Escalation is judged from the run's own
+  provider.
+- **M6.2:** `GET /api/benchmarks/suites`, `GET` and `POST
+  /api/benchmarks/experiments`, `GET /api/benchmarks/experiments/{id}`,
+  `POST …/cancel`. The public demo is read-only (only the catalog suite;
+  `403` for writes; host details omitted; errors redacted).
 
 ### M5 — real-time execution and playback
 
@@ -336,6 +431,18 @@ restrictions instead (details in `docs/safety.md`):
    killed process exits.
 7. There are no "agent started" events yet. In-flight agent state must be
    inferred from dispatch events (M3).
+8. **Blocks deployment (M7):** run traces record the verification command
+   with absolute server paths (interpreter, launcher, temporary workspace,
+   and so the account's home directory), and the public demo serves them
+   (`GET /api/runs/{id}/events`). Found in M6.3 integration; pre-existing,
+   not fixed. See `docs/safety.md`.
+9. The browser console warns "No `HydrateFallback` element provided" on
+   every page load (lazy routes without a hydrate fallback; harmless, since
+   nothing is server-rendered), and `THREE.Clock` is deprecated in the 3D
+   scene. Both pre-date M6.3.
+10. Benchmark pages: no cancel button (the API and the hook exist); the
+    `queued` badge and the trial `error` state are covered by component
+    tests but were not produced in a browser.
 
 ## Blockers needing the user
 
