@@ -171,6 +171,11 @@ All four roles run the same graph under every policy; policies only change model
 | `GET` | `/api/runs/{id}/stream?after_seq` | The trace as Server-Sent Events, live until the run ends (`id` = `seq`; resumes after the greater of `after_seq` and `Last-Event-ID`; `end` closes it). See [docs/architecture.md](docs/architecture.md#live-streaming) |
 | `POST` | `/api/runs/{id}/cancel` | Cancel an in-flight run (`202`; `404` unknown, `409` finished or not active here; `403` in the public demo) |
 | `GET` | `/api/demo-tasks` | The curated task catalog (the only runs the public demo accepts) |
+| `GET` | `/api/benchmarks/suites` | Benchmark suites, arms and caps (the public demo lists only the catalog suite) |
+| `GET` | `/api/benchmarks/experiments?limit&cursor` | Benchmark experiments, newest first, paged with `next_cursor` |
+| `GET` | `/api/benchmarks/experiments/{id}` | An experiment: provenance, arm configurations, identical-by-design warnings, aggregates, and every trial with its run and metrics (unknowns null, with reasons) |
+| `POST` | `/api/benchmarks/experiments` | Start an experiment on a fixed suite with fixed arms (`202`; `409` while another is active; `403` in the public demo) |
+| `POST` | `/api/benchmarks/experiments/{id}/cancel` | Cancel an experiment running in this server (`202`; `409` finished or not running here; `403` in the public demo) |
 
 Set `SWARMOS_API_TOKEN` to require `Authorization: Bearer <token>` on every `/api` route. The CLI refuses a non-loopback bind unless the token is set and `SWARMOS_ALLOW_REMOTE_BIND=1`.
 
@@ -285,6 +290,17 @@ the same numbers as the non-escalating one **by construction**, so equal
 results are not evidence that the policies are equivalent.
 
 Tasks are in `benchmarks/tasks.jsonl`; results are written to `benchmarks/results/`, which is git-ignored.
+
+Only one benchmark experiment may be active per database. An experiment is
+owned by the process running it (an API server or a `bench` command), and
+nothing records that ownership across processes. The API server closes
+experiments left queued or running by a stopped process when it starts.
+`swarmos bench --recover` does the same on demand and is **operator-only**:
+run it only when you know no server or other `bench` process is still
+running that experiment. If one is, its experiment is marked interrupted
+while it keeps running; its trials still record their runs, but the
+experiment's final status stays interrupted. There is no API for
+recovery.
 
 ## Tests
 

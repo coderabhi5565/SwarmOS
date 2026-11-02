@@ -309,6 +309,31 @@ the live state keeps receiving events underneath and "back to live" shows
 it again. Playback steps one event at a time and does not reproduce real
 durations; elapsed time is shown only from recorded timestamps.
 
+## Benchmark experiments
+
+`app/benchmarks/` compares fixed configurations (arms) on fixed, versioned
+suites. Every trial is an ordinary run through `RunService`; the trial row
+links it. Experiments and trials are stored in two additive tables
+(`benchmark_experiments`, `benchmark_trials`) in the same database.
+
+**Ownership and recovery.** An experiment is run by one process (the API
+server or a `bench` command); its status changes are conditional updates,
+so a second runner cannot claim it or its trials. Ownership itself is not
+recorded across processes: a process that dies leaves its experiment
+`running`, and only one experiment may be active per database. The API
+server closes such experiments as `interrupted` at startup (after run
+recovery; nothing resumes). `swarmos bench --recover` does the same on
+demand and is operator-only: it cannot tell whether another live process
+still owns the experiment, so it must only be used when none does. There is
+no recovery endpoint. A lease or heartbeat would remove this limitation; it
+is not implemented.
+
+**Public demo.** The benchmark API is read-only: only the catalog suite and
+experiments on it are visible (others are indistinguishable from unknown
+ones), creation and cancellation are `403`, host details are left out, and
+free-text errors are redacted (the endpoint URL and key never appear, and
+no URL at all in the public demo).
+
 ## Trust boundaries
 
 ```mermaid
