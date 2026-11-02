@@ -7,6 +7,7 @@ import { routes } from "@/app/router";
 // first render never also waits for a page module to compile (which on a
 // slow or busy machine can take several seconds). The router's lazy import
 // then resolves from the module cache.
+import "@/pages/BenchmarksPage";
 import "@/pages/ConsolePage";
 import "@/pages/HistoryPage";
 import "@/pages/LegacyPage";

@@ -6,7 +6,9 @@ import { api, ApiError } from "@/api/client";
 import {
   BENCHMARK_POLL_MS,
   benchmarkKeys,
+  experimentListPollInterval,
   experimentPollInterval,
+  experimentsFromPages,
   isActiveExperiment,
   useBenchmarkExperiment,
   useBenchmarkExperiments,
@@ -120,6 +122,27 @@ describe("benchmark query keys and polling rules", () => {
   ])("poll a %s experiment: %s", (status, interval) => {
     expect(experimentPollInterval(status)).toBe(interval);
     expect(isActiveExperiment(status)).toBe(interval !== false);
+  });
+
+  it("refresh a list while any loaded experiment is active, and only then", () => {
+    const pages = (...statuses: BenchmarkExperimentStatus[][]) => ({
+      pages: statuses.map((page) => experimentPage(page.map((status, i) => experimentSummary({ experiment_id: `bex_${status}_${i}`, status })))),
+      pageParams: statuses.map(() => null),
+    });
+    expect(experimentListPollInterval(undefined)).toBe(false);
+    expect(experimentListPollInterval(pages([]))).toBe(false);
+    expect(experimentListPollInterval(pages(["completed", "failed"], ["interrupted"]))).toBe(false);
+    expect(experimentListPollInterval(pages(["completed"], ["queued"]))).toBe(BENCHMARK_POLL_MS);
+    expect(experimentListPollInterval(pages(["running"]))).toBe(BENCHMARK_POLL_MS);
+  });
+
+  it("list each experiment once, in page order", () => {
+    const a = experimentSummary({ experiment_id: "bex_a" });
+    const b = experimentSummary({ experiment_id: "bex_b" });
+    const c = experimentSummary({ experiment_id: "bex_c" });
+    const data = { pages: [experimentPage([a, b]), experimentPage([b, c])], pageParams: [null, "bex_b"] };
+    expect(experimentsFromPages(data).map((e) => e.experiment_id)).toEqual(["bex_a", "bex_b", "bex_c"]);
+    expect(experimentsFromPages(undefined)).toEqual([]);
   });
 
   it("do not poll before the status is known", () => {
