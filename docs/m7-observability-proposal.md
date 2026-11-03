@@ -646,3 +646,26 @@ before/after change.
     tests), and process histograms are not exposed.
 11. A scripted baseline report exists with at least 20 measured trials per
     arm and task, `n`, median and P95 per phase, and exclusions listed.
+
+---
+
+## 15. M7.1 implementation notes
+
+M7.1 is implemented (`app/timings/`, commits `7bbcee8` to `7cbae15`).
+Where the code differs from the plan above, and why:
+
+| Plan | Implemented | Reason |
+| --- | --- | --- |
+| `call.parse` and `call.ledger_wait` are children of `call` | siblings of `call` under the node, linked by `role`, `step_id` and `attempt` | both happen outside the call's interval (before the provider is called, and after it returns), so as children they would break containment and self time |
+| `verify.process` is a child of the `verify` node | child of a new `verify.run` span (child of the node), which carries `diagnostic` | the process span is recorded by `Workspace.run_command`, which cannot know whether the run is diagnostic |
+| `finalization` and `lifecycle` end at the terminal transaction | they end when the terminal `save_run` returns | the terminal transaction is M7.2 |
+| measurements written once at run end | kept in memory: the 64 most recent snapshots in `RunService` | persistence is M7.2 |
+| `RunTimings` | `SpanRecorder` | naming |
+
+Also: the span cap's reserved structural capacity is 256 of 2,048;
+attributes may use the keys `node`, `role`, `step_id`, `dispatch_id`,
+`attempt`, `tier`, `mode`, `diagnostic`, `parallel_coding`, `outcome` and
+`reason`; HTTP attempt outcomes are `ok`, `json_mode_rejected`, `timeout`,
+`connect`, `http_4xx`, `http_5xx`, `cancelled` and `other`; persistence
+aggregates are `append_event.lock_wait`, `append_event.write`,
+`save_run.lock_wait` and `save_run.write`. Nothing else in §3–§6 changed.

@@ -1,6 +1,6 @@
 # SwarmOS project status
 
-Last updated: 2026-11-02
+Last updated: 2026-11-03
 
 ## Scope
 
@@ -24,24 +24,28 @@ Milestones (revised 2026-11-01):
   - M6.3 benchmark pages (list, creation, detail) ✅
   - M6.4 benchmark charts: not started
   - docs and landing page: not started
-- M7 security review, testing, free deployment
+- M7 measurement, security review, testing, free deployment
+  - M7.0 observability architecture proposal ✅ (`docs/m7-observability-proposal.md`)
+  - M7.1 in-memory timing spans ✅
+  - M7.2 onward (persistence, API, benchmark v2, process histograms, UI, baseline): not started
 - M8 release
 
 ## Current milestone
 
-**M6.3 — Benchmark pages: complete, with the public trace disclosure it
-found fixed.** Feature commits `8fb1f38`, `a900fdc`, `cdde8fb` and
-`83c9c23` are pushed. The documentation commit `79a634f` and the redaction
-fix are local until approved.
-Next: **M6.4 — benchmark charts**, awaiting approval (not started).
+**M7.1 — In-memory timing spans: complete and pushed** (commits
+`7bbcee8`, `e0c4e8e`, `97216f2`, `857a06a`, `948928e`, `7cbae15` and this
+documentation commit). M6.3 and the public trace redaction are complete
+and pushed.
+Next: **M7.2 — measurement persistence and API**, awaiting approval (not
+started). M6.4 (benchmark charts) also awaits approval.
 
 ## Validation at the last milestone boundary
 
-M6.3 with the public trace redaction, 2026-11-03:
+M7.1, 2026-11-03 (no frontend change since M6.3):
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest` (`.env` loading disabled) | 611 passed, 2 skipped (574 before the redaction tests) |
+| `python -m pytest` (`.env` loading disabled) | 694 passed, 2 skipped (611 before M7.1) |
 | frontend `npx tsc --noEmit` / `vitest run` / `npm run build` | clean / 305 passed (28 files) / builds |
 | `ruff check .` | clean |
 | `ruff format --check` | not configured; the codebase has never been formatted |
@@ -55,6 +59,54 @@ frontend runs used `vitest run --maxWorkers=2`, and a few `tsc`/build runs
 were killed by out-of-memory and passed unchanged on retry.
 
 ## Completed
+
+### M7.1 — in-memory timing spans
+
+- **Recorder** (`app/timings/recorder.py`): one `SpanRecorder` per run;
+  spans are offsets on `time.perf_counter_ns` from a monotonic zero, with
+  one UTC anchor. At most 2,048 spans per run, 256 reserved for structural
+  spans; dropped spans are counted by kind. Attributes are typed (booleans,
+  integers, id-like strings under fixed keys): no free text, so no path,
+  command or URL. Recording never raises into a run (failures, including an
+  unreadable clock, are counted). Found through context variables, so tasks
+  and `asyncio.to_thread` see only their own run's recorder.
+- **Spans recorded:** lifecycle (from the `queued` commit to the terminal
+  write) split into admission, execution (setup, graph) and finalization; a
+  run cancelled before it started records admission only. A node span per
+  graph node; a dispatch instant per wave (carried to its steps as
+  `dispatch_id`); per step the scheduling delay, checkout and, in sequential
+  mode, the coding-slot wait. Per agent-call attempt: ledger wait, the
+  provider call (runner clock, outcome), each HTTP attempt inside it
+  (outcome, so a JSON-mode downgrade is two attempts), parsing and backoff.
+  Verification: thread wait, gating or diagnostic run, process. Per-run
+  aggregates of trace and run-row writes (store-lock wait and
+  execute-and-commit).
+- **Derived metrics** (`app/timings/analysis.py`, pure and total): run
+  phases; coder busy, wall and critical-path time; self time over the union
+  of children; graph gap; critical and parallel orchestration; calls with
+  HTTP attempts; waits; gating and diagnostic verification; persistence
+  totals. A value not established is null with a reason (incomplete, never
+  started, spans dropped, malformed, not applicable, disabled).
+- **Where it lives:** in memory only, the 64 most recent runs in
+  `RunService` (`timings_for`). No table, API or UI (M7.2 onward).
+  `SWARMOS_TIMINGS=0` turns recording off.
+- **Overhead (measured, this machine):** a span costs about 2.3–2.6 µs
+  (start and end), 5.3–5.6 µs through the context manager, an aggregate
+  update about 1.6 µs, and 0.15 µs when disabled (median of 5 rounds of
+  20,000, three runs). A catalog run records 24 spans (one-step task) or 38
+  (parallel pipeline), none dropped, with 0.6–1.2 ms of recorder self time
+  against a lifecycle of about 1.4 s. The whole-run on/off A/B is M7.2.
+- **Unchanged:** the event trace (identical with timings on and off), event
+  order and seq, replay, cancellation, the Provider protocol, the public
+  redaction boundary.
+- **Tests:** 83 new (`tests/test_timings_*.py`): recorder, analysis
+  (hand-checkable times), real runs, agent calls with a mock HTTP
+  transport, persistence aggregates, overhead.
+- **Not in M7.1 (by the proposal's phases):** persistence and the terminal
+  transaction (M7.2), the 256 KiB row cap (M7.2), benchmark metrics v2 and
+  trial slot wait (M7.3), process histograms and `sse_commit_to_yield_ms`
+  (M7.4). Deviations from the proposal's span table are recorded in
+  `docs/m7-observability-proposal.md` §15.
 
 ### Public trace redaction (found in M6.3 integration)
 
@@ -485,6 +537,11 @@ restrictions instead (details in `docs/safety.md`):
 10. Benchmark pages: no cancel button (the API and the hook exist); the
     `queued` badge and the trial `error` state are covered by component
     tests but were not produced in a browser.
+11. `tests/test_openapi_snapshot.py` passes only where `frontend/dist`
+    exists: without a built frontend, `app/main.py` registers a documented
+    `GET /` fallback that the committed `frontend/openapi.json` lacks. A
+    fresh checkout fails it until the frontend is built (or
+    `SWARMOS_FRONTEND_DIST` points at a build). Pre-existing; not changed.
 
 ## Blockers needing the user
 
