@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -19,6 +20,7 @@ from app.models import (
     VerificationResult,
     utc_now,
 )
+from app.timings import current as current_timings
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
@@ -149,6 +151,31 @@ _COLUMNS = [
 ]
 
 
+class _WriteTimer:
+    """Times one write for the run being measured in this context, if any:
+    the wait for the store lock, then execute and commit, added to the run's
+    ``<name>.lock_wait`` and ``<name>.write`` aggregates (app.timings).
+    Inside the lock it only reads the clock; recording happens after."""
+
+    __slots__ = ("_name", "_timings", "_start", "_locked")
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+        self._timings = current_timings()
+        self._start = time.perf_counter_ns() if self._timings.enabled else 0
+        self._locked = 0
+
+    def locked(self) -> None:
+        if self._timings.enabled:
+            self._locked = time.perf_counter_ns()
+
+    def written(self) -> None:
+        if self._timings.enabled and self._locked:
+            written = time.perf_counter_ns()
+            self._timings.aggregate(f"{self._name}.lock_wait", self._locked - self._start)
+            self._timings.aggregate(f"{self._name}.write", written - self._locked)
+
+
 def _loads(value: str | None, default: Any = None) -> Any:
     if not value:
         return default
@@ -246,18 +273,23 @@ class RunStore:
         updates = ",".join(
             f"{column}=excluded.{column}" for column in _COLUMNS if column != "run_id"
         )
+        timer = _WriteTimer("save_run")
         with self._lock:
+            timer.locked()
             self._conn.execute(
                 f"INSERT INTO runs ({','.join(_COLUMNS)}) VALUES ({placeholders}) "
                 f"ON CONFLICT(run_id) DO UPDATE SET {updates}",
                 values,
             )
             self._conn.commit()
+        timer.written()
         self._changed(record.run_id)
 
     def append_event(self, event: TraceEvent) -> None:
         data = event.model_dump(mode="json")
+        timer = _WriteTimer("append_event")
         with self._lock:
+            timer.locked()
             self._conn.execute(
                 """
                 INSERT OR IGNORE INTO trace_events
@@ -275,6 +307,7 @@ class RunStore:
                 ),
             )
             self._conn.commit()
+        timer.written()
         self._changed(event.run_id)
 
     def recover_interrupted(self, reason: str) -> list[str]:
