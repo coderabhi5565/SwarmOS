@@ -168,6 +168,7 @@ All four roles run the same graph under every policy; policies only change model
 | `GET` | `/api/runs?limit&cursor` | Run history, newest first: lightweight summaries (no file contents), paged with `next_cursor` |
 | `GET` | `/api/runs/{id}` | Run record plus every trace event |
 | `GET` | `/api/runs/{id}/events?after_seq` | Trace events in `seq` order; with `after_seq`, only newer ones. Returns `last_seq` for the next poll |
+| `GET` | `/api/runs/{id}/measurements` | The run's stored timing measurements (phases, coder busy, wall and critical path, attributed orchestration, calls, waits, verification, persistence, spans), or `available: false` with the reason (in progress, predates measurements, process crash, flush failed, recording disabled, not recorded). Numbers, enums and validated ids only |
 | `GET` | `/api/runs/{id}/stream?after_seq` | The trace as Server-Sent Events, live until the run ends (`id` = `seq`; resumes after the greater of `after_seq` and `Last-Event-ID`; `end` closes it). See [docs/architecture.md](docs/architecture.md#live-streaming) |
 | `POST` | `/api/runs/{id}/cancel` | Cancel an in-flight run (`202`; `404` unknown, `409` finished or not active here; `403` in the public demo) |
 | `GET` | `/api/demo-tasks` | The curated task catalog (the only runs the public demo accepts) |

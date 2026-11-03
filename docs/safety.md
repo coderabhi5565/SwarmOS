@@ -95,6 +95,7 @@ run data, for traces recorded before the fix as much as for new ones:
 | `GET /api/runs/{id}`, `POST /api/runs` | the run record and its events |
 | `GET /api/runs/{id}/events` | each event |
 | `GET /api/runs/{id}/stream` | each event, before it is framed (ids and order unchanged) |
+| `GET /api/runs/{id}/measurements` | every string (ids, outcomes, node names); the model has no free-text field, and the stored row is revalidated on read |
 | `GET /api/runs` | each listed run |
 | `GET /api/config` | the configured verification command |
 | `POST /api/runs` errors (400) | the message |

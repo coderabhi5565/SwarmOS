@@ -669,3 +669,29 @@ attributes may use the keys `node`, `role`, `step_id`, `dispatch_id`,
 `connect`, `http_4xx`, `http_5xx`, `cancelled` and `other`; persistence
 aggregates are `append_event.lock_wait`, `append_event.write`,
 `save_run.lock_wait` and `save_run.write`. Nothing else in §3–§6 changed.
+
+---
+
+## 16. M7.2 implementation notes
+
+M7.2 is implemented (commits `f4a83cb` to `d571e50`). Where it differs
+from §5 and §6, and why:
+
+| Plan | Implemented | Reason |
+| --- | --- | --- |
+| crashed, flush-failed and pre-existing runs all read "not recorded" | marker rows (`run_measurements.status`) and `measurement_meta.installed_at` make them distinguishable (below) | the M7.2 review asked for these reasons where applicable; each comes from a record written at the time, never inferred |
+| recording off: no row, "disabled" from configuration at read time | a `disabled` marker row written with the terminal row | the configuration can change after the run |
+| `finalization` and `lifecycle` end at the terminal transaction's commit | they end when the terminal write starts (the measurements are serialized before the transaction, as required); the write itself is not in the row, and the per-run `save_run.*` aggregates exclude it | a row cannot contain the duration of the transaction that writes it |
+| A/B compares `lifecycle_ms` | runs are timed by the harness on a monotonic clock, the same way for both arms | with recording off there are no spans |
+| step ids redacted in the public demo | also: a stored row is revalidated on every read (kinds, fields, attribute keys and values, aggregate names) | a stored row is data, not trusted |
+
+`run_measurements.status` is `recorded` (with `measurements_json`) or a
+marker: `disabled`, `flush_failed` or `process_crash`. The API's reasons
+are `recorded`, `run_in_progress`, `predates_measurements`,
+`process_crash`, `measurement_flush_failed`, `instrumentation_disabled`,
+`not_recorded` (none of these is on record) and `unreadable`.
+
+In local mode the endpoint returns validated ids as stored, as Run Detail
+does: an id-shaped token passes, while paths, URLs and hosts cannot (they
+fail validation). `predates_measurements` compares the run's `created_at`
+with `installed_at`: a classification, not a measurement.

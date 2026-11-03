@@ -27,25 +27,25 @@ Milestones (revised 2026-11-01):
 - M7 measurement, security review, testing, free deployment
   - M7.0 observability architecture proposal ✅ (`docs/m7-observability-proposal.md`)
   - M7.1 in-memory timing spans ✅
-  - M7.2 onward (persistence, API, benchmark v2, process histograms, UI, baseline): not started
+  - M7.2 measurement persistence and API ✅
+  - M7.3 onward (benchmark v2, process histograms, UI, baseline): not started
 - M8 release
 
 ## Current milestone
 
-**M7.1 — In-memory timing spans: complete and pushed** (commits
-`7bbcee8`, `e0c4e8e`, `97216f2`, `857a06a`, `948928e`, `7cbae15` and this
-documentation commit). M6.3 and the public trace redaction are complete
-and pushed.
-Next: **M7.2 — measurement persistence and API**, awaiting approval (not
-started). M6.4 (benchmark charts) also awaits approval.
+**M7.2 — Measurement persistence and API: complete and pushed** (commits
+`f4a83cb`, `7763eee`, `62da00c`, `9425d05`, `d571e50` and this
+documentation commit). M7.1 is complete and pushed.
+Next: **M7.3 — benchmark metrics v2**, awaiting approval (not started).
+M6.4 (benchmark charts) also awaits approval.
 
 ## Validation at the last milestone boundary
 
-M7.1, 2026-11-03 (no frontend change since M6.3):
+M7.2, 2026-11-03 (frontend: regenerated API types only):
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest` (`.env` loading disabled) | 694 passed, 2 skipped (611 before M7.1) |
+| `python -m pytest` (`.env` loading disabled) | 736 passed, 2 skipped (694 at M7.1) |
 | frontend `npx tsc --noEmit` / `vitest run` / `npm run build` | clean / 305 passed (28 files) / builds |
 | `ruff check .` | clean |
 | `ruff format --check` | not configured; the codebase has never been formatted |
@@ -59,6 +59,52 @@ frontend runs used `vitest run --maxWorkers=2`, and a few `tsc`/build runs
 were killed by out-of-memory and passed unchanged on retry.
 
 ## Completed
+
+### M7.2 — measurement persistence and API
+
+- **Storage** (`app/store.py`, additive): `run_measurements` (one row per
+  run: `status`, `measurements_version`, `collected_at`,
+  `measurements_json`) and `measurement_meta` (`installed_at`: when this
+  database first had the table). Existing tables and rows are untouched;
+  an existing database gains the two tables when opened. Checked on a copy
+  of a real pre-M7.2 scratch database (73 runs, 945 events, 26
+  experiments, 88 trials): every existing table identical before and
+  after, all 73 runs reading `predates_measurements`.
+- **Terminal transaction** (`RunService._write_terminal`): every terminal
+  path closes its spans, serializes and bounds the measurements first
+  (`app/timings/serialize.py`: compact JSON, at most 256 KiB; when larger,
+  fine-grained spans are removed in a fixed order, counted in `dropped`,
+  and the row is marked `truncated`), then writes the terminal row and the
+  measurement row in one transaction. The last event still commits first.
+  If serializing or the transaction fails, the terminal row is written
+  alone and a `flush_failed` marker says why; an in-process counter and
+  one log line (the run id only) record it. A failing terminal row takes
+  the crash path, as before.
+- **Markers:** `disabled` (recording off), `flush_failed`, and
+  `process_crash` (written by startup recovery for the runs it closes).
+- **API:** `GET /api/runs/{id}/measurements` (`RunMeasurements`): typed
+  phases, coder, orchestration, agents, waits, verification, persistence,
+  calls, steps and spans, plus the reason for every null metric; or
+  `available: false` with `run_in_progress`, `predates_measurements`,
+  `process_crash`, `measurement_flush_failed`, `instrumentation_disabled`,
+  `not_recorded` or `unreadable`. Nothing is derived from wall-clock event
+  timestamps. Stored rows are revalidated on read; in the public demo every
+  string also goes through the redactor. API types regenerated (additions
+  only).
+- **A/B overhead** (`scripts/measure_timings_overhead.py`; 20 measured
+  pairs per catalog task after one warm-up pair, interleaved, timed by the
+  harness): median paired difference (on minus off) −30.3 ms (−2.2%) and
+  −12.2 ms (−0.9%), with paired differences spread from −475 to +166 ms.
+  The overhead is not detectable at this noise level (the run's real
+  pytest subprocess dominates); both medians are within the proposed
+  target, which this method cannot resolve below tens of milliseconds. The
+  recorder's own accounted time (0.6–1.2 ms per run, M7.1) remains the
+  direct estimate.
+- **Tests:** 42 new: storage and migration, serialization and
+  truncation, terminal persistence and every fallback, the API with every
+  reason, tampered rows and public canaries, and the harness.
+- **Deviations from the proposal** are in
+  `docs/m7-observability-proposal.md` §16.
 
 ### M7.1 — in-memory timing spans
 
