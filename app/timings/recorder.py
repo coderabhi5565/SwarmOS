@@ -189,6 +189,14 @@ class SpanRecorder:
         finally:
             self._account(entered)
 
+    def started_at(self, span_id: int | None) -> int | None:
+        """A recorded span's start (raw clock ns), or None. Never raises."""
+        if not isinstance(span_id, int):
+            return None
+        with self._lock:
+            span = self._spans.get(span_id)
+            return None if span is None else span.start
+
     def end(self, span_id: int | None, *, at: int | None = None, outcome: str | None = None) -> None:
         if not self.enabled or span_id is None:
             return

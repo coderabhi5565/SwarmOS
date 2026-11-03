@@ -207,6 +207,14 @@ def test_a_failing_snapshot_returns_an_empty_snapshot_that_says_so(monkeypatch):
     assert snapshot["instrumentation_errors"] == 1
 
 
+def test_started_at_reads_a_span_start_and_tolerates_anything_else():
+    recorder, clock = make(FakeClock(500))
+    span = recorder.start("dispatch")
+    assert recorder.started_at(span) == 500
+    for value in (None, 999, "1", {"id": 1}, [1]):
+        assert recorder.started_at(value) is None
+
+
 def test_an_interval_without_two_readings_is_counted_not_recorded():
     recorder, _ = make()
     assert recorder.add("admission", None, 5) is None

@@ -170,3 +170,7 @@ class CodeStepPayload(TypedDict):
     mode: str
     # For mode == "revision": the review rejection that triggered this round.
     revision_round: int
+    # The timing span of the dispatch that sent this step (app.timings), so
+    # the step's wave and scheduling delay can be attributed; None when the
+    # run is not measured.
+    dispatch_id: int | None

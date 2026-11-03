@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 
 from app.config import Settings
@@ -14,6 +15,11 @@ from app.providers import provider_kind, resolve_provider
 from app.providers.base import Provider
 from app.runtime.runtime import VALID_POLICIES, RunRuntime
 from app.store import RunStore
+from app.timings import SpanRecorder, activate
+
+# Snapshots of the most recent runs' timing spans kept in memory (M7.1: not
+# persisted; read in-process).
+RECENT_TIMINGS = 64
 
 
 def demo_limits(requested: Limits, recipe: Limits) -> Limits:
@@ -81,6 +87,10 @@ class RunService:
         self.store = store
         self._tasks: set[asyncio.Task] = set()
         self._active: dict[str, _ActiveRun] = {}
+        # perf_counter_ns right after a run's ``queued`` row was committed;
+        # taken by ``execute`` (or ``cancel``) as the start of its lifecycle.
+        self._admitted: dict[str, int] = {}
+        self._timings: OrderedDict[str, dict] = OrderedDict()
 
     def resolve_policy(self, requested: str | None) -> str:
         policy = (requested or self.settings.model_policy or "config").strip().lower()
@@ -144,7 +154,25 @@ class RunService:
             status="queued",
         )
         self.store.save_run(record)
+        self._admitted[record.run_id] = time.perf_counter_ns()
         return record, provider, policy, demo
+
+    # ------------------------------------------------------------------
+    # timings (in memory only)
+    # ------------------------------------------------------------------
+    def timings_for(self, run_id: str) -> dict | None:
+        """The span snapshot of a recent run in this process, if kept."""
+        return self._timings.get(run_id)
+
+    def _keep_timings(self, run_id: str, recorder: SpanRecorder) -> None:
+        # Runs in ``finally`` blocks: it must never replace a run's outcome.
+        try:
+            self._timings[run_id] = recorder.snapshot()
+            self._timings.move_to_end(run_id)
+            while len(self._timings) > RECENT_TIMINGS:
+                self._timings.popitem(last=False)
+        except Exception:  # noqa: BLE001
+            pass
 
     async def run_request(self, request: RunRequest) -> RunRecord:
         record, provider, policy, demo = self.prepare(request)
@@ -176,6 +204,42 @@ class RunService:
         policy: str | None = None,
         demo: DemoTask | None = None,
     ) -> RunRecord:
+        """Run a prepared record to a terminal state, timing its lifecycle.
+
+        Spans (app.timings): ``lifecycle`` from the ``queued`` commit to the
+        terminal commit, made of ``admission`` (until this method starts),
+        ``execution`` (until the outcome is known: ``setup`` then ``graph``)
+        and ``finalization`` (the terminal write). Recording never changes
+        the run.
+        """
+        entered = time.perf_counter_ns()
+        admitted = self._admitted.pop(record.run_id, None)
+        start = admitted if admitted is not None else entered
+        timings = SpanRecorder(enabled=self.settings.timings_enabled, zero=start)
+        lifecycle = timings.start("lifecycle", parent=None, at=start)
+        if admitted is not None:
+            timings.add("admission", admitted, entered, parent=lifecycle)
+        execution = timings.start("execution", parent=lifecycle, at=entered)
+        setup = timings.start("setup", parent=execution, at=entered)
+        try:
+            with activate(timings):
+                return await self._execute(
+                    record, provider, files, policy, demo, timings, (lifecycle, execution, setup)
+                )
+        finally:
+            self._keep_timings(record.run_id, timings)
+
+    async def _execute(
+        self,
+        record: RunRecord,
+        provider: Provider,
+        files: dict[str, str],
+        policy: str | None,
+        demo: DemoTask | None,
+        timings: SpanRecorder,
+        spans: tuple[int | None, int | None, int | None],
+    ) -> RunRecord:
+        lifecycle, execution, setup = spans
         running = record.model_copy(update={"status": "running", "updated_at": utc_now()})
         self.store.save_run(running)
 
@@ -198,7 +262,10 @@ class RunService:
                 if demo is not None
                 else frozenset()
             ),
+            timings=timings,
         )
+        runtime.setup_span = setup
+        runtime.execution_span = execution
         runtime.seed_workspace(
             {} if demo is not None else files, self.settings.sample_project
         )
@@ -209,9 +276,16 @@ class RunService:
             active.runtime = runtime
         try:
             result = await Orchestrator(runtime).run(running)
+            timings.end(execution, outcome=result.record.status)
+            finalization = timings.start("finalization", parent=lifecycle)
             self.store.save_run(result.record)
+            timings.end(finalization)
+            timings.end(lifecycle, outcome=result.record.status)
             return result.record
         except asyncio.CancelledError:
+            timings.end(setup, outcome="cancelled")
+            timings.end(execution, outcome="cancelled")
+            finalization = timings.start("finalization", parent=lifecycle)
             active = self._active.get(record.run_id)
             reason = (active.reason if active else None) or "run cancelled before completion"
             runtime.emit("run_finished", f"Run finished: cancelled ({reason})",
@@ -228,8 +302,13 @@ class RunService:
                 }
             )
             self.store.save_run(cancelled)
+            timings.end(finalization)
+            timings.end(lifecycle, outcome="cancelled")
             raise
         except Exception as exc:  # noqa: BLE001 - never leave a run stuck in "running"
+            timings.end(setup, outcome="error")
+            timings.end(execution, outcome="error")
+            finalization = timings.start("finalization", parent=lifecycle)
             runtime.emit(
                 "failure",
                 "Run crashed",
@@ -245,6 +324,8 @@ class RunService:
                 }
             )
             self.store.save_run(failed)
+            timings.end(finalization)
+            timings.end(lifecycle, outcome="failed")
             return failed
         finally:
             self._active.pop(record.run_id, None)
@@ -268,6 +349,7 @@ class RunService:
         else:
             # Not started yet: its body will never run, so record the outcome here.
             self._active.pop(run_id, None)
+            admitted = self._admitted.pop(run_id, None)
             record = self.store.get_run(run_id)
             if record is not None:
                 self.store.save_run(
@@ -275,6 +357,15 @@ class RunService:
                         update={"status": "cancelled", "error": reason, "updated_at": utc_now()}
                     )
                 )
+            if admitted is not None:
+                # Its lifecycle is admission only: it never started.
+                ended = time.perf_counter_ns()
+                timings = SpanRecorder(enabled=self.settings.timings_enabled, zero=admitted)
+                lifecycle = timings.add(
+                    "lifecycle", admitted, ended, parent=None, outcome="cancelled", reason="never_started"
+                )
+                timings.add("admission", admitted, ended, parent=lifecycle)
+                self._keep_timings(run_id, timings)
         active.task.cancel()
         return True
 

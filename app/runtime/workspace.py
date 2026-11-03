@@ -23,6 +23,7 @@ import time
 from pathlib import Path
 
 from app.models import FileChange, VerificationResult, safe_relative_path
+from app.timings import current as current_timings
 
 _SANDBOX_TMP = ".swarmos_tmp"
 _LAUNCHER = Path(__file__).resolve().parent / "sandbox_launcher.py"
@@ -263,7 +264,10 @@ class Workspace:
                 return self._execution_failure(command, restricted)
             argv = restricted
         started = time.perf_counter()
-        timed_out = False
+        timed_out = finished = False
+        # The run's span recorder, if this call runs inside a measured run.
+        timings = current_timings()
+        process_span = timings.start("verify.process")
         try:
             process = subprocess.Popen(  # noqa: S603 - explicit argv, allow-listed binary
                 argv,
@@ -280,6 +284,7 @@ class Workspace:
                 ),
             )
         except OSError as exc:
+            timings.end(process_span, outcome="error")
             return self._execution_failure(
                 command, f"could not start verification command: {exc}"
             )
@@ -289,6 +294,7 @@ class Workspace:
         try:
             stdout, stderr = process.communicate(timeout=timeout_seconds)
             exit_code = process.returncode
+            finished = True
         except subprocess.TimeoutExpired:
             # Kill the whole tree, not just the direct child, so a spawned
             # pytest worker cannot keep running after the timeout.
@@ -300,6 +306,9 @@ class Workspace:
         finally:
             with self._process_lock:
                 self._active_process = None
+            timings.end(
+                process_span, outcome="timeout" if timed_out else ("ok" if finished else "error")
+            )
 
         duration_ms = int((time.perf_counter() - started) * 1000)
         passed_count = _count(_PASSED, stdout)

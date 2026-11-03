@@ -174,6 +174,10 @@ class Settings:
     # Extra allowed CORS origins, comma-separated (e.g. the deployed frontend).
     cors_origins: str = os.getenv("SWARMOS_CORS_ORIGINS", "").strip()
 
+    # Per-run timing spans, kept in memory (app.timings). On by default;
+    # SWARMOS_TIMINGS=0 turns recording off (for overhead comparisons).
+    timings_enabled: bool = _env_bool("SWARMOS_TIMINGS", True)
+
     # API surface safety.
     api_token: str = os.getenv("SWARMOS_API_TOKEN", "").strip()
     allow_remote_bind: bool = _env_bool("SWARMOS_ALLOW_REMOTE_BIND", False)

@@ -12,6 +12,7 @@ from app.providers.base import ModelUnavailableError, Provider
 from app.runtime.limits import BudgetLedger
 from app.runtime.trace import TraceRecorder
 from app.runtime.workspace import Workspace
+from app.timings import DISABLED, SpanRecorder
 
 # Policies only change model selection, not the orchestration graph.
 #   config      -> honour SWARMOS_ROLE_MODELS
@@ -75,8 +76,14 @@ class RunRuntime:
         seeded_plan: Plan | None = None,
         allowed_files: frozenset[str] | None = None,
         read_only_files: frozenset[str] = frozenset(),
+        timings: SpanRecorder | None = None,
     ) -> None:
         self.run_id = run_id
+        # The run's span recorder (a disabled one when not measured), and the
+        # lifecycle spans the orchestrator closes or nests under.
+        self.timings = timings if timings is not None else DISABLED
+        self.setup_span: int | None = None
+        self.execution_span: int | None = None
         self.settings = settings
         self.limits = limits
         self.provider = provider

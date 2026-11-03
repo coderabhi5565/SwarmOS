@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import math
 import shutil
 import time
@@ -120,11 +121,18 @@ class Orchestrator:
             snapshot_truncated=self._snapshot_truncated,
         )
         started = time.perf_counter()
+        timings = self.runtime.timings
+        timings.end(self.runtime.setup_span)
 
         try:
-            final: SwarmState = await self.graph.ainvoke(  # type: ignore[assignment]
-                state, config={"recursion_limit": 64}
-            )
+            with timings.span(
+                "graph",
+                parent=self.runtime.execution_span,
+                parallel_coding=self.runtime.limits.parallel_coding,
+            ):
+                final: SwarmState = await self.graph.ainvoke(  # type: ignore[assignment]
+                    state, config={"recursion_limit": 64}
+                )
         except Exception as exc:  # noqa: BLE001 - graph bugs must end the run cleanly
             # An orchestration failure: no agent, step, or attempt applies.
             self.runtime.emit(
@@ -230,13 +238,18 @@ class Orchestrator:
     # ------------------------------------------------------------------
     def _build(self):
         graph = StateGraph(SwarmState)
-        graph.add_node("planner", self._planner)
-        graph.add_node("code_step", self._code_step)
-        graph.add_node("advance", self._advance)
-        graph.add_node("review", self._review)
-        graph.add_node("verify", self._verify)
-        graph.add_node("escalate", self._escalate)
-        graph.add_node("finalize", self._finalize)
+        graph.add_node("planner", self._timed("planner", self._planner))
+        # The Send payload's type is stated explicitly: the node is wrapped.
+        graph.add_node(
+            "code_step",
+            self._timed("code_step", self._code_step),
+            input_schema=CodeStepPayload,
+        )
+        graph.add_node("advance", self._timed("advance", self._advance))
+        graph.add_node("review", self._timed("review", self._review))
+        graph.add_node("verify", self._timed("verify", self._verify))
+        graph.add_node("escalate", self._timed("escalate", self._escalate))
+        graph.add_node("finalize", self._timed("finalize", self._finalize))
 
         graph.add_edge(START, "planner")
         graph.add_conditional_edges(
@@ -263,6 +276,32 @@ class Orchestrator:
         )
         graph.add_edge("finalize", END)
         return graph.compile()
+
+    def _timed(self, name: str, node):
+        """The node, inside a ``node`` span (the current span for everything
+        it does). A coding step also records its scheduling delay: from its
+        wave's dispatch to the moment the step started."""
+
+        @functools.wraps(node)
+        async def timed(state):
+            timings = self.runtime.timings
+            attrs: dict = {"node": name}
+            if name == "code_step":
+                attrs.update(
+                    step_id=(state.get("step") or {}).get("id"),
+                    dispatch_id=state.get("dispatch_id"),
+                    attempt=state.get("attempt"),
+                    mode=state.get("mode"),
+                )
+            with timings.span("node", **attrs) as span:
+                if name == "code_step":
+                    dispatched = timings.started_at(state.get("dispatch_id"))
+                    entered = timings.started_at(span.id)
+                    if dispatched is not None and entered is not None:
+                        timings.add("step.schedule_delay", dispatched, entered, parent=span.id)
+                return await node(state)
+
+        return timed
 
     # ------------------------------------------------------------------
     # nodes
@@ -354,9 +393,10 @@ class Orchestrator:
 
         checkout_dir = self.runtime.step_root / state["workspace_subdir"]
         checkout = Workspace(checkout_dir)
-        checkout.seed(payload.files)
+        with self.runtime.timings.span("step.checkout"):
+            checkout.seed(payload.files)
         try:
-            async with self._coding_slot or contextlib.nullcontext():
+            async with self._coding_turn():
                 result = await self.runner.run(
                     self.coder,
                     payload,
@@ -477,6 +517,20 @@ class Orchestrator:
             coded_steps=[step.id],
         )
         return updates
+
+    @contextlib.asynccontextmanager
+    async def _coding_turn(self):
+        """A coding call's turn: immediate in parallel mode; otherwise wait
+        for the single coding slot, timing the wait."""
+        if self._coding_slot is None:
+            yield
+            return
+        with self.runtime.timings.span("call.slot_wait"):
+            await self._coding_slot.acquire()
+        try:
+            yield
+        finally:
+            self._coding_slot.release()
 
     async def _advance(self, state: SwarmState) -> dict:
         changes: list[FileChange] = list(state.get("changes", []) or [])
@@ -684,9 +738,16 @@ class Orchestrator:
             attempt=attempt,
             diagnostic=diagnostic,
         )
-        result = await asyncio.to_thread(
-            self.verifier.verify, self.runtime.workspace, timeout
-        )
+        timings = self.runtime.timings
+        submitted = timings.now()
+
+        def verify() -> VerificationResult:
+            # On the worker thread, under this node's span (the context is copied).
+            timings.add("verify.thread_wait", submitted, timings.now())
+            with timings.span("verify.run", diagnostic=diagnostic):
+                return self.verifier.verify(self.runtime.workspace, timeout)
+
+        result = await asyncio.to_thread(verify)
         deadline_reached = (
             result.exit_code == 124
             and self.runtime.ledger.remaining_seconds <= _DEADLINE_SLACK_SECONDS
@@ -1210,6 +1271,7 @@ class Orchestrator:
         findings: list[ReviewFinding] | None = None,
         verification_stdout: str = "",
         mode: str = "initial",
+        dispatch_id: int | None = None,
     ) -> CodeStepPayload:
         attempt = self._attempts(state, step.id) + 1
         return CodeStepPayload(
@@ -1228,6 +1290,7 @@ class Orchestrator:
             revision_round=(
                 int(state.get("review_rejections", 0) or 0) if mode == "revision" else 0
             ),
+            dispatch_id=dispatch_id,
         )
 
     def _dispatch(
@@ -1240,6 +1303,7 @@ class Orchestrator:
         reason: str,
         mode: str = "initial",
     ) -> list[Send]:
+        dispatch_id = self.runtime.timings.instant("dispatch", mode=mode)
         payloads = [
             Send(
                 "code_step",
@@ -1249,6 +1313,7 @@ class Orchestrator:
                     findings=(findings_by_step or {}).get(step.id),
                     verification_stdout=verification_stdout,
                     mode=mode,
+                    dispatch_id=dispatch_id,
                 ),
             )
             for step in steps
