@@ -225,6 +225,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run_id}/measurements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Run Measurements
+         * @description The run's stored timing measurements, or why it has none.
+         *
+         *     Numbers, enums and validated ids only; the stored row is revalidated on
+         *     read and, in the public demo, redacted like every other run response.
+         */
+        get: operations["get_run_measurements_api_runs__run_id__measurements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run_id}/stream": {
         parameters: {
             query?: never;
@@ -1362,6 +1385,159 @@ export interface components {
              */
             parallel_coding: boolean;
         };
+        /** MeasurementAgents */
+        MeasurementAgents: {
+            /** Backoff Ms */
+            backoff_ms: number | null;
+            /** Call Ms */
+            call_ms: number | null;
+            /** Http Attempts */
+            http_attempts: number | null;
+            /** Parse Ms */
+            parse_ms: number | null;
+            /** Planner Ms */
+            planner_ms: number | null;
+            /** Reviewer Ms */
+            reviewer_ms: number | null;
+        };
+        /** MeasurementCall */
+        MeasurementCall: {
+            /** Attempt */
+            attempt: number | null;
+            /** Call Ms */
+            call_ms: number | null;
+            /** Http Attempt Ms */
+            http_attempt_ms: (number | null)[];
+            /** Http Attempts */
+            http_attempts: number;
+            /** Http Outcomes */
+            http_outcomes: (string | null)[];
+            /** Outcome */
+            outcome: string | null;
+            /** Parse Ms */
+            parse_ms: number | null;
+            /** Role */
+            role: string | null;
+            /** Step Id */
+            step_id: string | null;
+        };
+        /** MeasurementCoder */
+        MeasurementCoder: {
+            /** Busy Ms */
+            busy_ms: number | null;
+            /** Critical Path Ms */
+            critical_path_ms: number | null;
+            /** Wall Ms */
+            wall_ms: number | null;
+        };
+        /** MeasurementOrchestration */
+        MeasurementOrchestration: {
+            /** Critical Ms */
+            critical_ms: number | null;
+            /** Graph Gap Ms */
+            graph_gap_ms: number | null;
+            /** Node Self Ms */
+            node_self_ms: {
+                [key: string]: number;
+            };
+            /** Parallel Ms */
+            parallel_ms: number | null;
+        };
+        /**
+         * MeasurementPersistence
+         * @description Trace and run-row writes during the run (the terminal write is not in
+         *     the row: it happens after the measurements are serialized).
+         */
+        MeasurementPersistence: {
+            /** Event Persist Lock Wait Ms */
+            event_persist_lock_wait_ms: number | null;
+            /** Event Persist Write Ms */
+            event_persist_write_ms: number | null;
+            /** Event Persist Writes */
+            event_persist_writes: number | null;
+            /** Save Run Lock Wait Ms */
+            save_run_lock_wait_ms: number | null;
+            /** Save Run Write Ms */
+            save_run_write_ms: number | null;
+            /** Save Run Writes */
+            save_run_writes: number | null;
+        };
+        /** MeasurementPhases */
+        MeasurementPhases: {
+            /** Admission Ms */
+            admission_ms: number | null;
+            /** Execution Ms */
+            execution_ms: number | null;
+            /** Finalization Ms */
+            finalization_ms: number | null;
+            /** Graph Ms */
+            graph_ms: number | null;
+            /** Lifecycle Ms */
+            lifecycle_ms: number | null;
+            /** Setup Ms */
+            setup_ms: number | null;
+        };
+        /**
+         * MeasurementSpan
+         * @description One span on the run's monotonic clock: ms offsets from the lifecycle
+         *     start; ``end_ms`` null when the span never closed.
+         */
+        MeasurementSpan: {
+            /** Attrs */
+            attrs: {
+                [key: string]: boolean | number | string;
+            };
+            /** End Ms */
+            end_ms: number | null;
+            /** Id */
+            id: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "lifecycle" | "admission" | "execution" | "setup" | "graph" | "finalization" | "node" | "dispatch" | "step.schedule_delay" | "step.checkout" | "call" | "call.slot_wait" | "call.ledger_wait" | "call.http_attempt" | "call.parse" | "call.backoff" | "verify.thread_wait" | "verify.run" | "verify.process";
+            /** Parent */
+            parent: number | null;
+            /** Start Ms */
+            start_ms: number;
+        };
+        /** MeasurementStep */
+        MeasurementStep: {
+            /** Attempt */
+            attempt: number | null;
+            /** Checkout Ms */
+            checkout_ms: number | null;
+            /** Dispatch Id */
+            dispatch_id: number | null;
+            /** Duration Ms */
+            duration_ms: number | null;
+            /** Schedule Delay Ms */
+            schedule_delay_ms: number | null;
+            /** Slot Wait Ms */
+            slot_wait_ms: number | null;
+            /** Start Ms */
+            start_ms: number | null;
+            /** Step Id */
+            step_id: string | null;
+        };
+        /** MeasurementVerification */
+        MeasurementVerification: {
+            /** Diagnostic Verification Ms */
+            diagnostic_verification_ms: number | null;
+            /** Verification Ms */
+            verification_ms: number | null;
+        };
+        /** MeasurementWaits */
+        MeasurementWaits: {
+            /** Ledger Wait Ms */
+            ledger_wait_ms: number | null;
+            /** Schedule Delay Ms */
+            schedule_delay_ms: number | null;
+            /** Slot Wait Ms */
+            slot_wait_ms: number | null;
+            /** Verify Thread Wait Ms */
+            verify_thread_wait_ms: number | null;
+        };
         /** MergeWaveDecision */
         MergeWaveDecision: {
             /** Accepted Steps */
@@ -1707,6 +1883,65 @@ export interface components {
             next_cursor: string | null;
             /** Runs */
             runs: components["schemas"]["RunSummary"][];
+        };
+        /**
+         * RunMeasurements
+         * @description A run's stored timing measurements, or why there are none.
+         *
+         *     Only numbers, enums and validated ids: no free text. ``unknown`` names
+         *     each metric that is null and why (incomplete, never started, spans
+         *     dropped, not applicable, ...). Nothing is ever derived from wall-clock
+         *     event timestamps.
+         */
+        RunMeasurements: {
+            agents: components["schemas"]["MeasurementAgents"] | null;
+            /** Available */
+            available: boolean;
+            /** Calls */
+            calls: components["schemas"]["MeasurementCall"][];
+            coder: components["schemas"]["MeasurementCoder"] | null;
+            /** Collected At */
+            collected_at: string | null;
+            /** Dropped By Kind */
+            dropped_by_kind: {
+                [key: string]: number;
+            };
+            /**
+             * Dropped Spans
+             * @default 0
+             */
+            dropped_spans: number;
+            /** Instrumentation Errors */
+            instrumentation_errors: number | null;
+            /** Measurement Self Ms */
+            measurement_self_ms: number | null;
+            /** Measurements Version */
+            measurements_version: number | null;
+            orchestration: components["schemas"]["MeasurementOrchestration"] | null;
+            persistence: components["schemas"]["MeasurementPersistence"] | null;
+            phases: components["schemas"]["MeasurementPhases"] | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "recorded" | "run_in_progress" | "predates_measurements" | "process_crash" | "measurement_flush_failed" | "instrumentation_disabled" | "not_recorded" | "unreadable";
+            /** Run Id */
+            run_id: string;
+            /** Spans */
+            spans: components["schemas"]["MeasurementSpan"][];
+            /** Steps */
+            steps: components["schemas"]["MeasurementStep"][];
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            /** Unknown */
+            unknown: {
+                [key: string]: string;
+            };
+            verification: components["schemas"]["MeasurementVerification"] | null;
+            waits: components["schemas"]["MeasurementWaits"] | null;
         };
         /** RunRecord */
         RunRecord: {
@@ -2507,6 +2742,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunEventsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run_measurements_api_runs__run_id__measurements_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunMeasurements"];
                 };
             };
             /** @description Validation Error */

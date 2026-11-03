@@ -2944,6 +2944,737 @@
         "title": "Limits",
         "type": "object"
       },
+      "MeasurementAgents": {
+        "properties": {
+          "backoff_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backoff Ms"
+          },
+          "call_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Ms"
+          },
+          "http_attempts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Attempts"
+          },
+          "parse_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parse Ms"
+          },
+          "planner_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planner Ms"
+          },
+          "reviewer_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Ms"
+          }
+        },
+        "required": [
+          "planner_ms",
+          "reviewer_ms",
+          "call_ms",
+          "parse_ms",
+          "backoff_ms",
+          "http_attempts"
+        ],
+        "title": "MeasurementAgents",
+        "type": "object"
+      },
+      "MeasurementCall": {
+        "properties": {
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt"
+          },
+          "call_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Ms"
+          },
+          "http_attempt_ms": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Http Attempt Ms",
+            "type": "array"
+          },
+          "http_attempts": {
+            "title": "Http Attempts",
+            "type": "integer"
+          },
+          "http_outcomes": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Http Outcomes",
+            "type": "array"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "parse_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parse Ms"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          }
+        },
+        "required": [
+          "role",
+          "step_id",
+          "attempt",
+          "outcome",
+          "call_ms",
+          "http_attempts",
+          "http_attempt_ms",
+          "http_outcomes",
+          "parse_ms"
+        ],
+        "title": "MeasurementCall",
+        "type": "object"
+      },
+      "MeasurementCoder": {
+        "properties": {
+          "busy_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Busy Ms"
+          },
+          "critical_path_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Critical Path Ms"
+          },
+          "wall_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wall Ms"
+          }
+        },
+        "required": [
+          "busy_ms",
+          "wall_ms",
+          "critical_path_ms"
+        ],
+        "title": "MeasurementCoder",
+        "type": "object"
+      },
+      "MeasurementOrchestration": {
+        "properties": {
+          "critical_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Critical Ms"
+          },
+          "graph_gap_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graph Gap Ms"
+          },
+          "node_self_ms": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Node Self Ms",
+            "type": "object"
+          },
+          "parallel_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parallel Ms"
+          }
+        },
+        "required": [
+          "graph_gap_ms",
+          "critical_ms",
+          "parallel_ms",
+          "node_self_ms"
+        ],
+        "title": "MeasurementOrchestration",
+        "type": "object"
+      },
+      "MeasurementPersistence": {
+        "description": "Trace and run-row writes during the run (the terminal write is not in\nthe row: it happens after the measurements are serialized).",
+        "properties": {
+          "event_persist_lock_wait_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Persist Lock Wait Ms"
+          },
+          "event_persist_write_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Persist Write Ms"
+          },
+          "event_persist_writes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Persist Writes"
+          },
+          "save_run_lock_wait_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Save Run Lock Wait Ms"
+          },
+          "save_run_write_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Save Run Write Ms"
+          },
+          "save_run_writes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Save Run Writes"
+          }
+        },
+        "required": [
+          "event_persist_lock_wait_ms",
+          "event_persist_write_ms",
+          "event_persist_writes",
+          "save_run_lock_wait_ms",
+          "save_run_write_ms",
+          "save_run_writes"
+        ],
+        "title": "MeasurementPersistence",
+        "type": "object"
+      },
+      "MeasurementPhases": {
+        "properties": {
+          "admission_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admission Ms"
+          },
+          "execution_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Ms"
+          },
+          "finalization_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finalization Ms"
+          },
+          "graph_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graph Ms"
+          },
+          "lifecycle_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lifecycle Ms"
+          },
+          "setup_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setup Ms"
+          }
+        },
+        "required": [
+          "admission_ms",
+          "setup_ms",
+          "graph_ms",
+          "execution_ms",
+          "finalization_ms",
+          "lifecycle_ms"
+        ],
+        "title": "MeasurementPhases",
+        "type": "object"
+      },
+      "MeasurementSpan": {
+        "description": "One span on the run's monotonic clock: ms offsets from the lifecycle\nstart; ``end_ms`` null when the span never closed.",
+        "properties": {
+          "attrs": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "Attrs",
+            "type": "object"
+          },
+          "end_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Ms"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "lifecycle",
+              "admission",
+              "execution",
+              "setup",
+              "graph",
+              "finalization",
+              "node",
+              "dispatch",
+              "step.schedule_delay",
+              "step.checkout",
+              "call",
+              "call.slot_wait",
+              "call.ledger_wait",
+              "call.http_attempt",
+              "call.parse",
+              "call.backoff",
+              "verify.thread_wait",
+              "verify.run",
+              "verify.process"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "start_ms": {
+            "title": "Start Ms",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "parent",
+          "start_ms",
+          "end_ms",
+          "attrs"
+        ],
+        "title": "MeasurementSpan",
+        "type": "object"
+      },
+      "MeasurementStep": {
+        "properties": {
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt"
+          },
+          "checkout_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkout Ms"
+          },
+          "dispatch_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dispatch Id"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "schedule_delay_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Delay Ms"
+          },
+          "slot_wait_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Wait Ms"
+          },
+          "start_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Ms"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          }
+        },
+        "required": [
+          "step_id",
+          "dispatch_id",
+          "attempt",
+          "start_ms",
+          "duration_ms",
+          "schedule_delay_ms",
+          "slot_wait_ms",
+          "checkout_ms"
+        ],
+        "title": "MeasurementStep",
+        "type": "object"
+      },
+      "MeasurementVerification": {
+        "properties": {
+          "diagnostic_verification_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diagnostic Verification Ms"
+          },
+          "verification_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Ms"
+          }
+        },
+        "required": [
+          "verification_ms",
+          "diagnostic_verification_ms"
+        ],
+        "title": "MeasurementVerification",
+        "type": "object"
+      },
+      "MeasurementWaits": {
+        "properties": {
+          "ledger_wait_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ledger Wait Ms"
+          },
+          "schedule_delay_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Delay Ms"
+          },
+          "slot_wait_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Wait Ms"
+          },
+          "verify_thread_wait_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verify Thread Wait Ms"
+          }
+        },
+        "required": [
+          "schedule_delay_ms",
+          "slot_wait_ms",
+          "ledger_wait_ms",
+          "verify_thread_wait_ms"
+        ],
+        "title": "MeasurementWaits",
+        "type": "object"
+      },
       "MergeWaveDecision": {
         "additionalProperties": false,
         "properties": {
@@ -3917,6 +4648,217 @@
           "next_cursor"
         ],
         "title": "RunListResponse",
+        "type": "object"
+      },
+      "RunMeasurements": {
+        "description": "A run's stored timing measurements, or why there are none.\n\nOnly numbers, enums and validated ids: no free text. ``unknown`` names\neach metric that is null and why (incomplete, never started, spans\ndropped, not applicable, ...). Nothing is ever derived from wall-clock\nevent timestamps.",
+        "properties": {
+          "agents": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasurementAgents"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "calls": {
+            "items": {
+              "$ref": "#/components/schemas/MeasurementCall"
+            },
+            "title": "Calls",
+            "type": "array"
+          },
+          "coder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasurementCoder"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "collected_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collected At"
+          },
+          "dropped_by_kind": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Dropped By Kind",
+            "type": "object"
+          },
+          "dropped_spans": {
+            "default": 0,
+            "title": "Dropped Spans",
+            "type": "integer"
+          },
+          "instrumentation_errors": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrumentation Errors"
+          },
+          "measurement_self_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurement Self Ms"
+          },
+          "measurements_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurements Version"
+          },
+          "orchestration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasurementOrchestration"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "persistence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasurementPersistence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phases": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasurementPhases"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "enum": [
+              "recorded",
+              "run_in_progress",
+              "predates_measurements",
+              "process_crash",
+              "measurement_flush_failed",
+              "instrumentation_disabled",
+              "not_recorded",
+              "unreadable"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "spans": {
+            "items": {
+              "$ref": "#/components/schemas/MeasurementSpan"
+            },
+            "title": "Spans",
+            "type": "array"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/MeasurementStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "truncated": {
+            "default": false,
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "unknown": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Unknown",
+            "type": "object"
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasurementVerification"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "waits": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasurementWaits"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "run_id",
+          "available",
+          "reason",
+          "measurements_version",
+          "collected_at",
+          "truncated",
+          "dropped_spans",
+          "dropped_by_kind",
+          "instrumentation_errors",
+          "measurement_self_ms",
+          "phases",
+          "coder",
+          "orchestration",
+          "agents",
+          "waits",
+          "verification",
+          "persistence",
+          "unknown",
+          "calls",
+          "steps",
+          "spans"
+        ],
+        "title": "RunMeasurements",
         "type": "object"
       },
       "RunRecord": {
@@ -5468,6 +6410,46 @@
           }
         },
         "summary": "Get Run Events"
+      }
+    },
+    "/api/runs/{run_id}/measurements": {
+      "get": {
+        "description": "The run's stored timing measurements, or why it has none.\n\nNumbers, enums and validated ids only; the stored row is revalidated on\nread and, in the public demo, redacted like every other run response.",
+        "operationId": "get_run_measurements_api_runs__run_id__measurements_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunMeasurements"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run Measurements"
       }
     },
     "/api/runs/{run_id}/stream": {

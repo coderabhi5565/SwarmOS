@@ -481,3 +481,161 @@ class BenchmarkExperimentDetail(_Response):
 class BenchmarkCancelResponse(_Response):
     experiment_id: str
     status: Literal["cancelling"] = "cancelling"
+
+
+# ----------------------------------------------------------------------
+# run measurements (M7.2)
+# ----------------------------------------------------------------------
+MeasurementReason = Literal[
+    "recorded",
+    "run_in_progress",
+    "predates_measurements",
+    "process_crash",
+    "measurement_flush_failed",
+    "instrumentation_disabled",
+    "not_recorded",
+    "unreadable",
+]
+SpanKind = Literal[
+    "lifecycle",
+    "admission",
+    "execution",
+    "setup",
+    "graph",
+    "finalization",
+    "node",
+    "dispatch",
+    "step.schedule_delay",
+    "step.checkout",
+    "call",
+    "call.slot_wait",
+    "call.ledger_wait",
+    "call.http_attempt",
+    "call.parse",
+    "call.backoff",
+    "verify.thread_wait",
+    "verify.run",
+    "verify.process",
+]
+
+
+class MeasurementSpan(_Response):
+    """One span on the run's monotonic clock: ms offsets from the lifecycle
+    start; ``end_ms`` null when the span never closed."""
+
+    id: int
+    kind: SpanKind
+    parent: int | None
+    start_ms: float
+    end_ms: float | None
+    attrs: dict[str, bool | int | str]
+
+
+class MeasurementPhases(_Response):
+    admission_ms: float | None
+    setup_ms: float | None
+    graph_ms: float | None
+    execution_ms: float | None
+    finalization_ms: float | None
+    lifecycle_ms: float | None
+
+
+class MeasurementCoder(_Response):
+    busy_ms: float | None
+    wall_ms: float | None
+    critical_path_ms: float | None
+
+
+class MeasurementOrchestration(_Response):
+    graph_gap_ms: float | None
+    critical_ms: float | None
+    parallel_ms: float | None
+    node_self_ms: dict[str, float]
+
+
+class MeasurementAgents(_Response):
+    planner_ms: float | None
+    reviewer_ms: float | None
+    call_ms: float | None
+    parse_ms: float | None
+    backoff_ms: float | None
+    http_attempts: int | None
+
+
+class MeasurementWaits(_Response):
+    schedule_delay_ms: float | None
+    slot_wait_ms: float | None
+    ledger_wait_ms: float | None
+    verify_thread_wait_ms: float | None
+
+
+class MeasurementVerification(_Response):
+    verification_ms: float | None
+    diagnostic_verification_ms: float | None
+
+
+class MeasurementPersistence(_Response):
+    """Trace and run-row writes during the run (the terminal write is not in
+    the row: it happens after the measurements are serialized)."""
+
+    event_persist_lock_wait_ms: float | None
+    event_persist_write_ms: float | None
+    event_persist_writes: int | None
+    save_run_lock_wait_ms: float | None
+    save_run_write_ms: float | None
+    save_run_writes: int | None
+
+
+class MeasurementCall(_Response):
+    role: str | None
+    step_id: str | None
+    attempt: int | None
+    outcome: str | None
+    call_ms: float | None
+    http_attempts: int
+    http_attempt_ms: list[float | None]
+    http_outcomes: list[str | None]
+    parse_ms: float | None
+
+
+class MeasurementStep(_Response):
+    step_id: str | None
+    dispatch_id: int | None
+    attempt: int | None
+    start_ms: float | None
+    duration_ms: float | None
+    schedule_delay_ms: float | None
+    slot_wait_ms: float | None
+    checkout_ms: float | None
+
+
+class RunMeasurements(_Response):
+    """A run's stored timing measurements, or why there are none.
+
+    Only numbers, enums and validated ids: no free text. ``unknown`` names
+    each metric that is null and why (incomplete, never started, spans
+    dropped, not applicable, ...). Nothing is ever derived from wall-clock
+    event timestamps.
+    """
+
+    run_id: str
+    available: bool
+    reason: MeasurementReason
+    measurements_version: int | None = None
+    collected_at: str | None = None
+    truncated: bool = False
+    dropped_spans: int = 0
+    dropped_by_kind: dict[str, int] = Field(default_factory=dict)
+    instrumentation_errors: int | None = None
+    measurement_self_ms: float | None = None
+    phases: MeasurementPhases | None = None
+    coder: MeasurementCoder | None = None
+    orchestration: MeasurementOrchestration | None = None
+    agents: MeasurementAgents | None = None
+    waits: MeasurementWaits | None = None
+    verification: MeasurementVerification | None = None
+    persistence: MeasurementPersistence | None = None
+    unknown: dict[str, str] = Field(default_factory=dict)
+    calls: list[MeasurementCall] = Field(default_factory=list)
+    steps: list[MeasurementStep] = Field(default_factory=list)
+    spans: list[MeasurementSpan] = Field(default_factory=list)

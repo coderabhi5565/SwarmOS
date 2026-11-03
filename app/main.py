@@ -25,6 +25,7 @@ from app.api_models import (
     ProviderModelsResponse,
     RunEventsResponse,
     RunListResponse,
+    RunMeasurements,
     RunStreamEnd,
     RunSummary,
 )
@@ -48,6 +49,7 @@ from app.streaming import (
     parse_last_event_id,
     run_event_stream,
 )
+from app.timings.view import measurements_view
 
 
 @asynccontextmanager
@@ -382,6 +384,19 @@ async def cancel_run(run_id: str) -> CancelResponse:
     raise HTTPException(
         status_code=409, detail=f"run {run_id} is not active in this server process"
     )
+
+
+@app.get("/api/runs/{run_id}/measurements")
+async def get_run_measurements(run_id: str) -> RunMeasurements:
+    """The run's stored timing measurements, or why it has none.
+
+    Numbers, enums and validated ids only; the stored row is revalidated on
+    read and, in the public demo, redacted like every other run response.
+    """
+    record = _store().get_run(run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"run {run_id} not found")
+    return measurements_view(_store(), record, public=_public_view())
 
 
 @app.get("/api/runs/{run_id}/events")
