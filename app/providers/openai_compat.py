@@ -17,6 +17,7 @@ Design notes:
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any
 
@@ -35,6 +36,7 @@ from app.providers.base import (
     ProviderServerError,
     ProviderTimeoutError,
 )
+from app.timings import current as current_timings
 
 
 class OpenAICompatibleProvider:
@@ -144,21 +146,35 @@ class OpenAICompatibleProvider:
             if use_json and request.json_mode:
                 payload["response_format"] = {"type": "json_object"}
 
+            # One HTTP attempt: from client creation to the response or the
+            # transport error (recorded when a measured run is calling).
+            timings = current_timings()
+            attempt = timings.start("call.http_attempt")
             try:
                 async with self._client() as client:
                     response = await client.post(
                         self.endpoint, headers=self._headers(), json=payload
                     )
             except httpx.TimeoutException as exc:
+                timings.end(attempt, outcome="timeout")
                 raise ProviderTimeoutError(
                     f"provider timed out after {self.timeout_seconds}s"
                 ) from exc
             except httpx.ConnectError as exc:
+                timings.end(attempt, outcome="connect")
                 raise ProviderConnectionError(
                     f"provider unreachable at {self.endpoint}: {exc}"
                 ) from exc
             except httpx.HTTPError as exc:
+                timings.end(attempt, outcome="other")
                 raise ProviderConnectionError(f"provider request failed: {exc}") from exc
+            except asyncio.CancelledError:
+                # The run's deadline (or a cancellation) abandoned the call.
+                timings.end(attempt, outcome="cancelled")
+                raise
+            except Exception:
+                timings.end(attempt, outcome="other")
+                raise
 
             if response.status_code >= 400:
                 error = self._classify(response)
@@ -167,10 +183,13 @@ class OpenAICompatibleProvider:
                     and isinstance(error, ProviderBadRequestError)
                     and _mentions_json_mode(error)
                 ):
+                    timings.end(attempt, outcome="json_mode_rejected")
                     last_error = error
                     self._json_mode = False
                     continue
+                timings.end(attempt, outcome="http_5xx" if response.status_code >= 500 else "http_4xx")
                 raise error
+            timings.end(attempt, outcome="ok")
 
             try:
                 data = response.json()

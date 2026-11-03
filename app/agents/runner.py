@@ -24,6 +24,7 @@ from app.models import AgentInvocation, ModelTier, utc_now
 from app.providers.base import ProviderError
 from app.runtime.limits import DeadlineExceeded, LimitExceeded
 from app.runtime.runtime import RunRuntime
+from app.timings import SpanRecorder
 
 _MAX_BACKOFF_SECONDS = 8.0
 _DEADLINE_SLACK_SECONDS = 0.05
@@ -80,10 +81,15 @@ class AgentRunner:
         result = AgentCallResult(output=None, profile=profile.name)
         repair_note: str | None = None
 
+        timings = self.runtime.timings
         for offset in range(max(1, max_attempts)):
+            # Spans of this attempt are siblings under the node, linked by
+            # role, step and attempt: only the provider call nests HTTP attempts.
+            labels = {"role": agent.role, "step_id": step_id, "attempt": attempt + offset}
             estimate = self.runtime.estimate_call_cost(profile)
             try:
-                reserved = await self.runtime.ledger.reserve(estimate)
+                with timings.span("call.ledger_wait", **labels):
+                    reserved = await self.runtime.ledger.reserve(estimate)
             except LimitExceeded as exc:
                 self.runtime.emit(
                     "budget",
@@ -124,9 +130,8 @@ class AgentRunner:
             started = time.perf_counter()
 
             try:
-                response = await self._complete_before_deadline(
-                    agent.build_request(payload, profile.model, repair_note)
-                )
+                model_request = agent.build_request(payload, profile.model, repair_note)
+                response = await self._timed_call(timings, model_request, tier=tier, **labels)
             except _CallOutlivedDeadline:
                 await self.runtime.ledger.release(reserved)
                 failed = invocation.model_copy(
@@ -193,7 +198,8 @@ class AgentRunner:
                         attempt=failed.attempt,
                         delay_seconds=round(delay, 2),
                     )
-                    await asyncio.sleep(delay)
+                    with timings.span("call.backoff", **labels):
+                        await asyncio.sleep(delay)
                     continue
 
                 self.runtime.emit(
@@ -251,7 +257,12 @@ class AgentRunner:
             result.invocations.append(invocation)
 
             try:
-                output = agent.parse(response.text)
+                with timings.span("call.parse", **labels) as parse_span:
+                    try:
+                        output = agent.parse(response.text)
+                    except AgentOutputError:
+                        parse_span.outcome = "invalid_response"
+                        raise
             except AgentOutputError as exc:
                 rejected = invocation.model_copy(
                     update={
@@ -278,7 +289,8 @@ class AgentRunner:
                     error_class="invalid_response",
                 )
                 if has_next:
-                    await asyncio.sleep(self._backoff(offset, None))
+                    with timings.span("call.backoff", **labels):
+                        await asyncio.sleep(self._backoff(offset, None))
                     continue
                 return result
 
@@ -291,6 +303,20 @@ class AgentRunner:
         return result
 
     # ------------------------------------------------------------------
+    async def _timed_call(self, timings: SpanRecorder, request, **labels):
+        """One provider call inside a ``call`` span, measured on the runner's
+        clock for success and failure alike. The provider's HTTP attempts
+        nest under it (the span is current while the call runs)."""
+        with timings.span("call", **labels) as call:
+            try:
+                return await self._complete_before_deadline(request)
+            except _CallOutlivedDeadline:
+                call.outcome = "deadline"
+                raise
+            except ProviderError as exc:
+                call.outcome = exc.category
+                raise
+
     async def _complete_before_deadline(self, request):
         """Run one provider call, but never past the run's wall-clock limit.
 
