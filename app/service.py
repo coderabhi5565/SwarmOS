@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -16,6 +17,9 @@ from app.providers.base import Provider
 from app.runtime.runtime import VALID_POLICIES, RunRuntime
 from app.store import RunStore
 from app.timings import SpanRecorder, activate
+from app.timings.serialize import measurement_row
+
+logger = logging.getLogger(__name__)
 
 # Snapshots of the most recent runs' timing spans kept in memory (M7.1: not
 # persisted; read in-process).
@@ -91,6 +95,8 @@ class RunService:
         # taken by ``execute`` (or ``cancel``) as the start of its lifecycle.
         self._admitted: dict[str, int] = {}
         self._timings: OrderedDict[str, dict] = OrderedDict()
+        # Terminal writes whose measurements could not be stored (in process).
+        self.measurement_flush_failures = 0
 
     def resolve_policy(self, requested: str | None) -> str:
         policy = (requested or self.settings.model_policy or "config").strip().lower()
@@ -174,6 +180,35 @@ class RunService:
         except Exception:  # noqa: BLE001
             pass
 
+    def _write_terminal(self, record: RunRecord, timings: SpanRecorder) -> None:
+        """Write a run's terminal row and its measurements in one transaction.
+
+        The measurements are serialized and bounded first; the recorder's
+        lifecycle is already closed, so they end where this write starts
+        (the transaction cannot time itself). If serializing or the
+        transaction fails, the terminal row is written alone, as before
+        measurements existed, and a ``flush_failed`` marker says why the run
+        has none. The run's outcome never depends on its measurements; a
+        failure of the terminal row itself is raised as it always was.
+        """
+        try:
+            row = measurement_row(record.run_id, timings.snapshot())
+        except Exception:  # noqa: BLE001 - fall back to the terminal row alone
+            row = None
+        if row is not None:
+            try:
+                self.store.save_terminal(record, row)
+                return
+            except Exception:  # noqa: BLE001 - fall back to the terminal row alone
+                pass
+        self.measurement_flush_failures += 1
+        logger.warning("run %s: measurements could not be stored", record.run_id)
+        self.store.save_run(record)
+        try:
+            self.store.add_measurement_marker(record.run_id, "flush_failed")
+        except Exception:  # noqa: BLE001 - the run then reads "not recorded"
+            pass
+
     async def run_request(self, request: RunRequest) -> RunRecord:
         record, provider, policy, demo = self.prepare(request)
         return await self.execute(record, provider, request.files, policy, demo)
@@ -207,10 +242,11 @@ class RunService:
         """Run a prepared record to a terminal state, timing its lifecycle.
 
         Spans (app.timings): ``lifecycle`` from the ``queued`` commit to the
-        terminal commit, made of ``admission`` (until this method starts),
+        terminal write, made of ``admission`` (until this method starts),
         ``execution`` (until the outcome is known: ``setup`` then ``graph``)
-        and ``finalization`` (the terminal write). Recording never changes
-        the run.
+        and ``finalization`` (until the terminal write starts). They are
+        stored with the terminal row (``_write_terminal``). Recording never
+        changes the run.
         """
         entered = time.perf_counter_ns()
         admitted = self._admitted.pop(record.run_id, None)
@@ -278,9 +314,9 @@ class RunService:
             result = await Orchestrator(runtime).run(running)
             timings.end(execution, outcome=result.record.status)
             finalization = timings.start("finalization", parent=lifecycle)
-            self.store.save_run(result.record)
             timings.end(finalization)
             timings.end(lifecycle, outcome=result.record.status)
+            self._write_terminal(result.record, timings)
             return result.record
         except asyncio.CancelledError:
             timings.end(setup, outcome="cancelled")
@@ -301,9 +337,9 @@ class RunService:
                     "updated_at": utc_now(),
                 }
             )
-            self.store.save_run(cancelled)
             timings.end(finalization)
             timings.end(lifecycle, outcome="cancelled")
+            self._write_terminal(cancelled, timings)
             raise
         except Exception as exc:  # noqa: BLE001 - never leave a run stuck in "running"
             timings.end(setup, outcome="error")
@@ -323,9 +359,9 @@ class RunService:
                     "updated_at": utc_now(),
                 }
             )
-            self.store.save_run(failed)
             timings.end(finalization)
             timings.end(lifecycle, outcome="failed")
+            self._write_terminal(failed, timings)
             return failed
         finally:
             self._active.pop(record.run_id, None)
@@ -350,22 +386,26 @@ class RunService:
             # Not started yet: its body will never run, so record the outcome here.
             self._active.pop(run_id, None)
             admitted = self._admitted.pop(run_id, None)
-            record = self.store.get_run(run_id)
-            if record is not None:
-                self.store.save_run(
-                    record.model_copy(
-                        update={"status": "cancelled", "error": reason, "updated_at": utc_now()}
-                    )
-                )
+            ended = time.perf_counter_ns()
+            # Its lifecycle is admission only: it never started.
+            timings = SpanRecorder(
+                enabled=self.settings.timings_enabled,
+                zero=admitted if admitted is not None else ended,
+            )
             if admitted is not None:
-                # Its lifecycle is admission only: it never started.
-                ended = time.perf_counter_ns()
-                timings = SpanRecorder(enabled=self.settings.timings_enabled, zero=admitted)
                 lifecycle = timings.add(
                     "lifecycle", admitted, ended, parent=None, outcome="cancelled", reason="never_started"
                 )
                 timings.add("admission", admitted, ended, parent=lifecycle)
-                self._keep_timings(run_id, timings)
+            record = self.store.get_run(run_id)
+            if record is not None:
+                self._write_terminal(
+                    record.model_copy(
+                        update={"status": "cancelled", "error": reason, "updated_at": utc_now()}
+                    ),
+                    timings,
+                )
+            self._keep_timings(run_id, timings)
         active.task.cancel()
         return True
 
