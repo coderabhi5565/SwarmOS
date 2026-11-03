@@ -8,6 +8,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -111,7 +112,27 @@ CREATE TABLE IF NOT EXISTS benchmark_trials (
 CREATE INDEX IF NOT EXISTS idx_bench_experiments_created
     ON benchmark_experiments(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bench_trials_run ON benchmark_trials(run_id);
+
+-- Timing measurements (M7.2). Additive: runs and trace_events are unchanged.
+-- One row per run, written with its terminal status. ``status`` is
+-- ``recorded`` (with measurements_json), or a marker saying why there are
+-- none: ``disabled``, ``flush_failed`` or ``process_crash``.
+CREATE TABLE IF NOT EXISTS run_measurements (
+    run_id               TEXT PRIMARY KEY REFERENCES runs(run_id) ON DELETE CASCADE,
+    status               TEXT NOT NULL,
+    measurements_version INTEGER,
+    collected_at         TEXT NOT NULL,
+    measurements_json    TEXT
+);
+-- When this database first had run_measurements: a run created before it
+-- predates measurements.
+CREATE TABLE IF NOT EXISTS measurement_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
+
+MEASUREMENT_STATUSES = frozenset({"recorded", "disabled", "flush_failed", "process_crash"})
 
 # Columns added after the first release, with their backfill defaults.
 _MIGRATIONS = {
@@ -149,6 +170,18 @@ _COLUMNS = [
     "changed_files_json",
     "artifacts_json",
 ]
+
+
+@dataclass(frozen=True)
+class MeasurementRow:
+    """One run_measurements row. ``measurements_json`` is set only when
+    ``status`` is ``recorded``."""
+
+    run_id: str
+    status: str
+    collected_at: str
+    measurements_version: int | None = None
+    measurements_json: str | None = None
 
 
 class _WriteTimer:
@@ -200,6 +233,10 @@ class RunStore:
             self._conn.execute("PRAGMA foreign_keys=ON")
             self._conn.executescript(_SCHEMA)
             self._migrate()
+            self._conn.execute(
+                "INSERT OR IGNORE INTO measurement_meta (key, value) VALUES ('installed_at', ?)",
+                (utc_now(),),
+            )
             self._conn.commit()
 
     def _migrate(self) -> None:
@@ -241,6 +278,88 @@ class RunStore:
 
     # ------------------------------------------------------------------
     def save_run(self, record: RunRecord) -> None:
+        timer = _WriteTimer("save_run")
+        with self._lock:
+            timer.locked()
+            self._upsert_run(record)
+            self._conn.commit()
+        timer.written()
+        self._changed(record.run_id)
+
+    def save_terminal(self, record: RunRecord, measurement: MeasurementRow) -> None:
+        """A run's terminal row and its measurement row, in one transaction.
+
+        Both are written or neither is: on any failure the transaction is
+        rolled back and the error raised, so the caller can fall back to the
+        terminal row alone. The measurement row is built (serialized and
+        bounded) before this is called; here only its status is checked, so
+        apart from that the database itself is all that can fail.
+        """
+        with self._lock:
+            try:
+                self._upsert_run(record)
+                self._insert_measurement(measurement)
+                self._conn.commit()
+            except BaseException:
+                self._conn.rollback()
+                raise
+        self._changed(record.run_id)
+
+    def add_measurement_marker(self, run_id: str, status: str) -> bool:
+        """Record why a run has no measurements, unless it already has a row.
+        Returns whether a row was written."""
+        if status not in MEASUREMENT_STATUSES or status == "recorded":
+            raise ValueError(f"not a measurement marker: {status!r}")
+        with self._lock:
+            cursor = self._conn.execute(
+                "INSERT OR IGNORE INTO run_measurements (run_id, status, collected_at) "
+                "VALUES (?, ?, ?)",
+                (run_id, status, utc_now()),
+            )
+            self._conn.commit()
+            return cursor.rowcount == 1
+
+    def get_measurement(self, run_id: str) -> MeasurementRow | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM run_measurements WHERE run_id = ?", (run_id,)
+            ).fetchone()
+        if row is None:
+            return None
+        return MeasurementRow(
+            run_id=row["run_id"],
+            status=row["status"],
+            measurements_version=row["measurements_version"],
+            collected_at=row["collected_at"],
+            measurements_json=row["measurements_json"],
+        )
+
+    def measurements_installed_at(self) -> str | None:
+        """When this database first had run_measurements (UTC ISO)."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT value FROM measurement_meta WHERE key = 'installed_at'"
+            ).fetchone()
+        return None if row is None else row["value"]
+
+    def _insert_measurement(self, measurement: MeasurementRow) -> None:
+        if measurement.status not in MEASUREMENT_STATUSES:
+            raise ValueError(f"unknown measurement status: {measurement.status!r}")
+        self._conn.execute(
+            "INSERT INTO run_measurements "
+            "(run_id, status, measurements_version, collected_at, measurements_json) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                measurement.run_id,
+                measurement.status,
+                measurement.measurements_version,
+                measurement.collected_at,
+                measurement.measurements_json,
+            ),
+        )
+
+    def _upsert_run(self, record: RunRecord) -> None:
+        """Insert or update the run row; the caller holds the lock and commits."""
         data = record.model_dump(mode="json")
         values = (
             data["run_id"],
@@ -273,17 +392,11 @@ class RunStore:
         updates = ",".join(
             f"{column}=excluded.{column}" for column in _COLUMNS if column != "run_id"
         )
-        timer = _WriteTimer("save_run")
-        with self._lock:
-            timer.locked()
-            self._conn.execute(
-                f"INSERT INTO runs ({','.join(_COLUMNS)}) VALUES ({placeholders}) "
-                f"ON CONFLICT(run_id) DO UPDATE SET {updates}",
-                values,
-            )
-            self._conn.commit()
-        timer.written()
-        self._changed(record.run_id)
+        self._conn.execute(
+            f"INSERT INTO runs ({','.join(_COLUMNS)}) VALUES ({placeholders}) "
+            f"ON CONFLICT(run_id) DO UPDATE SET {updates}",
+            values,
+        )
 
     def append_event(self, event: TraceEvent) -> None:
         data = event.model_dump(mode="json")
@@ -316,6 +429,8 @@ class RunStore:
         Runs execute in-process, so at startup nothing can still be running
         them. This assumes a single API process per database; a multi-worker
         deployment needs a durable job queue that owns run state instead.
+        Their timing spans died with the process: each gets a
+        ``process_crash`` measurement marker.
         """
         now = utc_now()
         with self._lock:
@@ -357,6 +472,11 @@ class RunStore:
                         data["message"],
                         json.dumps(data["payload"]),
                     ),
+                )
+                self._conn.execute(
+                    "INSERT OR IGNORE INTO run_measurements (run_id, status, collected_at) "
+                    "VALUES (?, 'process_crash', ?)",
+                    (run_id, now),
                 )
             self._conn.commit()
         for run_id in run_ids:
