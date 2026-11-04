@@ -291,7 +291,15 @@ class BenchmarkCreateRequest(BaseModel):
 
     suite_id: str = Field(min_length=1, max_length=64)
     arm_ids: list[str] = Field(min_length=1, max_length=8)
-    repetitions: int = Field(default=1, ge=1, le=10)
+    repetitions: int = Field(
+        default=1,
+        ge=1,
+        le=20,
+        description=(
+            "Measured repetitions per arm and task. One warm-up repetition per "
+            "arm and task is added, run first and excluded from every result."
+        ),
+    )
     # A subset of the suite's tasks, by id (default: all of them).
     task_ids: list[str] | None = Field(default=None, min_length=1, max_length=20)
     provider: Literal["auto", "demo", "openai"] = "auto"
@@ -454,6 +462,8 @@ class BenchmarkExperimentSummary(_Response):
     provider_kind: str
     scripted: bool
     repetitions: int
+    # Warm-up repetitions per arm and task (excluded); 0 before M7.3.
+    warmup_repetitions: int
     arm_ids: list[str]
     trials_total: int
     trials_done: int

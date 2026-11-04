@@ -120,7 +120,7 @@ def test_public_detail_hides_host_details_and_keeps_the_rest(world):
     assert environment["python_version"] is None and environment["platform"] is None
     assert environment["scripted"] is True and environment["provider"] == "demo"
     assert environment["app_version"] and environment["verification_command"]
-    assert len(body["trials"]) == 2 and body["aggregates"]
+    assert len(body["trials"]) == 4 and body["aggregates"]  # with one warm-up per arm
     assert body["trials"][0]["run_path"].startswith("/api/runs/run_")
 
 

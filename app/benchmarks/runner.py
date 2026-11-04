@@ -35,10 +35,11 @@ from __future__ import annotations
 import asyncio
 import random
 import secrets
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from app.benchmarks.arms import ARMS, ArmError, get_arm
-from app.benchmarks.metrics import trial_metrics
+from app.benchmarks.metrics import as_warmup, trial_metrics
 from app.benchmarks.models import BenchmarkExperiment, BenchmarkTrial, ExperimentOrigin
 from app.benchmarks.provenance import ArmConfiguration, arm_configuration, collect_provenance
 from app.benchmarks.store import BenchmarkStore
@@ -48,10 +49,27 @@ from app.models import RunRequest, utc_now
 from app.providers import ProviderConfigError
 from app.service import CapacityError, PublicDemoError, RunService
 
-MAX_REPETITIONS = 10
-MAX_TRIALS = 60
+# Measured repetitions per arm and task (each experiment adds
+# WARMUP_REPETITIONS warm-up repetitions per arm and task on top).
+MAX_REPETITIONS = 20
+# Every trial, warm-ups included: the largest suite (3 tasks) with all 5
+# arms at 20 measured repetitions plus one warm-up (3 x 5 x 21). Only
+# local operators create experiments: the public demo refuses creation.
+MAX_TRIALS = 315
+WARMUP_REPETITIONS = 1
 # How often a trial waiting for a free run slot checks again.
 SLOT_POLL_SECONDS = 0.5
+
+
+def warmup_repetitions(experiment: BenchmarkExperiment, trials: Sequence[BenchmarkTrial]) -> int:
+    """Warm-up repetitions per arm and task, read from the persisted schedule.
+
+    Never stored (no schema change): the schedule holds the measured
+    repetitions plus the warm-ups, so an experiment created since M7.3 has
+    one and an older one, scheduled without, has none.
+    """
+    scheduled = max((trial.repetition for trial in trials), default=-1) + 1
+    return max(0, scheduled - experiment.repetitions)
 
 
 class ExperimentError(ValueError):
@@ -143,7 +161,10 @@ class ExperimentRunner:
         except ArmError as exc:
             raise ExperimentError(f"{exc}; arms are {sorted(ARMS)}") from exc
         if not 1 <= repetitions <= MAX_REPETITIONS:
-            raise ExperimentError(f"repetitions must be between 1 and {MAX_REPETITIONS}")
+            raise ExperimentError(
+                f"repetitions must be between 1 and {MAX_REPETITIONS} "
+                "(measured, per arm and task; one warm-up repetition is added)"
+            )
 
         tasks = list(suite.tasks)
         if task_ids is not None:
@@ -153,9 +174,13 @@ class ExperimentRunner:
                 raise ExperimentError(str(exc)) from exc
             if not tasks:
                 raise ExperimentError("choose at least one task")
-        total = len(arms) * len(tasks) * repetitions
+        runs_per_pair = repetitions + WARMUP_REPETITIONS
+        total = len(arms) * len(tasks) * runs_per_pair
         if total > MAX_TRIALS:
-            raise ExperimentError(f"{total} trials requested; the limit is {MAX_TRIALS}")
+            raise ExperimentError(
+                f"{total} trials requested ({runs_per_pair} per arm and task, including "
+                f"{WARMUP_REPETITIONS} warm-up); the limit is {MAX_TRIALS}"
+            )
 
         try:
             provenance = collect_provenance(self.settings, provider)
@@ -187,7 +212,9 @@ class ExperimentRunner:
             provenance=provenance,
         )
         fingerprints = {(c.arm_id, c.task_id): c.fingerprint for c in configurations}
-        schedule = plan_schedule([t.id for t in tasks], list(arm_ids), repetitions, seed)
+        # Repetition-major: every warm-up (repetition 0) runs before any
+        # measured repetition, for every arm and task.
+        schedule = plan_schedule([t.id for t in tasks], list(arm_ids), runs_per_pair, seed)
         trials = [
             BenchmarkTrial(
                 experiment_id=experiment.experiment_id,
@@ -359,6 +386,11 @@ class ExperimentRunner:
             self._fail_trial(trial, "the trial's run is missing")
             return
         metrics = trial_metrics(record, self.service.store.get_events(record.run_id))
+        experiment = self.benchmarks.get_experiment(trial.experiment_id)
+        if experiment is not None:
+            warmups = warmup_repetitions(experiment, self.benchmarks.get_trials(experiment.experiment_id))
+            if trial.repetition < warmups:
+                metrics = as_warmup(metrics)
         finished = trial.model_copy(
             update={"status": "done", "finished_at": utc_now(), "metrics": metrics}
         )

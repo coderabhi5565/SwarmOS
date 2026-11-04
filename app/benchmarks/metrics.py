@@ -131,6 +131,37 @@ def _excluded_reason(record: RunRecord, events: Sequence[TraceEvent]) -> str | N
     return None
 
 
+WARMUP_REASON = "warm-up"
+
+
+def as_warmup(metrics: TrialMetrics) -> TrialMetrics:
+    """A warm-up trial's metrics: excluded whatever its outcome.
+
+    Warm-ups absorb first-run costs (imports, caches, connection setup) and
+    never count towards a rate, a distribution or the measured sample.
+    """
+    return TrialMetrics(
+        run_id=metrics.run_id,
+        status=metrics.status,
+        provider=metrics.provider,
+        provider_kind=metrics.provider_kind,
+        scripted=metrics.scripted,
+        model_policy=metrics.model_policy,
+        models_by_role=dict(metrics.models_by_role),
+        outcome="excluded",
+        excluded_reason=WARMUP_REASON,
+        null_reasons={"*": _warmup_note(metrics)},
+    )
+
+
+def _warmup_note(metrics: TrialMetrics) -> str:
+    note = f"excluded from the comparison: {WARMUP_REASON}"
+    if metrics.outcome == "excluded":
+        # Kept so a cancelled or interrupted warm-up still says so.
+        note += f" (the run itself was excluded: {metrics.excluded_reason})"
+    return note
+
+
 def trial_metrics(record: RunRecord, events: Sequence[TraceEvent]) -> TrialMetrics:
     """The metrics one run establishes, from its record and trace."""
     ordered = sorted(events, key=lambda event: event.seq)

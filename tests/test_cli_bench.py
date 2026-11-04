@@ -60,7 +60,12 @@ def test_bench_runs_the_default_policies_and_keeps_the_jsonl_format(bench, tmp_p
     (experiment,) = experiments
     assert experiment.status == "completed" and experiment.origin == "cli"
     assert experiment.suite_id == "catalog" and experiment.order_seed == 3
-    assert sorted(t.run_id for t in trials[experiment.experiment_id]) == sorted(line["run_id"] for line in lines)
+    measured = [t for t in trials[experiment.experiment_id] if t.repetition >= 1]
+    warmups = [t for t in trials[experiment.experiment_id] if t.repetition == 0]
+    assert sorted(t.run_id for t in measured) == sorted(line["run_id"] for line in lines)
+    # One warm-up per arm ran, is reported as excluded and is not in the JSONL.
+    assert len(warmups) == 3 and all(t.run_id for t in warmups)
+    assert out.count("warm-up run_") == 3 and "excluded" in out
 
 
 def test_bench_compares_the_execution_arms(bench):

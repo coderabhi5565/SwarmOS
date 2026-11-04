@@ -632,6 +632,7 @@ export interface components {
             provider: "auto" | "demo" | "openai";
             /**
              * Repetitions
+             * @description Measured repetitions per arm and task. One warm-up repetition per arm and task is added, run first and excluded from every result.
              * @default 1
              */
             repetitions: number;
@@ -756,6 +757,8 @@ export interface components {
             trials_total: number;
             /** Updated At */
             updated_at: string;
+            /** Warmup Repetitions */
+            warmup_repetitions: number;
         };
         /** BenchmarkIdenticalArms */
         BenchmarkIdenticalArms: {

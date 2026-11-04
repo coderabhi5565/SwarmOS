@@ -55,6 +55,9 @@ class BenchmarkExperiment(BaseModel):
     provider: str
     provider_kind: str
     scripted: bool
+    # Measured repetitions per arm and task. Since M7.3 the schedule adds a
+    # warm-up repetition (repetition 0) per arm and task on top; see
+    # runner.warmup_repetitions.
     repetitions: int = Field(ge=1)
     order_seed: int
     arm_ids: list[str] = Field(min_length=1)

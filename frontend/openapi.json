@@ -886,7 +886,8 @@
           },
           "repetitions": {
             "default": 1,
-            "maximum": 10.0,
+            "description": "Measured repetitions per arm and task. One warm-up repetition per arm and task is added, run first and excluded from every result.",
+            "maximum": 20.0,
             "minimum": 1.0,
             "title": "Repetitions",
             "type": "integer"
@@ -1300,6 +1301,10 @@
           "updated_at": {
             "title": "Updated At",
             "type": "string"
+          },
+          "warmup_repetitions": {
+            "title": "Warmup Repetitions",
+            "type": "integer"
           }
         },
         "required": [
@@ -1317,6 +1322,7 @@
           "provider_kind",
           "scripted",
           "repetitions",
+          "warmup_repetitions",
           "arm_ids",
           "trials_total",
           "trials_done",

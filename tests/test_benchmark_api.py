@@ -99,7 +99,7 @@ def test_suites_list_suites_arms_and_caps(api):
     assert catalog["public"] is True and catalog["version"].startswith("v1-")
     assert {task["id"] for task in catalog["tasks"]} == {SAMPLE, "sample_parallel_pipeline"}
     assert {arm["id"] for arm in body["arms"]} == {"parallel", "sequential", "fixed-fast", "adaptive", "multi-agent"}
-    assert (body["max_repetitions"], body["max_trials"]) == (10, 60)
+    assert (body["max_repetitions"], body["max_trials"]) == (20, 315)
 
 
 # ----------------------------------------------------------------------
@@ -118,7 +118,8 @@ def test_create_runs_an_experiment_and_details_every_trial(api):
         run_paths = [trial["run_path"] for trial in body["trials"]]
         runs = [client.get(path) for path in run_paths]
 
-    assert body["experiment"]["trials_total"] == body["experiment"]["trials_done"] == 2
+    assert body["experiment"]["trials_total"] == body["experiment"]["trials_done"] == 4
+    assert (body["experiment"]["repetitions"], body["experiment"]["warmup_repetitions"]) == (1, 1)
     assert body["experiment"]["scripted"] is True
     assert body["notes"][0].startswith("Scripted provider")
     assert any("No arm is declared best" in note for note in body["notes"])
@@ -126,6 +127,9 @@ def test_create_runs_an_experiment_and_details_every_trial(api):
         assert trial["status"] == "done"
         assert run.status_code == 200 and run.json()["run"]["run_id"] == trial["run_id"]
         metrics = trial["metrics"]
+        if trial["repetition"] == 0:
+            assert metrics["outcome"] == "excluded" and metrics["excluded_reason"] == "warm-up"
+            continue
         assert metrics["outcome"] == "success" and metrics["verification_passed"] is True
         assert metrics["input_tokens"] is None and metrics["cost_usd"] is None
         assert metrics["null_reasons"]["tokens"].startswith("scripted provider")
@@ -136,7 +140,8 @@ def test_create_runs_an_experiment_and_details_every_trial(api):
         ("parallel", SAMPLE),
         ("sequential", SAMPLE),
     ]
-    assert body["aggregates"][0]["trial_statuses"] == {"done": 1}
+    assert body["aggregates"][0]["trial_statuses"] == {"done": 2}
+    assert body["aggregates"][0]["excluded_reasons"] == {"warm-up": 1}
     assert body["aggregates"][0]["task_success_rate"] == 1.0
     assert body["aggregates"][0]["latency_ms"]["n"] == 1
     # The sample task has no parallel wave: the two arms are identical by design.
@@ -157,7 +162,7 @@ def test_create_runs_an_experiment_and_details_every_trial(api):
         {**CREATE, "model": "gpt-anything"},
         {**CREATE, "provider": "https://evil.example/v1"},
         {**CREATE, "repetitions": 0},
-        {**CREATE, "repetitions": 11},
+        {**CREATE, "repetitions": 21},
         {**CREATE, "arm_ids": []},
         {**CREATE, "order_seed": -1},
         {"arm_ids": ["parallel"]},
@@ -291,14 +296,15 @@ def test_a_partial_experiment_reports_why_trials_did_not_run(api):
     with api() as client:
         body = client.get(f"/api/benchmarks/experiments/{finished.experiment_id}").json()
     assert body["experiment"]["status"] == "partial"
-    assert "1 of 2 trials did not run" in body["experiment"]["error"]
+    assert "1 of 4 trials did not run" in body["experiment"]["error"]
     errored = [t for t in body["trials"] if t["status"] == "error"]
     assert len(errored) == 1 and "endpoint removed" in errored[0]["error"]
     assert errored[0]["metrics"] is None and errored[0]["run_path"] is None
     arm = errored[0]["arm_id"]
     aggregate = next(a for a in body["aggregates"] if a["arm_id"] == arm)
-    assert aggregate["trial_statuses"] == {"error": 1}
-    assert aggregate["counted"] == 0 and aggregate["task_success_rate"] is None
+    # The failed start was that arm's warm-up: its measured trial still ran.
+    assert aggregate["trial_statuses"] == {"error": 1, "done": 1}
+    assert aggregate["counted"] == 1
 
 
 def test_a_cancelled_run_is_an_excluded_trial_with_its_reason(api, slow_demo):
@@ -307,8 +313,9 @@ def test_a_cancelled_run_is_an_excluded_trial_with_its_reason(api, slow_demo):
     async def cancelled(runner):
         experiment = runner.create("catalog", ["parallel"], 2, origin="cli", task_ids=[SAMPLE])
         task = asyncio.create_task(runner.run(experiment.experiment_id))
-        for _ in range(500):
-            if any(t.run_id for t in runner.benchmarks.get_trials(experiment.experiment_id)):
+        # Cancel once the first measured trial (after the warm-up) has a run.
+        for _ in range(1500):
+            if any(t.run_id and t.repetition >= 1 for t in runner.benchmarks.get_trials(experiment.experiment_id)):
                 break
             await asyncio.sleep(0.02)
         runner.cancel(experiment.experiment_id)
@@ -317,12 +324,14 @@ def test_a_cancelled_run_is_an_excluded_trial_with_its_reason(api, slow_demo):
     finished = prepare(api, cancelled)
     with api() as client:
         body = client.get(f"/api/benchmarks/experiments/{finished.experiment_id}").json()
-    first, second = body["trials"]
+    warmup, first, *rest = body["trials"]
+    assert warmup["metrics"]["excluded_reason"] == "warm-up"
     assert first["metrics"]["outcome"] == "excluded"
     assert first["metrics"]["excluded_reason"] == "cancelled"
     assert first["metrics"]["latency_ms"] is None and "excluded" in first["metrics"]["null_reasons"]["*"]
-    assert second["status"] == "not_run" and second["error"]
-    assert body["aggregates"][0]["excluded"] == 1 and body["aggregates"][0]["excluded_reasons"] == {"cancelled": 1}
+    assert [t["status"] for t in rest] == ["not_run"] and rest[0]["error"]
+    assert body["aggregates"][0]["excluded"] == 2
+    assert body["aggregates"][0]["excluded_reasons"] == {"warm-up": 1, "cancelled": 1}
 
 
 # ----------------------------------------------------------------------

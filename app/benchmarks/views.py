@@ -32,7 +32,7 @@ from app.benchmarks.arms import ARMS
 from app.benchmarks.metrics import aggregate
 from app.benchmarks.models import BenchmarkExperiment, BenchmarkTrial
 from app.benchmarks.provenance import identical_by_design
-from app.benchmarks.runner import MAX_REPETITIONS, MAX_TRIALS
+from app.benchmarks.runner import MAX_REPETITIONS, MAX_TRIALS, warmup_repetitions
 from app.benchmarks.suites import SuiteError, all_suites, get_suite
 from app.config import Settings
 from app.redaction import REDACTED, PublicRedactor
@@ -129,6 +129,7 @@ def experiment_summary(
         provider_kind=experiment.provider_kind,
         scripted=experiment.scripted,
         repetitions=experiment.repetitions,
+        warmup_repetitions=warmup_repetitions(experiment, trials),
         arm_ids=list(experiment.arm_ids),
         trials_total=len(trials),
         trials_done=sum(1 for trial in trials if trial.status == "done"),

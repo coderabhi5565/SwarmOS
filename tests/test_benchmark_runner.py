@@ -9,14 +9,18 @@ from dataclasses import replace
 import pytest
 
 import app.service as service_module
+from app.benchmarks.metrics import WARMUP_REASON
 from app.benchmarks.runner import (
     MAX_REPETITIONS,
     MAX_TRIALS,
+    WARMUP_REPETITIONS,
     ExperimentError,
     ExperimentRunner,
     plan_schedule,
+    warmup_repetitions,
 )
 from app.benchmarks.store import BenchmarkStore, ExperimentBusyError
+from app.benchmarks.suites import get_suite
 from app.models import RunRecord
 from app.providers import ProviderConfigError
 from app.providers.demo import DemoProvider
@@ -107,7 +111,10 @@ def test_create_persists_every_trial_in_schedule_order_before_running(harness):
     assert experiment.status == "queued"
     assert experiment.scripted is True and experiment.provider == "demo"
     trials = runner.benchmarks.get_trials(experiment.experiment_id)
-    expected = plan_schedule([SAMPLE, PIPELINE], ["parallel", "sequential"], 2, 11)
+    assert (experiment.repetitions, warmup_repetitions(experiment, trials)) == (2, WARMUP_REPETITIONS)
+    # Two measured repetitions plus the warm-up, scheduled as one block each.
+    expected = plan_schedule([SAMPLE, PIPELINE], ["parallel", "sequential"], 3, 11)
+    assert {t.repetition for t in trials[:4]} == {0}  # every warm-up runs first
     assert [(t.repetition, t.task_id, t.arm_id) for t in trials] == expected
     assert all(t.status == "pending" and t.run_id is None for t in trials)
     fingerprints = {(c.arm_id, c.task_id): c.fingerprint for c in experiment.configurations}
@@ -123,7 +130,6 @@ def test_create_persists_every_trial_in_schedule_order_before_running(harness):
         ({"arm_ids": ["turbo"]}, "unknown benchmark arm"),
         ({"arm_ids": ["parallel"], "repetitions": 0}, "repetitions"),
         ({"arm_ids": ["parallel"], "repetitions": MAX_REPETITIONS + 1}, "repetitions"),
-        ({"arm_ids": ["parallel", "sequential", "fixed-fast", "adaptive", "multi-agent"], "repetitions": 7}, "limit is"),
         ({"arm_ids": ["parallel"], "task_ids": ["missing"]}, "no task"),
         ({"suite_id": "local-fixtures", "arm_ids": ["adaptive"]}, "needs a real model"),
         ({"arm_ids": ["parallel"], "provider": "openai"}, "OPENAI_COMPAT_BASE_URL"),
@@ -137,8 +143,33 @@ def test_create_validates_the_request(harness, kwargs, message):
     assert runner.benchmarks.list_experiments_page()[0] == []
 
 
-def test_the_trial_cap_counts_every_combination():
-    assert 5 * 2 * 7 > MAX_TRIALS  # the case refused above
+ALL_ARMS = ["parallel", "sequential", "fixed-fast", "adaptive", "multi-agent"]
+
+
+def test_the_trial_cap_fits_the_largest_suite_at_full_sample():
+    largest = max(len(get_suite(suite).tasks) for suite in ("catalog", "local-fixtures"))
+    assert largest * len(ALL_ARMS) * (MAX_REPETITIONS + WARMUP_REPETITIONS) == MAX_TRIALS == 315
+    assert MAX_REPETITIONS == 20
+
+
+def test_every_arm_at_the_full_sample_is_one_experiment(harness):
+    runner, _, _ = harness()
+    experiment = runner.create("catalog", ALL_ARMS, MAX_REPETITIONS, origin="cli")
+    trials = runner.benchmarks.get_trials(experiment.experiment_id)
+    assert len(trials) == 2 * 5 * 21
+    assert Counter((t.task_id, t.arm_id) for t in trials) == {
+        (task, arm): 21 for task in (SAMPLE, PIPELINE) for arm in ALL_ARMS
+    }
+
+
+def test_the_trial_cap_counts_every_combination_and_the_warmups(harness, monkeypatch):
+    monkeypatch.setattr("app.benchmarks.runner.MAX_TRIALS", 3)
+    runner, _, _ = harness()
+    # 2 tasks x 1 arm x (1 measured + 1 warm-up) = 4 trials.
+    expected = r"4 trials requested \(2 per arm and task, including 1 warm-up\); the limit is 3"
+    with pytest.raises(ExperimentError, match=expected):
+        runner.create("catalog", ["parallel"], 1, origin="cli")
+    assert runner.benchmarks.list_experiments_page()[0] == []
 
 
 def test_the_public_demo_runs_only_public_suites_on_the_server_provider(harness):
@@ -168,18 +199,22 @@ async def test_a_successful_experiment_links_runs_and_snapshots_metrics(harness)
     assert finished.status == "completed" and finished.error is None
     assert finished.started_at and finished.finished_at
     trials = runner.benchmarks.get_trials(experiment.experiment_id)
-    assert [t.status for t in trials] == ["done", "done"]
+    assert [t.status for t in trials] == ["done"] * 4
     for trial in trials:
         record = store.get_run(trial.run_id)
         assert record is not None and record.status == "completed"
         assert trial.metrics.run_id == record.run_id
+        if trial.repetition == 0:  # the warm-up ran in full and is excluded
+            assert trial.metrics.outcome == "excluded" and trial.metrics.excluded_reason == WARMUP_REASON
+            assert trial.metrics.verification_passed is None
+            continue
         assert trial.metrics.outcome == "success" and trial.metrics.verification_passed is True
         assert trial.metrics.input_tokens is None and trial.metrics.null_reasons["tokens"]
         config = next(c for c in finished.configurations if c.arm_id == trial.arm_id)
         assert record.limits == config.limits
         assert record.models_by_role == config.models_by_role
-    assert len({t.run_id for t in trials}) == 2
-    assert service.store.list_runs(50) and len(service.store.list_runs(50)) == 2
+    assert len({t.run_id for t in trials}) == 4
+    assert len(service.store.list_runs(50)) == 4
 
 
 async def test_a_provider_failure_is_a_failed_trial_not_a_broken_experiment(harness):
@@ -187,8 +222,9 @@ async def test_a_provider_failure_is_a_failed_trial_not_a_broken_experiment(harn
     experiment = runner.create("catalog", ["parallel"], origin="cli", task_ids=[SAMPLE], provider="openai")
     finished = await runner.run(experiment.experiment_id)
     assert finished.status == "completed"  # every trial ran...
-    (trial,) = runner.benchmarks.get_trials(experiment.experiment_id)
-    assert trial.status == "done"
+    warmup, trial = runner.benchmarks.get_trials(experiment.experiment_id)
+    assert warmup.status == trial.status == "done"
+    assert warmup.metrics.excluded_reason == WARMUP_REASON
     assert trial.metrics.outcome == "failure"  # ...and the endpoint's failure is the task's
     assert trial.metrics.scripted is False
 
@@ -207,9 +243,9 @@ async def test_a_trial_that_cannot_start_makes_the_experiment_partial(harness, m
     monkeypatch.setattr(service, "start", start)
     finished = await runner.run(experiment.experiment_id)
     assert finished.status == "partial"
-    assert "1 of 2 trials" in finished.error
+    assert "1 of 4 trials" in finished.error
     statuses = [t.status for t in runner.benchmarks.get_trials(experiment.experiment_id)]
-    assert statuses == ["done", "error"]
+    assert statuses == ["done", "error", "done", "done"]  # no rerun replaces it
     assert "endpoint removed" in runner.benchmarks.get_trials(experiment.experiment_id)[1].error
 
 
@@ -221,8 +257,9 @@ async def test_an_experiment_where_nothing_could_run_has_failed(harness, tmp_pat
     finished = await runner.run(experiment.experiment_id)
     assert finished.status == "failed"
     assert "configuration changed" in finished.error
-    (trial,) = runner.benchmarks.get_trials(experiment.experiment_id)
-    assert trial.status == "error" and trial.run_id is None
+    trials = runner.benchmarks.get_trials(experiment.experiment_id)
+    assert len(trials) == 2
+    assert all(trial.status == "error" and trial.run_id is None for trial in trials)
     assert store.list_runs(10) == []  # nothing ran under a different configuration
 
 
@@ -237,11 +274,14 @@ async def test_cancelling_stops_the_current_run_and_skips_the_rest(harness, slow
     finished = await asyncio.wait_for(task, 20)
     assert finished.status == "cancelled"
     trials = runner.benchmarks.get_trials(experiment.experiment_id)
-    assert trials[0].status == "done"
+    assert trials[0].status == "done" and trials[0].repetition == 0
+    # The first trial is a warm-up: excluded as one, and still says it was cancelled.
     assert trials[0].metrics.outcome == "excluded"
-    assert trials[0].metrics.excluded_reason == "cancelled"
+    assert trials[0].metrics.excluded_reason == WARMUP_REASON
+    assert trials[0].metrics.status == "cancelled"
+    assert "the run itself was excluded: cancelled" in trials[0].metrics.null_reasons["*"]
     assert store.get_run(trials[0].run_id).status == "cancelled"
-    assert [t.status for t in trials[1:]] == ["not_run"] * 3
+    assert [t.status for t in trials[1:]] == ["not_run"] * 5
     assert all(t.run_id is None for t in trials[1:])
     assert runner.cancel(experiment.experiment_id) is False  # no longer running
 
@@ -256,13 +296,13 @@ async def test_a_trial_waits_for_a_free_run_slot(harness, slow_demo):
     task = asyncio.create_task(runner.run(experiment.experiment_id))
 
     await asyncio.sleep(0.4)
-    (waiting,) = runner.benchmarks.get_trials(experiment.experiment_id)
+    waiting = runner.benchmarks.get_trials(experiment.experiment_id)[0]
     assert waiting.status == "running" and waiting.run_id is None  # claimed, waiting for the slot
     assert not blocker_task.done()
 
     finished = await asyncio.wait_for(task, 30)
     assert finished.status == "completed"
-    (trial,) = runner.benchmarks.get_trials(experiment.experiment_id)
+    trial = runner.benchmarks.get_trials(experiment.experiment_id)[0]
     assert blocker_task.done()
     assert store.get_run(trial.run_id).created_at >= store.get_run(blocker.run_id).updated_at
 
@@ -277,8 +317,8 @@ async def test_cancelling_while_waiting_for_a_slot_leaves_the_trial_unrun(harnes
     runner.cancel(experiment.experiment_id)
     finished = await asyncio.wait_for(task, 20)
     assert finished.status == "cancelled"
-    (trial,) = runner.benchmarks.get_trials(experiment.experiment_id)
-    assert trial.status == "not_run" and trial.run_id is None
+    trials = runner.benchmarks.get_trials(experiment.experiment_id)
+    assert all(trial.status == "not_run" and trial.run_id is None for trial in trials)
     await service.drain()
 
 
@@ -328,7 +368,7 @@ async def test_an_experiment_runs_once(harness):
     await first
     with pytest.raises(ExperimentError, match="not queued"):
         await runner.run(experiment.experiment_id)
-    assert len(store.list_runs(10)) == 1
+    assert len(store.list_runs(10)) == 2  # the warm-up and the measured trial
 
 
 async def test_a_claimed_trial_is_never_started_again(harness):
@@ -341,8 +381,8 @@ async def test_a_claimed_trial_is_never_started_again(harness):
     await runner.run(experiment.experiment_id)
     trials = runner.benchmarks.get_trials(experiment.experiment_id)
     assert trials[0].run_id is None  # skipped, not run a second time
-    assert trials[1].status == "done"
-    assert len(store.list_runs(10)) == 1
+    assert [t.status for t in trials[1:]] == ["done"] * 3
+    assert len(store.list_runs(10)) == 3
 
 
 async def test_recovery_closes_an_interrupted_experiment_without_resuming(harness):
@@ -365,8 +405,9 @@ async def test_recovery_closes_an_interrupted_experiment_without_resuming(harnes
     after = restarted.benchmarks.get_trials(experiment.experiment_id)
     assert after[0].status == "done"
     assert after[0].metrics.outcome == "excluded"
-    assert "server stopped" in after[0].metrics.excluded_reason
-    assert [t.status for t in after[1:]] == ["not_run"] * 3
+    assert after[0].metrics.excluded_reason == WARMUP_REASON  # the stranded trial was a warm-up
+    assert "server stopped" in after[0].metrics.null_reasons["*"]
+    assert [t.status for t in after[1:]] == ["not_run"] * 5
     with pytest.raises(ExperimentError, match="not queued"):
         await restarted.run(experiment.experiment_id)
     assert restarted.recover_interrupted() == []  # idempotent
@@ -375,12 +416,13 @@ async def test_recovery_closes_an_interrupted_experiment_without_resuming(harnes
 async def test_recovery_closes_a_queued_experiment_and_a_trial_without_a_run(harness):
     runner, service, store = harness()
     experiment = runner.create("catalog", ["parallel"], origin="cli", task_ids=[SAMPLE])
-    (trial,) = runner.benchmarks.get_trials(experiment.experiment_id)
+    trial = runner.benchmarks.get_trials(experiment.experiment_id)[0]
     runner.benchmarks.save_trial(trial.model_copy(update={"status": "running"}))  # claimed, no run yet
     recovered = ExperimentRunner(service, BenchmarkStore(store)).recover_interrupted()
     assert recovered == [experiment.experiment_id]
-    (after,) = runner.benchmarks.get_trials(experiment.experiment_id)
+    after, rest = runner.benchmarks.get_trials(experiment.experiment_id)
     assert after.status == "error" and "server stopped" in after.error
+    assert rest.status == "not_run"
     # A new experiment can start once the stale one is closed.
     assert runner.create("catalog", ["sequential"], origin="cli").status == "queued"
 
@@ -430,10 +472,10 @@ async def test_recovering_an_experiment_another_runner_still_owns(harness, slow_
     finished = await asyncio.wait_for(task, 20)
 
     assert finished.status == "interrupted"
-    first, second = runner.benchmarks.get_trials(experiment.experiment_id)
+    first, second, *rest = runner.benchmarks.get_trials(experiment.experiment_id)
     # The trial in flight is recorded as an error; its run still completes and stays linked...
     assert first.status == "error" and first.metrics is None
     assert store.get_run(first.run_id).status == "completed"
     # ...and the owning runner starts nothing more.
-    assert second.status == "not_run" and second.run_id is None
+    assert all(t.status == "not_run" and t.run_id is None for t in [second, *rest])
     assert len(store.list_runs(10)) == 1

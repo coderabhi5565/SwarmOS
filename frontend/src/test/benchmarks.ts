@@ -57,6 +57,7 @@ export function experimentSummary(overrides: Partial<BenchmarkExperimentSummary>
     provider_kind: "demo",
     scripted: true,
     repetitions: 1,
+    warmup_repetitions: 0,
     arm_ids: ["parallel", "sequential"],
     trials_total: 2,
     trials_done: 0,

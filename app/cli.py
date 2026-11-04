@@ -11,7 +11,7 @@ from pathlib import Path
 from app.benchmarks.arms import ARMS
 from app.benchmarks.legacy import result_from_run, summarise, write_results
 from app.benchmarks.provenance import identical_by_design
-from app.benchmarks.runner import ExperimentError, ExperimentRunner
+from app.benchmarks.runner import ExperimentError, ExperimentRunner, warmup_repetitions
 from app.benchmarks.store import BenchmarkStore, ExperimentBusyError
 from app.benchmarks.suites import all_suites, get_suite
 from app.config import settings
@@ -212,10 +212,16 @@ def _run_bench(args: argparse.Namespace, runner: ExperimentRunner, store: RunSto
 
     configurations = {(c.arm_id, c.task_id): c for c in finished.configurations}
     results = []
-    for trial in runner.benchmarks.get_trials(finished.experiment_id):
+    trials = runner.benchmarks.get_trials(finished.experiment_id)
+    warmups = warmup_repetitions(finished, trials)
+    for trial in trials:
         record = store.get_run(trial.run_id) if trial.run_id else None
         if record is None:
             print(f"{trial.task_id} / {trial.arm_id}: {trial.status} ({trial.error or 'no run'})")
+            continue
+        if trial.repetition < warmups:
+            # Warm-ups stay out of the table, the summary and the JSONL.
+            print(f"{trial.task_id} / {trial.arm_id}: warm-up {record.run_id} ({record.status}, excluded)")
             continue
         results.append(
             result_from_run(
