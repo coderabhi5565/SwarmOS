@@ -7,6 +7,8 @@ import asyncio
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 from app.demo_tasks import SAMPLE_TASK_ID
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -25,7 +27,10 @@ def test_one_pair_is_measured_and_summarised():
     task = results["tasks"][SAMPLE_TASK_ID]
     assert task["on"]["n"] == task["off"]["n"] == 1
     assert task["on"]["median_ms"] > 0 and task["off"]["median_ms"] > 0
-    assert task["paired_difference_median_ms"] == round(task["on"]["median_ms"] - task["off"]["median_ms"], 3)
+    # One pair: the difference is rounded from the raw times, the medians each
+    # separately, so the two can disagree in the last digit (at most 0.0015).
+    expected = task["on"]["median_ms"] - task["off"]["median_ms"]
+    assert task["paired_difference_median_ms"] == pytest.approx(expected, abs=0.002)
     assert task["target_ms"] >= 2.0
     assert isinstance(task["within_target"], bool)
 
