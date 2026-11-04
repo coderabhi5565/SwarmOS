@@ -16,9 +16,19 @@ from app.api_models import (
     BenchmarkDistribution,
     BenchmarkEnvironment,
     BenchmarkIdenticalArms,
+    BenchmarkTimingAggregate,
+    BenchmarkTimingSummary,
     BenchmarkTrialMetrics,
+    BenchmarkTrialTimings,
 )
-from app.benchmarks.metrics import ArmAggregate, Distribution, TrialMetrics
+from app.benchmarks.metrics import (
+    ArmAggregate,
+    Distribution,
+    TimingAggregate,
+    TimingSummary,
+    TrialMetrics,
+    TrialTimings,
+)
 from app.benchmarks.provenance import ArmConfiguration, EnvironmentProvenance, IdenticalArms
 from app.benchmarks.runner import ExperimentRunner
 from app.benchmarks.store import BenchmarkStore
@@ -141,7 +151,9 @@ def test_create_runs_an_experiment_and_details_every_trial(api):
         ("sequential", SAMPLE),
     ]
     assert body["aggregates"][0]["trial_statuses"] == {"done": 2}
-    assert body["aggregates"][0]["excluded_reasons"] == {"warm-up": 1}
+    # The warm-up is counted on its own, never as an exclusion or a measured trial.
+    assert body["aggregates"][0]["warmups"] == 1 and body["aggregates"][0]["excluded_reasons"] == {}
+    assert body["aggregates"][0]["timings"]["measured"] == 1
     assert body["aggregates"][0]["task_success_rate"] == 1.0
     assert body["aggregates"][0]["latency_ms"]["n"] == 1
     # The sample task has no parallel wave: the two arms are identical by design.
@@ -330,8 +342,11 @@ def test_a_cancelled_run_is_an_excluded_trial_with_its_reason(api, slow_demo):
     assert first["metrics"]["excluded_reason"] == "cancelled"
     assert first["metrics"]["latency_ms"] is None and "excluded" in first["metrics"]["null_reasons"]["*"]
     assert [t["status"] for t in rest] == ["not_run"] and rest[0]["error"]
-    assert body["aggregates"][0]["excluded"] == 2
-    assert body["aggregates"][0]["excluded_reasons"] == {"warm-up": 1, "cancelled": 1}
+    aggregate = body["aggregates"][0]
+    assert (aggregate["warmups"], aggregate["excluded"], aggregate["counted"]) == (1, 1, 0)
+    assert aggregate["excluded_reasons"] == {"cancelled": 1}
+    # The not-run trial has no metrics: the denominator is the cancelled trial alone.
+    assert (aggregate["non_warmup_trials"], aggregate["cancelled"], aggregate["cancellation_rate"]) == (1, 1, 1.0)
 
 
 # ----------------------------------------------------------------------
@@ -372,6 +387,9 @@ def test_experiments_page_newest_first_with_a_stable_cursor(api):
         (BenchmarkTrialMetrics, TrialMetrics, set(), set()),
         (BenchmarkAggregate, ArmAggregate, {"task_id", "trial_statuses"}, set()),
         (BenchmarkDistribution, Distribution, set(), set()),
+        (BenchmarkTimingSummary, TimingSummary, set(), set()),
+        (BenchmarkTimingAggregate, TimingAggregate, set(), set()),
+        (BenchmarkTrialTimings, TrialTimings, set(), set()),
         (BenchmarkArmConfiguration, ArmConfiguration, set(), set()),
         (BenchmarkIdenticalArms, IdenticalArms, set(), set()),
         (BenchmarkEnvironment, EnvironmentProvenance, set(), {"provider_choice"}),

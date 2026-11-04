@@ -55,6 +55,12 @@ INFRASTRUCTURE_ERRORS = frozenset({"run_crashed", "graph_error"})
 
 # Below this many runs, a nearest-rank P95 is one of the slowest few runs.
 P95_MIN_SAMPLE = 20
+# Measured (counted) trials required per arm and task (proposal section 4.4).
+MEASURED_SAMPLE = 20
+
+# Exclusion reasons (besides warm-up and orchestration errors).
+CANCELLED_REASON = "cancelled"
+INTERRUPTED_REASON = "interrupted: the server stopped during the run"
 
 Outcome = Literal["success", "failure", "excluded", "incomplete"]
 
@@ -274,10 +280,10 @@ def _payloads(events: Iterable[TraceEvent], kind: str) -> list[dict[str, Any]]:
 
 def _excluded_reason(record: RunRecord, events: Sequence[TraceEvent]) -> str | None:
     if record.status == "cancelled":
-        return "cancelled"
+        return CANCELLED_REASON
     for payload in _payloads(events, "run_finished"):
         if payload.get("recovered"):
-            return "interrupted: the server stopped during the run"
+            return INTERRUPTED_REASON
     for payload in _payloads(events, "failure"):
         if payload.get("error_class") in INFRASTRUCTURE_ERRORS:
             return f"orchestration error ({payload['error_class']})"
@@ -452,15 +458,101 @@ def distribution(values: Sequence[float]) -> Distribution:
     )
 
 
+class TimingSummary(BaseModel):
+    """One timing metric over the measured trials (see TimingAggregate):
+    ``n`` trials established it, ``missing`` did not (by reason), and
+    ``n + missing`` is always the measured count. Median is
+    ``statistics.median`` (the mean of the two middle values for even n);
+    P95 is nearest-rank (an observed value)."""
+
+    n: int
+    missing: int
+    missing_reasons: dict[str, int] = Field(default_factory=dict)
+    median: float | None = None
+    p95: float | None = None
+    min: float | None = None
+    max: float | None = None
+
+
+class TimingAggregate(BaseModel):
+    """Run timings over counted trials. Only trials whose run measurements
+    were recorded (a supported version) are measured; every other counted
+    trial is counted under ``unavailable`` by status and enters no
+    distribution, so statuses are never mixed and none is dropped."""
+
+    measured: int
+    unavailable: dict[str, int] = Field(default_factory=dict)
+    metrics: dict[str, TimingSummary] = Field(default_factory=dict)
+
+
+TIMING_FIELDS = (*TIMING_METRICS, "trial_slot_wait_ms")
+# A counted trial without timings: recorded before metrics v2.
+NO_TIMINGS_V1 = "metrics_v1"
+
+
+def timing_summary(values: Sequence[float | None], reasons: Sequence[str]) -> TimingSummary:
+    """``values`` per measured trial (None when missing, with ``reasons``
+    holding the reason of each missing value, in order)."""
+    known = [value for value in values if value is not None]
+    if not known:
+        return TimingSummary(n=0, missing=len(values), missing_reasons=dict(Counter(reasons)))
+    return TimingSummary(
+        n=len(known),
+        missing=len(values) - len(known),
+        missing_reasons=dict(Counter(reasons)),
+        median=float(statistics.median(known)),
+        p95=percentile(known, 95),
+        min=float(min(known)),
+        max=float(max(known)),
+    )
+
+
+def timing_aggregate(counted: Sequence[TrialMetrics]) -> TimingAggregate:
+    measured = [t.timings for t in counted if t.timings is not None and t.timings.measurement_status == "recorded"]
+    unavailable = Counter(
+        (t.timings.measurement_status if t.timings is not None else NO_TIMINGS_V1)
+        for t in counted
+        if t.timings is None or t.timings.measurement_status != "recorded"
+    )
+    metrics = {}
+    for name in TIMING_FIELDS:
+        values = [getattr(timings, name) for timings in measured]
+        reasons = [
+            timings.null_reasons.get(name) or timings.null_reasons.get("*") or "not established"
+            for timings in measured
+            if getattr(timings, name) is None
+        ]
+        metrics[name] = timing_summary(values, reasons)
+    return TimingAggregate(measured=len(measured), unavailable=dict(unavailable), metrics=metrics)
+
+
 class ArmAggregate(BaseModel):
-    """One arm's results. Rates and means are over counted trials only."""
+    """One arm's results (over all its tasks, or one task). Rates and means
+    are over counted trials only, except the cancellation and interrupted
+    rates, which are over every non-warm-up trial with metrics."""
 
     arm_id: str
     trials: int
+    # Measured n: trials that count (success or failure), warm-ups never.
     counted: int
+    # Excluded trials other than warm-ups (cancelled, interrupted,
+    # orchestration error), by reason in excluded_reasons.
     excluded: int
     incomplete: int
     excluded_reasons: dict[str, int] = Field(default_factory=dict)
+    warmups: int = 0
+
+    # Denominator of the two rates below: trials - warmups.
+    non_warmup_trials: int = 0
+    cancelled: int = 0
+    cancellation_rate: float | None = None
+    interrupted: int = 0
+    interrupted_rate: float | None = None
+
+    # At least this many counted trials per arm and task; never topped up by
+    # reruns. For an arm over all tasks, complete only when every task is.
+    sample_required: int = MEASURED_SAMPLE
+    sample_complete: bool = False
 
     task_successes: int
     task_success_rate: float | None
@@ -487,6 +579,8 @@ class ArmAggregate(BaseModel):
     mean_cost_usd: float | None
     total_cost_usd: float | None
 
+    timings: TimingAggregate = Field(default_factory=lambda: TimingAggregate(measured=0))
+
     notes: list[str] = Field(default_factory=list)
 
 
@@ -501,7 +595,12 @@ def _mean(values: Sequence[float | None]) -> float | None:
 
 def aggregate(arm_id: str, trials: Sequence[TrialMetrics]) -> ArmAggregate:
     counted = [trial for trial in trials if trial.counted]
-    excluded = [trial for trial in trials if trial.outcome == "excluded"]
+    warmups = [trial for trial in trials if trial.excluded_reason == WARMUP_REASON]
+    non_warmup = [trial for trial in trials if trial.excluded_reason != WARMUP_REASON]
+    excluded = [trial for trial in non_warmup if trial.outcome == "excluded"]
+    cancelled = sum(1 for trial in excluded if trial.excluded_reason == CANCELLED_REASON)
+    interrupted = sum(1 for trial in excluded if trial.excluded_reason == INTERRUPTED_REASON)
+    timings = timing_aggregate(counted)
     latencies = [trial.latency_ms for trial in counted if trial.latency_ms is not None]
     model_latencies = [trial.model_latency_ms for trial in counted if trial.model_latency_ms is not None]
     with_usage = [trial for trial in counted if trial.input_tokens is not None]
@@ -527,6 +626,19 @@ def aggregate(arm_id: str, trials: Sequence[TrialMetrics]) -> ArmAggregate:
         )
     if counted and not with_cost:
         notes.append("Cost is unknown: no counted run had complete usage with configured pricing.")
+    if 0 < timings.measured < P95_MIN_SAMPLE:
+        notes.append(
+            f"Timing P95s are from {timings.measured} measured runs (fewer than {P95_MIN_SAMPLE}); "
+            "each is one of the slowest runs observed, not a stable tail estimate."
+        )
+    if timings.unavailable:
+        missing = ", ".join(f"{status} {count}" for status, count in sorted(timings.unavailable.items()))
+        notes.append(f"Timings are unavailable for some counted runs ({missing}); they are in no timing figure.")
+    if len(counted) < MEASURED_SAMPLE:
+        notes.append(
+            f"Sample incomplete: {len(counted)} measured trials; {MEASURED_SAMPLE} per arm and task "
+            "are required. Excluded trials are not rerun."
+        )
 
     return ArmAggregate(
         arm_id=arm_id,
@@ -535,6 +647,15 @@ def aggregate(arm_id: str, trials: Sequence[TrialMetrics]) -> ArmAggregate:
         excluded=len(excluded),
         incomplete=sum(1 for trial in trials if trial.outcome == "incomplete"),
         excluded_reasons=dict(Counter(trial.excluded_reason or "unknown" for trial in excluded)),
+        warmups=len(warmups),
+        non_warmup_trials=len(non_warmup),
+        cancelled=cancelled,
+        cancellation_rate=_rate(cancelled, len(non_warmup)),
+        interrupted=interrupted,
+        interrupted_rate=_rate(interrupted, len(non_warmup)),
+        sample_required=MEASURED_SAMPLE,
+        sample_complete=len(counted) >= MEASURED_SAMPLE,
+        timings=timings,
         task_successes=sum(1 for trial in counted if trial.task_success),
         task_success_rate=_rate(sum(1 for trial in counted if trial.task_success), len(counted)),
         verification_passes=sum(1 for trial in counted if trial.verification_passed),

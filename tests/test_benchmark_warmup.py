@@ -86,8 +86,8 @@ async def test_repetition_zero_is_a_warmup_for_every_arm_and_task_independently(
         for arm_id in ("parallel", "sequential"):
             trials = by_pair[(task_id, arm_id)]
             summary = aggregate(arm_id, [t.metrics for t in trials])
-            assert (summary.trials, summary.counted, summary.excluded) == (2, 1, 1)
-            assert summary.excluded_reasons == {WARMUP_REASON: 1}
+            assert (summary.trials, summary.counted, summary.excluded, summary.warmups) == (2, 1, 0, 1)
+            assert summary.excluded_reasons == {} and summary.non_warmup_trials == 1
             assert summary.latency_ms.n == 1
 
 
@@ -128,8 +128,8 @@ def test_exclusions_reduce_the_measured_n_and_are_never_replaced():
         metrics("failure", task_success=False, latency_ms=30),
     ]
     summary = aggregate("parallel", trials)
-    assert (summary.trials, summary.counted, summary.excluded) == (4, 2, 2)
-    assert summary.excluded_reasons == {WARMUP_REASON: 1, "cancelled": 1}
+    assert (summary.trials, summary.counted, summary.excluded, summary.warmups) == (4, 2, 1, 1)
+    assert summary.excluded_reasons == {"cancelled": 1}
     assert summary.latency_ms.n == 2 and summary.latency_ms.min == 10  # the warm-up's 1 ms is not in it
 
 

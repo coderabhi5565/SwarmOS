@@ -125,6 +125,9 @@ def test_public_detail_hides_host_details_and_keeps_the_rest(world):
     timed = [t["metrics"]["timings"] for t in body["trials"] if t["metrics"] and t["metrics"]["timings"]]
     assert len(timed) == 2 and all(t["measurement_status"] == "recorded" for t in timed)
     assert all(isinstance(t["lifecycle_ms"], float) for t in timed)
+    for aggregate in body["aggregates"]:
+        assert aggregate["warmups"] == 1 and aggregate["timings"]["measured"] == 1
+        assert aggregate["sample_required"] == 20 and aggregate["sample_complete"] is False
     assert body["trials"][0]["run_path"].startswith("/api/runs/run_")
 
 

@@ -411,11 +411,26 @@
         "type": "object"
       },
       "BenchmarkAggregate": {
-        "description": "An arm's results, over all tasks (task_id null) or one task.\nRates and means are over counted trials only.",
+        "description": "An arm's results, over all tasks (task_id null) or one task.\nRates and means are over counted trials only, except the cancellation\nand interrupted rates (over non_warmup_trials).",
         "properties": {
           "arm_id": {
             "title": "Arm Id",
             "type": "string"
+          },
+          "cancellation_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancellation Rate"
+          },
+          "cancelled": {
+            "title": "Cancelled",
+            "type": "integer"
           },
           "counted": {
             "title": "Counted",
@@ -435,6 +450,21 @@
           "incomplete": {
             "title": "Incomplete",
             "type": "integer"
+          },
+          "interrupted": {
+            "title": "Interrupted",
+            "type": "integer"
+          },
+          "interrupted_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interrupted Rate"
           },
           "latency_ms": {
             "$ref": "#/components/schemas/BenchmarkDistribution"
@@ -563,6 +593,10 @@
           "model_latency_ms": {
             "$ref": "#/components/schemas/BenchmarkDistribution"
           },
+          "non_warmup_trials": {
+            "title": "Non Warmup Trials",
+            "type": "integer"
+          },
           "notes": {
             "items": {
               "type": "string"
@@ -576,6 +610,14 @@
           },
           "runs_with_usage": {
             "title": "Runs With Usage",
+            "type": "integer"
+          },
+          "sample_complete": {
+            "title": "Sample Complete",
+            "type": "boolean"
+          },
+          "sample_required": {
+            "title": "Sample Required",
             "type": "integer"
           },
           "task_id": {
@@ -603,6 +645,9 @@
           "task_successes": {
             "title": "Task Successes",
             "type": "integer"
+          },
+          "timings": {
+            "$ref": "#/components/schemas/BenchmarkTimingAggregate"
           },
           "total_cost_usd": {
             "anyOf": [
@@ -643,6 +688,10 @@
           "verification_passes": {
             "title": "Verification Passes",
             "type": "integer"
+          },
+          "warmups": {
+            "title": "Warmups",
+            "type": "integer"
           }
         },
         "required": [
@@ -654,6 +703,14 @@
           "excluded",
           "incomplete",
           "excluded_reasons",
+          "warmups",
+          "non_warmup_trials",
+          "cancelled",
+          "cancellation_rate",
+          "interrupted",
+          "interrupted_rate",
+          "sample_required",
+          "sample_complete",
           "task_successes",
           "task_success_rate",
           "verification_passes",
@@ -675,6 +732,7 @@
           "runs_with_cost",
           "mean_cost_usd",
           "total_cost_usd",
+          "timings",
           "notes"
         ],
         "title": "BenchmarkAggregate",
@@ -1505,6 +1563,111 @@
           "notes"
         ],
         "title": "BenchmarkTaskInfo",
+        "type": "object"
+      },
+      "BenchmarkTimingAggregate": {
+        "description": "Run timings over counted trials whose measurements were recorded;\nother counted trials are counted in unavailable, by status.",
+        "properties": {
+          "measured": {
+            "title": "Measured",
+            "type": "integer"
+          },
+          "metrics": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/BenchmarkTimingSummary"
+            },
+            "title": "Metrics",
+            "type": "object"
+          },
+          "unavailable": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Unavailable",
+            "type": "object"
+          }
+        },
+        "required": [
+          "measured",
+          "unavailable",
+          "metrics"
+        ],
+        "title": "BenchmarkTimingAggregate",
+        "type": "object"
+      },
+      "BenchmarkTimingSummary": {
+        "description": "One timing metric over the measured trials: n established it,\nmissing did not (by reason); median is interpolated for even n, P95 is\nnearest-rank (an observed value).",
+        "properties": {
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "missing": {
+            "title": "Missing",
+            "type": "integer"
+          },
+          "missing_reasons": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Missing Reasons",
+            "type": "object"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "p95": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P95"
+          }
+        },
+        "required": [
+          "n",
+          "missing",
+          "missing_reasons",
+          "median",
+          "p95",
+          "min",
+          "max"
+        ],
+        "title": "BenchmarkTimingSummary",
         "type": "object"
       },
       "BenchmarkTrialInfo": {

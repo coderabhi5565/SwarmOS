@@ -491,11 +491,16 @@ export interface components {
         /**
          * BenchmarkAggregate
          * @description An arm's results, over all tasks (task_id null) or one task.
-         *     Rates and means are over counted trials only.
+         *     Rates and means are over counted trials only, except the cancellation
+         *     and interrupted rates (over non_warmup_trials).
          */
         BenchmarkAggregate: {
             /** Arm Id */
             arm_id: string;
+            /** Cancellation Rate */
+            cancellation_rate: number | null;
+            /** Cancelled */
+            cancelled: number;
             /** Counted */
             counted: number;
             /** Excluded */
@@ -506,6 +511,10 @@ export interface components {
             };
             /** Incomplete */
             incomplete: number;
+            /** Interrupted */
+            interrupted: number;
+            /** Interrupted Rate */
+            interrupted_rate: number | null;
             latency_ms: components["schemas"]["BenchmarkDistribution"];
             /** Mean Agent Calls */
             mean_agent_calls: number | null;
@@ -530,18 +539,25 @@ export interface components {
             /** Mean Step Retries */
             mean_step_retries: number | null;
             model_latency_ms: components["schemas"]["BenchmarkDistribution"];
+            /** Non Warmup Trials */
+            non_warmup_trials: number;
             /** Notes */
             notes: string[];
             /** Runs With Cost */
             runs_with_cost: number;
             /** Runs With Usage */
             runs_with_usage: number;
+            /** Sample Complete */
+            sample_complete: boolean;
+            /** Sample Required */
+            sample_required: number;
             /** Task Id */
             task_id: string | null;
             /** Task Success Rate */
             task_success_rate: number | null;
             /** Task Successes */
             task_successes: number;
+            timings: components["schemas"]["BenchmarkTimingAggregate"];
             /** Total Cost Usd */
             total_cost_usd: number | null;
             /** Trial Statuses */
@@ -555,6 +571,8 @@ export interface components {
             verification_pass_rate: number | null;
             /** Verification Passes */
             verification_passes: number;
+            /** Warmups */
+            warmups: number;
         };
         /** BenchmarkArmConfiguration */
         BenchmarkArmConfiguration: {
@@ -817,6 +835,47 @@ export interface components {
             parallel_waves: boolean | null;
             /** Title */
             title: string;
+        };
+        /**
+         * BenchmarkTimingAggregate
+         * @description Run timings over counted trials whose measurements were recorded;
+         *     other counted trials are counted in unavailable, by status.
+         */
+        BenchmarkTimingAggregate: {
+            /** Measured */
+            measured: number;
+            /** Metrics */
+            metrics: {
+                [key: string]: components["schemas"]["BenchmarkTimingSummary"];
+            };
+            /** Unavailable */
+            unavailable: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * BenchmarkTimingSummary
+         * @description One timing metric over the measured trials: n established it,
+         *     missing did not (by reason); median is interpolated for even n, P95 is
+         *     nearest-rank (an observed value).
+         */
+        BenchmarkTimingSummary: {
+            /** Max */
+            max: number | null;
+            /** Median */
+            median: number | null;
+            /** Min */
+            min: number | null;
+            /** Missing */
+            missing: number;
+            /** Missing Reasons */
+            missing_reasons: {
+                [key: string]: number;
+            };
+            /** N */
+            n: number;
+            /** P95 */
+            p95: number | null;
         };
         /** BenchmarkTrialInfo */
         BenchmarkTrialInfo: {

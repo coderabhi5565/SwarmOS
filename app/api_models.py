@@ -446,19 +446,54 @@ class BenchmarkTrialMetrics(_Response):
     null_reasons: dict[str, str]
 
 
+class BenchmarkTimingSummary(_Response):
+    """One timing metric over the measured trials: n established it,
+    missing did not (by reason); median is interpolated for even n, P95 is
+    nearest-rank (an observed value)."""
+
+    n: int
+    missing: int
+    missing_reasons: dict[str, int]
+    median: float | None
+    p95: float | None
+    min: float | None
+    max: float | None
+
+
+class BenchmarkTimingAggregate(_Response):
+    """Run timings over counted trials whose measurements were recorded;
+    other counted trials are counted in unavailable, by status."""
+
+    measured: int
+    unavailable: dict[str, int]
+    metrics: dict[str, BenchmarkTimingSummary]
+
+
 class BenchmarkAggregate(_Response):
     """An arm's results, over all tasks (task_id null) or one task.
-    Rates and means are over counted trials only."""
+    Rates and means are over counted trials only, except the cancellation
+    and interrupted rates (over non_warmup_trials)."""
 
     arm_id: str
     task_id: str | None
     # Every trial of the arm by status (pending, running, done, ...).
     trial_statuses: dict[str, int]
     trials: int
+    # Measured n (warm-ups and excluded trials never count).
     counted: int
+    # Excluded trials other than warm-ups, by reason in excluded_reasons.
     excluded: int
     incomplete: int
     excluded_reasons: dict[str, int]
+    warmups: int
+    non_warmup_trials: int
+    cancelled: int
+    cancellation_rate: float | None
+    interrupted: int
+    interrupted_rate: float | None
+    # Per arm and task; an arm over all tasks is complete when every task is.
+    sample_required: int
+    sample_complete: bool
     task_successes: int
     task_success_rate: float | None
     verification_passes: int
@@ -480,6 +515,7 @@ class BenchmarkAggregate(_Response):
     runs_with_cost: int
     mean_cost_usd: float | None
     total_cost_usd: float | None
+    timings: BenchmarkTimingAggregate
     notes: list[str]
 
 

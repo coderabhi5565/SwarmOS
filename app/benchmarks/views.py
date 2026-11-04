@@ -166,20 +166,27 @@ def experiment_detail(
     identical = identical_by_design(experiment.configurations, kinds)
 
     task_ids = list(dict.fromkeys(trial.task_id for trial in trials))
-    aggregates = [
-        _aggregate(arm_id, None, [t for t in trials if t.arm_id == arm_id])
-        for arm_id in experiment.arm_ids
-    ]
     task_aggregates = [
         _aggregate(arm_id, task_id, [t for t in trials if t.arm_id == arm_id and t.task_id == task_id])
         for task_id in task_ids
         for arm_id in experiment.arm_ids
     ]
+    aggregates = []
+    for arm_id in experiment.arm_ids:
+        summary = _aggregate(arm_id, None, [t for t in trials if t.arm_id == arm_id])
+        # The sample requirement is per arm and task: an arm is complete when
+        # every one of its tasks is.
+        per_task = [a for a in task_aggregates if a.arm_id == arm_id]
+        complete = bool(per_task) and all(a.sample_complete for a in per_task)
+        aggregates.append(summary.model_copy(update={"sample_complete": complete}))
 
     notes = [
         "All arms run the same orchestration graph; each differs only in its own "
         "configuration. No arm is declared best: compare the numbers with their "
-        "sample sizes."
+        "sample sizes.",
+        "Medians and P95s describe the measured trials only. Twenty trials per arm "
+        "and task do not establish a statistically significant difference; none "
+        "is claimed.",
     ]
     if experiment.scripted:
         notes.insert(
