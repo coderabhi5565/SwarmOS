@@ -16,6 +16,9 @@ reason in ``null_reasons``. In particular:
 * **Tokens** are reported only when every model call reported usage;
   **cost** only when, in addition, the provider is real and priced.
 * **Model-call latency** is null for scripted runs: no model was called.
+* **Timings** (metrics v2) come only from the run's persisted span
+  measurements (``trial_timings``); a run without usable measurements keeps
+  every timing null with its measurement status as the reason.
 """
 
 from __future__ import annotations
@@ -23,14 +26,17 @@ from __future__ import annotations
 import math
 import statistics
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from app.models import RunRecord, TraceEvent
+from app.timings.analysis import derive
+from app.timings.recorder import SNAPSHOT_VERSION
 
-METRICS_VERSION = 1
+# 2: trial timings from persisted run measurements (M7.3).
+METRICS_VERSION = 2
 
 TERMINAL_STATUSES = frozenset(
     {
@@ -51,6 +57,149 @@ INFRASTRUCTURE_ERRORS = frozenset({"run_crashed", "graph_error"})
 P95_MIN_SAMPLE = 20
 
 Outcome = Literal["success", "failure", "excluded", "incomplete"]
+
+# Why a trial has, or lacks, run measurements: the run measurements reasons
+# (app.timings.view), plus a stored snapshot version this code cannot read.
+MeasurementStatus = Literal[
+    "recorded",
+    "run_in_progress",
+    "predates_measurements",
+    "process_crash",
+    "measurement_flush_failed",
+    "instrumentation_disabled",
+    "not_recorded",
+    "unreadable",
+    "unsupported_version",
+]
+SUPPORTED_MEASUREMENT_VERSIONS = frozenset({SNAPSHOT_VERSION})
+
+# TrialTimings field -> the app.timings.analysis metric it reports.
+TIMING_METRICS = {
+    "lifecycle_ms": "lifecycle_ms",
+    "admission_ms": "admission_ms",
+    "execution_ms": "execution_ms",
+    "setup_ms": "setup_ms",
+    "graph_ms": "graph_ms",
+    "finalization_ms": "finalization_ms",
+    "planner_ms": "planner_ms",
+    "reviewer_ms": "reviewer_ms",
+    "coder_busy_ms": "coder_busy_ms",
+    "coder_wall_ms": "coder_wall_ms",
+    "coder_critical_path_ms": "coder_critical_path_ms",
+    "provider_calls": "provider_calls",
+    "provider_call_busy_ms": "call_ms",
+    "provider_call_wall_ms": "call_wall_ms",
+    "http_attempts": "http_attempts",
+    "http_attempt_busy_ms": "http_attempt_ms",
+    "http_attempt_wall_ms": "http_attempt_wall_ms",
+    "parse_total_ms": "parse_ms",
+    "backoff_total_ms": "backoff_ms",
+    "verification_ms": "verification_ms",
+    "diagnostic_verification_ms": "diagnostic_verification_ms",
+    "graph_gap_ms": "graph_gap_ms",
+    "critical_orchestration_ms": "critical_orchestration_ms",
+    "parallel_orchestration_ms": "parallel_orchestration_ms",
+    "schedule_delay_total_ms": "schedule_delay_ms",
+    "slot_wait_total_ms": "slot_wait_ms",
+    "ledger_wait_total_ms": "ledger_wait_ms",
+}
+
+
+class TrialTimings(BaseModel):
+    """A counted trial's run timings, from its persisted span measurements
+    (never from event timestamps). Null means "not established", with the
+    reason in ``null_reasons``; ``*`` covers every field when the run has
+    no usable measurements.
+
+    ``*_busy_ms`` and ``*_total_ms`` are sums over possibly overlapping
+    intervals (time spent, not time elapsed); ``*_wall_ms`` and the phases
+    are elapsed time (the length of a union, or one interval);
+    ``coder_critical_path_ms`` runs from each dispatch to its last step's end.
+    """
+
+    measurement_status: MeasurementStatus
+    measurements_version: int | None = None
+
+    # Run phases (one interval each).
+    lifecycle_ms: float | None = None
+    admission_ms: float | None = None
+    execution_ms: float | None = None
+    setup_ms: float | None = None
+    graph_ms: float | None = None
+    finalization_ms: float | None = None
+    planner_ms: float | None = None
+    reviewer_ms: float | None = None
+
+    coder_busy_ms: float | None = None
+    coder_wall_ms: float | None = None
+    coder_critical_path_ms: float | None = None
+
+    provider_calls: int | None = None
+    provider_call_busy_ms: float | None = None
+    provider_call_wall_ms: float | None = None
+    http_attempts: int | None = None
+    http_attempt_busy_ms: float | None = None
+    http_attempt_wall_ms: float | None = None
+    parse_total_ms: float | None = None
+    backoff_total_ms: float | None = None
+
+    # Test process time (gating, and diagnostic evidence apart).
+    verification_ms: float | None = None
+    diagnostic_verification_ms: float | None = None
+
+    graph_gap_ms: float | None = None
+    critical_orchestration_ms: float | None = None
+    parallel_orchestration_ms: float | None = None
+
+    schedule_delay_total_ms: float | None = None
+    slot_wait_total_ms: float | None = None
+    ledger_wait_total_ms: float | None = None
+
+    # Benchmark runner, outside the run: from claiming the trial to its run
+    # being admitted, including any wait for a free run slot.
+    trial_slot_wait_ms: float | None = None
+
+    null_reasons: dict[str, str] = Field(default_factory=dict)
+
+
+def trial_timings(
+    status: str,
+    snapshot: Mapping[str, Any] | None,
+    version: int | None,
+    trial_slot_wait_ms: float | None,
+) -> TrialTimings:
+    """A trial's timings from its run's loaded measurements (app.timings.view).
+
+    Only a ``recorded`` snapshot of a supported version is derived; any
+    other status leaves every run metric null with that status as reason.
+    """
+    reasons: dict[str, str] = {}
+    if trial_slot_wait_ms is None:
+        reasons["trial_slot_wait_ms"] = "not measured: the trial was finished by recovery"
+    if status == "recorded" and version not in SUPPORTED_MEASUREMENT_VERSIONS:
+        status = "unsupported_version"
+    if status != "recorded" or snapshot is None:
+        reasons["*"] = f"no run measurements: {status}"
+        return TrialTimings(
+            measurement_status=status,
+            measurements_version=version,
+            trial_slot_wait_ms=trial_slot_wait_ms,
+            null_reasons=reasons,
+        )
+    derived = derive(snapshot)
+    values: dict[str, Any] = {}
+    for field_name, metric in TIMING_METRICS.items():
+        value = derived.values.get(metric)
+        values[field_name] = value
+        if value is None:
+            reasons[field_name] = derived.reasons.get(metric) or derived.reasons.get("*") or "not established"
+    return TrialTimings(
+        measurement_status="recorded",
+        measurements_version=version,
+        trial_slot_wait_ms=trial_slot_wait_ms,
+        null_reasons=reasons,
+        **values,
+    )
 
 
 class TrialMetrics(BaseModel):
@@ -101,6 +250,10 @@ class TrialMetrics(BaseModel):
     input_tokens: int | None = None
     output_tokens: int | None = None
     cost_usd: float | None = None
+
+    # Run timings (metrics v2): set for counted trials; null for excluded and
+    # incomplete trials and for trials recorded before v2 (metrics_version 1).
+    timings: TrialTimings | None = None
 
     null_reasons: dict[str, str] = Field(default_factory=dict)
 

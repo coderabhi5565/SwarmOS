@@ -35,11 +35,12 @@ from __future__ import annotations
 import asyncio
 import random
 import secrets
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from app.benchmarks.arms import ARMS, ArmError, get_arm
-from app.benchmarks.metrics import as_warmup, trial_metrics
+from app.benchmarks.metrics import as_warmup, trial_metrics, trial_timings
 from app.benchmarks.models import BenchmarkExperiment, BenchmarkTrial, ExperimentOrigin
 from app.benchmarks.provenance import ArmConfiguration, arm_configuration, collect_provenance
 from app.benchmarks.store import BenchmarkStore
@@ -48,6 +49,7 @@ from app.demo_tasks import DemoTaskError
 from app.models import RunRequest, utc_now
 from app.providers import ProviderConfigError
 from app.service import CapacityError, PublicDemoError, RunService
+from app.timings.view import load_measurements
 
 # Measured repetitions per arm and task (each experiment adds
 # WARMUP_REPETITIONS warm-up repetitions per arm and task on top).
@@ -309,7 +311,10 @@ class ExperimentRunner:
             self._fail_trial(running, str(exc))
             return
 
+        # Monotonic: how long the trial waited for its run to be admitted.
+        claimed_ns = time.perf_counter_ns()
         started = await self._start_when_free(request, state)
+        slot_wait_ns = time.perf_counter_ns() - claimed_ns
         if started is None:
             # Cancelled before its run started: the trial never ran.
             self.benchmarks.transition_trial(trial, "running")
@@ -327,7 +332,7 @@ class ExperimentRunner:
             await asyncio.wait({task})
         finally:
             state.run_id, state.task = None, None
-        self._finish_trial(linked)
+        self._finish_trial(linked, slot_wait_ns)
 
     def _request(self, experiment: BenchmarkExperiment, trial: BenchmarkTrial) -> RunRequest:
         """The run request for a trial, exactly as configured at creation."""
@@ -380,7 +385,9 @@ class ExperimentRunner:
             except (PublicDemoError, ProviderConfigError, DemoTaskError) as exc:
                 return f"the run could not be started: {exc}"
 
-    def _finish_trial(self, trial: BenchmarkTrial) -> None:
+    def _finish_trial(self, trial: BenchmarkTrial, slot_wait_ns: int | None = None) -> None:
+        """Snapshot the finished run's metrics into the trial. ``slot_wait_ns``
+        is None when recovery, not the trial's own runner, finishes it."""
         record = self.service.store.get_run(trial.run_id or "")
         if record is None:
             self._fail_trial(trial, "the trial's run is missing")
@@ -391,6 +398,11 @@ class ExperimentRunner:
             warmups = warmup_repetitions(experiment, self.benchmarks.get_trials(experiment.experiment_id))
             if trial.repetition < warmups:
                 metrics = as_warmup(metrics)
+        if metrics.counted:
+            loaded = load_measurements(self.service.store, record)
+            slot_wait_ms = None if slot_wait_ns is None else round(slot_wait_ns / 1_000_000, 3)
+            timings = trial_timings(loaded.reason, loaded.snapshot, loaded.version, slot_wait_ms)
+            metrics = metrics.model_copy(update={"timings": timings})
         finished = trial.model_copy(
             update={"status": "done", "finished_at": utc_now(), "metrics": metrics}
         )

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -116,24 +117,43 @@ def _reason_without_row(store: RunStore, record: RunRecord) -> str:
     return "not_recorded"
 
 
-def measurements_view(store: RunStore, record: RunRecord, *, public: PublicRedactor | None = None) -> RunMeasurements:
-    """The response for one run (which the caller has already found)."""
-    run_id = record.run_id
-    row = store.get_measurement(run_id)
+@dataclass(frozen=True)
+class LoadedMeasurements:
+    """A run's stored measurements, revalidated: the sanitized snapshot when
+    ``reason`` is ``recorded``, otherwise why there is none."""
+
+    reason: str
+    snapshot: dict[str, Any] | None = None
+    version: int | None = None
+    collected_at: str | None = None
+
+
+def load_measurements(store: RunStore, record: RunRecord) -> LoadedMeasurements:
+    """Read and revalidate one run's row (shared by the API and benchmarks)."""
+    row = store.get_measurement(record.run_id)
     if row is None:
-        return RunMeasurements(run_id=run_id, available=False, reason=_reason_without_row(store, record))
+        return LoadedMeasurements(_reason_without_row(store, record))
     collected = _timestamp(row.collected_at)
     collected_at = collected.isoformat() if collected is not None else None
     if row.status != "recorded":
-        reason = MARKER_REASONS.get(row.status, "not_recorded")
-        return RunMeasurements(run_id=run_id, available=False, reason=reason, collected_at=collected_at)
+        return LoadedMeasurements(MARKER_REASONS.get(row.status, "not_recorded"), collected_at=collected_at)
     try:
         snapshot = sanitize(json.loads(row.measurements_json or ""))
     except (ValueError, TypeError, RecursionError):
         snapshot = None
     if snapshot is None:
-        return RunMeasurements(run_id=run_id, available=False, reason="unreadable", collected_at=collected_at)
-    return _recorded(run_id, snapshot, collected_at, row.measurements_version, public)
+        return LoadedMeasurements("unreadable", collected_at=collected_at)
+    return LoadedMeasurements("recorded", snapshot, row.measurements_version, collected_at)
+
+
+def measurements_view(store: RunStore, record: RunRecord, *, public: PublicRedactor | None = None) -> RunMeasurements:
+    """The response for one run (which the caller has already found)."""
+    loaded = load_measurements(store, record)
+    if loaded.snapshot is None:
+        return RunMeasurements(
+            run_id=record.run_id, available=False, reason=loaded.reason, collected_at=loaded.collected_at
+        )
+    return _recorded(record.run_id, loaded.snapshot, loaded.collected_at, loaded.version, public)
 
 
 def _recorded(

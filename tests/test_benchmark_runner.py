@@ -345,7 +345,7 @@ async def test_an_unexpected_error_fails_the_experiment_without_leaving_it_runni
     runner, _, _ = harness()
     experiment = runner.create("catalog", ["parallel", "sequential"], origin="cli", task_ids=[SAMPLE])
 
-    def broken(trial):
+    def broken(trial, slot_wait_ns=None):
         raise RuntimeError("disk full")
 
     monkeypatch.setattr(runner, "_finish_trial", broken)

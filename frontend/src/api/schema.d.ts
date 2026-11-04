@@ -915,12 +915,91 @@ export interface components {
             step_retries: number | null;
             /** Task Success */
             task_success: boolean | null;
+            timings: components["schemas"]["BenchmarkTrialTimings"] | null;
             /** Verification Ms */
             verification_ms: number | null;
             /** Verification Passed */
             verification_passed: boolean | null;
             /** Verification Runs */
             verification_runs: number;
+        };
+        /**
+         * BenchmarkTrialTimings
+         * @description A counted trial's run timings from its persisted span measurements.
+         *
+         *     ``*_busy_ms`` and ``*_total_ms`` are sums over possibly overlapping
+         *     intervals (time spent, not elapsed); ``*_wall_ms`` and the phases are
+         *     elapsed time. Null means not established (see null_reasons; ``*``
+         *     covers every field when the run has no usable measurements).
+         */
+        BenchmarkTrialTimings: {
+            /** Admission Ms */
+            admission_ms: number | null;
+            /** Backoff Total Ms */
+            backoff_total_ms: number | null;
+            /** Coder Busy Ms */
+            coder_busy_ms: number | null;
+            /** Coder Critical Path Ms */
+            coder_critical_path_ms: number | null;
+            /** Coder Wall Ms */
+            coder_wall_ms: number | null;
+            /** Critical Orchestration Ms */
+            critical_orchestration_ms: number | null;
+            /** Diagnostic Verification Ms */
+            diagnostic_verification_ms: number | null;
+            /** Execution Ms */
+            execution_ms: number | null;
+            /** Finalization Ms */
+            finalization_ms: number | null;
+            /** Graph Gap Ms */
+            graph_gap_ms: number | null;
+            /** Graph Ms */
+            graph_ms: number | null;
+            /** Http Attempt Busy Ms */
+            http_attempt_busy_ms: number | null;
+            /** Http Attempt Wall Ms */
+            http_attempt_wall_ms: number | null;
+            /** Http Attempts */
+            http_attempts: number | null;
+            /** Ledger Wait Total Ms */
+            ledger_wait_total_ms: number | null;
+            /** Lifecycle Ms */
+            lifecycle_ms: number | null;
+            /**
+             * Measurement Status
+             * @enum {string}
+             */
+            measurement_status: "recorded" | "run_in_progress" | "predates_measurements" | "process_crash" | "measurement_flush_failed" | "instrumentation_disabled" | "not_recorded" | "unreadable" | "unsupported_version";
+            /** Measurements Version */
+            measurements_version: number | null;
+            /** Null Reasons */
+            null_reasons: {
+                [key: string]: string;
+            };
+            /** Parallel Orchestration Ms */
+            parallel_orchestration_ms: number | null;
+            /** Parse Total Ms */
+            parse_total_ms: number | null;
+            /** Planner Ms */
+            planner_ms: number | null;
+            /** Provider Call Busy Ms */
+            provider_call_busy_ms: number | null;
+            /** Provider Call Wall Ms */
+            provider_call_wall_ms: number | null;
+            /** Provider Calls */
+            provider_calls: number | null;
+            /** Reviewer Ms */
+            reviewer_ms: number | null;
+            /** Schedule Delay Total Ms */
+            schedule_delay_total_ms: number | null;
+            /** Setup Ms */
+            setup_ms: number | null;
+            /** Slot Wait Total Ms */
+            slot_wait_total_ms: number | null;
+            /** Trial Slot Wait Ms */
+            trial_slot_wait_ms: number | null;
+            /** Verification Ms */
+            verification_ms: number | null;
         };
         /**
          * BudgetPayload

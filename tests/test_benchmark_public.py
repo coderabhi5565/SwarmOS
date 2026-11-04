@@ -121,6 +121,10 @@ def test_public_detail_hides_host_details_and_keeps_the_rest(world):
     assert environment["scripted"] is True and environment["provider"] == "demo"
     assert environment["app_version"] and environment["verification_command"]
     assert len(body["trials"]) == 4 and body["aggregates"]  # with one warm-up per arm
+    # Run timings (numbers, statuses and fixed reasons only) are public too.
+    timed = [t["metrics"]["timings"] for t in body["trials"] if t["metrics"] and t["metrics"]["timings"]]
+    assert len(timed) == 2 and all(t["measurement_status"] == "recorded" for t in timed)
+    assert all(isinstance(t["lifecycle_ms"], float) for t in timed)
     assert body["trials"][0]["run_path"].startswith("/api/runs/run_")
 
 

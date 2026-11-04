@@ -356,6 +356,58 @@ class BenchmarkDistribution(_Response):
     max: float | None
 
 
+class BenchmarkTrialTimings(_Response):
+    """A counted trial's run timings from its persisted span measurements.
+
+    ``*_busy_ms`` and ``*_total_ms`` are sums over possibly overlapping
+    intervals (time spent, not elapsed); ``*_wall_ms`` and the phases are
+    elapsed time. Null means not established (see null_reasons; ``*``
+    covers every field when the run has no usable measurements).
+    """
+
+    measurement_status: Literal[
+        "recorded",
+        "run_in_progress",
+        "predates_measurements",
+        "process_crash",
+        "measurement_flush_failed",
+        "instrumentation_disabled",
+        "not_recorded",
+        "unreadable",
+        "unsupported_version",
+    ]
+    measurements_version: int | None
+    lifecycle_ms: float | None
+    admission_ms: float | None
+    execution_ms: float | None
+    setup_ms: float | None
+    graph_ms: float | None
+    finalization_ms: float | None
+    planner_ms: float | None
+    reviewer_ms: float | None
+    coder_busy_ms: float | None
+    coder_wall_ms: float | None
+    coder_critical_path_ms: float | None
+    provider_calls: int | None
+    provider_call_busy_ms: float | None
+    provider_call_wall_ms: float | None
+    http_attempts: int | None
+    http_attempt_busy_ms: float | None
+    http_attempt_wall_ms: float | None
+    parse_total_ms: float | None
+    backoff_total_ms: float | None
+    verification_ms: float | None
+    diagnostic_verification_ms: float | None
+    graph_gap_ms: float | None
+    critical_orchestration_ms: float | None
+    parallel_orchestration_ms: float | None
+    schedule_delay_total_ms: float | None
+    slot_wait_total_ms: float | None
+    ledger_wait_total_ms: float | None
+    trial_slot_wait_ms: float | None
+    null_reasons: dict[str, str]
+
+
 class BenchmarkTrialMetrics(_Response):
     """What a trial's run established; null means not established (see null_reasons)."""
 
@@ -388,6 +440,9 @@ class BenchmarkTrialMetrics(_Response):
     input_tokens: int | None
     output_tokens: int | None
     cost_usd: float | None
+    # Metrics v2: null for excluded and incomplete trials and for trials
+    # recorded before v2 (metrics_version 1).
+    timings: BenchmarkTrialTimings | None
     null_reasons: dict[str, str]
 
 

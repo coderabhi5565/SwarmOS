@@ -116,6 +116,7 @@ export function trialMetrics(overrides: Partial<BenchmarkTrialMetrics> = {}): Be
     input_tokens: null,
     output_tokens: null,
     cost_usd: null,
+    timings: null,
     null_reasons: {
       model_latency_ms: "scripted provider: no model was called",
       tokens: "scripted provider: no usage is reported",
