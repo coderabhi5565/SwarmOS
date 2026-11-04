@@ -90,7 +90,14 @@ async def test_a_json_mode_downgrade_is_two_attempts_in_one_call(build_run):
     [call] = of_kind(snapshot, "call")
     attempts = children(snapshot, call, "call.http_attempt")
     assert [a["attrs"]["outcome"] for a in sorted(attempts, key=lambda a: a["start_ns"])] == ["json_mode_rejected", "ok"]
-    assert derive(snapshot).calls[0]["http_attempts"] == 2
+    derived = derive(snapshot)
+    assert derived.calls[0]["http_attempts"] == 2
+    # Sequential attempts inside one call: busy equals wall, and neither exceeds the call.
+    busy, wall = derived.values["http_attempt_ms"], derived.values["http_attempt_wall_ms"]
+    assert busy == pytest.approx(sum(derived.calls[0]["http_attempt_ms"]), abs=0.002)
+    assert wall == pytest.approx(busy, abs=0.002)
+    assert wall <= derived.values["call_wall_ms"] == derived.values["call_ms"]
+    assert derived.values["provider_calls"] == 1
 
 
 async def test_a_server_error_is_retried_after_a_timed_backoff(build_run):

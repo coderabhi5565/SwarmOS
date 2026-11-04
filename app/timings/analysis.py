@@ -17,7 +17,10 @@ Time is attributed, never obtained by subtracting independent totals:
 * **critical orchestration** is the self time of the graph, of every node
   that is not a coding step, and of the last-finishing coding step of each
   dispatch; the self time of the other coding steps is **parallel
-  orchestration**, reported apart and never added to the path.
+  orchestration**, reported apart and never added to the path;
+* provider calls and HTTP attempts likewise: ``call_ms`` and
+  ``http_attempt_ms`` are busy time (sums, overlaps counted),
+  ``call_wall_ms`` and ``http_attempt_wall_ms`` the length of the union.
 
 Node self time includes the node's event validation and persistence, which
 are also reported on their own (``event_persist_*``) from the per-run
@@ -263,6 +266,29 @@ def _derive(snapshot: Any) -> Derived:
         unknown("http_attempts", "no call")
     else:
         values["http_attempts"] = len(by_kind.get("call.http_attempt", []))
+    if detail_reason:
+        unknown("provider_calls", detail_reason)
+    else:
+        values["provider_calls"] = len(calls)
+
+    # Busy time sums the intervals (concurrent calls in a parallel wave both
+    # count); wall time is the length of their union (overlaps count once).
+    attempts = by_kind.get("call.http_attempt", [])
+    for metric, found, combine in (
+        ("call_wall_ms", calls, "union"),
+        ("http_attempt_ms", attempts, "sum"),
+        ("http_attempt_wall_ms", attempts, "union"),
+    ):
+        if detail_reason:
+            unknown(metric, detail_reason)
+        elif not calls:
+            unknown(metric, "no call")
+        elif any(span.end is None for span in found):
+            unknown(metric, "incomplete")
+        elif combine == "union":
+            values[metric] = ms(union_ns((span.start, span.end) for span in found))
+        else:
+            values[metric] = ms(sum(span.duration for span in found))
 
     graphs = by_kind.get("graph", [])
     parallel_coding = bool(graphs) and graphs[0].attrs.get("parallel_coding") is True

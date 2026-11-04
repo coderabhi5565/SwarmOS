@@ -198,6 +198,53 @@ def test_no_call_means_unknown_call_metrics():
     derived = derive(recorder().snapshot())
     assert derived.reasons["call_ms"] == "no call"
     assert derived.reasons["http_attempts"] == "no call"
+    for metric in ("call_wall_ms", "http_attempt_ms", "http_attempt_wall_ms"):
+        assert derived.values[metric] is None and derived.reasons[metric] == "no call"
+    assert derived.values["provider_calls"] == 0  # counted: no call was made
+
+
+def test_overlapping_calls_in_a_parallel_wave_count_once_in_wall_time():
+    values = derive(parallel_wave().snapshot()).values
+    # A1 150-450, A2 300-500, B1 160-800.
+    assert values["provider_calls"] == 3
+    assert values["call_ms"] == 300 + 200 + 640  # busy: 1140, overlaps counted
+    assert values["call_wall_ms"] == 800 - 150  # union: one interval, 650
+    # Scripted calls: no HTTP attempt, measured as zero.
+    assert values["http_attempt_ms"] == 0 and values["http_attempt_wall_ms"] == 0
+
+
+def overlapping_attempts() -> SpanRecorder:
+    """call X 10-110 (attempts 11-50, 55-110); call Y 60-210 (attempt 70-200)."""
+    r = recorder()
+    node = r.add("node", 0, 1000 * MS, parent=None, node="code_step")
+    x = r.add("call", 10 * MS, 110 * MS, parent=node, role="coder", attempt=1)
+    y = r.add("call", 60 * MS, 210 * MS, parent=node, role="coder", attempt=1)
+    r.add("call.http_attempt", 11 * MS, 50 * MS, parent=x, outcome="server_error")
+    r.add("call.http_attempt", 55 * MS, 110 * MS, parent=x, outcome="ok")
+    r.add("call.http_attempt", 70 * MS, 200 * MS, parent=y, outcome="ok")
+    return r
+
+
+def test_http_attempt_busy_and_wall_time_are_hand_checkable():
+    values = derive(overlapping_attempts().snapshot()).values
+    assert values["provider_calls"] == 2 and values["http_attempts"] == 3
+    assert values["call_ms"] == 100 + 150
+    assert values["call_wall_ms"] == 210 - 10
+    assert values["http_attempt_ms"] == 39 + 55 + 130  # busy: 224
+    # union: 11-50 (39), then 55-110 and 70-200 merge into 55-200 (145)
+    assert values["http_attempt_wall_ms"] == 39 + 145
+
+
+def test_an_open_call_or_attempt_makes_wall_and_busy_time_incomplete():
+    r = recorder()
+    node = r.add("node", 0, 100 * MS, parent=None, node="review")
+    call = r.add("call", 1 * MS, 50 * MS, parent=node, role="reviewer", attempt=1)
+    r.start("call.http_attempt", parent=call, at=2 * MS)
+    r.start("call", parent=node, at=60 * MS, role="reviewer", attempt=2)
+    derived = derive(r.snapshot())
+    for metric in ("call_wall_ms", "http_attempt_ms", "http_attempt_wall_ms"):
+        assert derived.values[metric] is None and derived.reasons[metric] == "incomplete"
+    assert derived.values["provider_calls"] == 2
 
 
 # ----------------------------------------------------------------------
@@ -238,7 +285,16 @@ def test_dropped_detail_spans_null_the_detail_metrics_but_not_the_phases():
     derived = derive(r.snapshot())
     assert derived.values["dropped_spans"] == 4
     assert derived.values["graph_ms"] == 100
-    for metric in ("call_ms", "http_attempts", "verification_ms", "critical_orchestration_ms"):
+    for metric in (
+        "call_ms",
+        "http_attempts",
+        "provider_calls",
+        "call_wall_ms",
+        "http_attempt_ms",
+        "http_attempt_wall_ms",
+        "verification_ms",
+        "critical_orchestration_ms",
+    ):
         assert derived.values[metric] is None and derived.reasons[metric] == "spans dropped"
 
 
