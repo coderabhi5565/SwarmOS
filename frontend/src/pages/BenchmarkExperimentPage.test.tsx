@@ -76,6 +76,7 @@ function finished(status: BenchmarkExperimentStatus = "completed", overrides: Pa
       aggregate({
         arm_id: "sequential",
         trials: 1,
+        non_warmup_trials: 1,
         counted: 0,
         trial_statuses: { done: 1, error: 1, not_run: 1 },
         task_successes: 0,
@@ -236,13 +237,18 @@ describe("benchmark experiment page", () => {
     expect(within(parallel).getByText(/^cost/).nextSibling).toHaveTextContent("not established");
     expect(within(parallel).getByText("Excluded: cancelled (1)")).toBeInTheDocument();
     expect(within(parallel).getByText(/P95 latency is from 2 runs/)).toBeInTheDocument();
-    expect(within(parallel).getByText(/3 trials with results · 2 counted · 1 excluded/)).toBeInTheDocument();
+    expect(within(parallel).getByText("measured n = 2").parentElement).toHaveTextContent(
+      "measured n = 2 · 0 warm-ups · 1 excluded · 0 incomplete · 3 trials with results",
+    );
 
     const sequential = within(byArm).getByRole("listitem", { name: "Results for sequential" });
     expect(within(sequential).getByText("task success (run completed)").nextSibling).toHaveTextContent("no counted trials");
     expect(within(sequential).getByText("run latency").nextSibling).toHaveTextContent("none recorded");
     expect(within(sequential).getByText("mean agent calls").nextSibling).toHaveTextContent("not established");
-    expect(within(sequential).queryByText("0%")).not.toBeInTheDocument();
+    // An unknown rate is never shown as 0%; a measured zero (no cancellation) is.
+    expect(within(sequential).getByText("task success (run completed)").nextSibling).not.toHaveTextContent("0%");
+    expect(within(sequential).getByText("verification passed").nextSibling).not.toHaveTextContent("0%");
+    expect(within(sequential).getByText("cancelled").nextSibling).toHaveTextContent("0% (0 of 1 non-warm-up trials)");
     expect(within(sequential).getByText(/1 done, 1 error, 1 not run/)).toBeInTheDocument();
 
     const byTask = section("Results by arm and task");
@@ -391,5 +397,140 @@ describe("benchmark experiment page", () => {
     expect([...container.querySelectorAll("svg")].every((svg) => svg.getAttribute("aria-hidden") === "true")).toBe(true);
     const paths = mock.mock.calls.map(([input, init]) => [new URL(String(input), "http://localhost").pathname, init?.method ?? "GET"]);
     expect(paths.filter(([path]) => path.startsWith("/api/"))).toEqual([[PATH, "GET"]]);
+  });
+});
+
+describe("aggregate metrics v2", () => {
+  /** Arm parallel over two tasks: complete on one task (20 measured), short on the other (19). */
+  function v2() {
+    const lifecycle = { n: 3, missing: 1, missing_reasons: { "spans dropped": 1 }, median: 200, p95: 300, min: 100, max: 300 };
+    return finished("completed", {
+      aggregates: [
+        aggregate({
+          arm_id: "parallel",
+          trials: 42,
+          counted: 39,
+          warmups: 2,
+          excluded: 1,
+          excluded_reasons: { cancelled: 1 },
+          non_warmup_trials: 40,
+          cancelled: 1,
+          cancellation_rate: 0.025,
+          interrupted: 0,
+          interrupted_rate: 0,
+          sample_complete: false,
+          timings: { measured: 4, unavailable: { measurement_flush_failed: 1, metrics_v1: 34 }, metrics: { lifecycle_ms: lifecycle } },
+        }),
+        aggregate({
+          arm_id: "sequential",
+          trials: 1,
+          counted: 0,
+          warmups: 1,
+          non_warmup_trials: 0,
+          cancelled: 0,
+          cancellation_rate: null,
+          interrupted: 0,
+          interrupted_rate: null,
+          task_success_rate: null,
+          verification_pass_rate: null,
+          timings: { measured: 0, unavailable: {}, metrics: {} },
+        }),
+      ],
+      task_aggregates: [
+        aggregate({ arm_id: "parallel", task_id: "sample_tag_normalization", counted: 20, warmups: 1, sample_complete: true }),
+        aggregate({ arm_id: "parallel", task_id: "sample_parallel_pipeline", counted: 19, warmups: 1, sample_complete: false }),
+      ],
+    });
+  }
+
+  const card = (region: string, name: string) => within(section(region)).getByRole("listitem", { name: `Results for ${name}` });
+
+  it("marks complete and incomplete samples at the arm and task levels", async () => {
+    serve(() => json(v2()));
+    renderAt(`/benchmarks/${ID}`);
+    await screen.findByRole("heading", { name: "Demo catalog" });
+    expect(card("Results by arm and task", "parallel on sample_tag_normalization")).toHaveTextContent(
+      "complete sample · 20 measured",
+    );
+    expect(card("Results by arm and task", "parallel on sample_parallel_pipeline")).toHaveTextContent(
+      "incomplete sample · 19 of 20 measured",
+    );
+    // Over all tasks, complete only when every task is.
+    expect(card("Results by arm", "parallel")).toHaveTextContent("incomplete sample · 20 measured per task needed");
+  });
+
+  it("separates measured n, warm-ups and exclusions, and gives each rate its denominator", async () => {
+    serve(() => json(v2()));
+    renderAt(`/benchmarks/${ID}`);
+    await screen.findByRole("heading", { name: "Demo catalog" });
+    const parallel = card("Results by arm", "parallel");
+    expect(within(parallel).getByText("measured n = 39").parentElement).toHaveTextContent(
+      "measured n = 39 · 2 warm-ups · 1 excluded · 0 incomplete · 42 trials with results",
+    );
+    expect(within(parallel).getByText("Excluded: cancelled (1)")).toBeInTheDocument();
+    expect(within(parallel).getByText("cancelled").nextSibling).toHaveTextContent("2.5% (1 of 40 non-warm-up trials)");
+    expect(within(parallel).getByText("interrupted").nextSibling).toHaveTextContent("0% (0 of 40 non-warm-up trials)");
+  });
+
+  it("shows an unknown rate, not 0%, when there is no non-warm-up trial", async () => {
+    serve(() => json(v2()));
+    renderAt(`/benchmarks/${ID}`);
+    await screen.findByRole("heading", { name: "Demo catalog" });
+    const sequential = card("Results by arm", "sequential");
+    expect(within(sequential).getByText("cancelled").nextSibling).toHaveTextContent("no non-warm-up trials");
+    expect(within(sequential).getByText("interrupted").nextSibling).not.toHaveTextContent("0%");
+  });
+
+  it("opens the timing distributions, with missing and unavailable trials counted", async () => {
+    serve(() => json(v2()));
+    renderAt(`/benchmarks/${ID}`);
+    await screen.findByRole("heading", { name: "Demo catalog" });
+    const parallel = card("Results by arm", "parallel");
+    const summary = within(parallel).getByText("Run timings");
+    expect(summary.closest("summary")).toHaveTextContent("Run timings · 4 of 39 counted measured");
+    const details = summary.closest("details") as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    // A native disclosure: its summary takes keyboard focus (the browser toggles it with Enter or Space).
+    const toggle = summary.closest("summary") as HTMLElement;
+    toggle.focus();
+    expect(document.activeElement).toBe(toggle);
+    await userEvent.click(toggle);
+    expect(details.open).toBe(true);
+    expect(within(details).getByText(/have recorded run measurements/)).toHaveTextContent(
+      "4 of 39 counted trials have recorded run measurements. The other 35 are left out of every timing figure: " +
+        "measurements could not be saved (1); recorded before trial timings (34).",
+    );
+    const lifecycle = within(details).getByRole("rowheader", { name: /^lifecycle/ }).closest("tr") as HTMLElement;
+    expect(within(lifecycle).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([
+      "3",
+      "1",
+      "200 ms",
+      "300 ms",
+      "100 ms",
+      "300 ms",
+    ]);
+    expect(lifecycle).toHaveTextContent("missing: spans dropped (1)");
+    // A metric the backend did not report is unknown, not zero.
+    const planner = within(details).getByRole("rowheader", { name: /^planner/ }).closest("tr") as HTMLElement;
+    expect(planner).toHaveTextContent("not reported");
+  });
+
+  it("explains an arm without measured trials and an experiment from before timings", async () => {
+    serve(() => json(v2()));
+    renderAt(`/benchmarks/${ID}`);
+    await screen.findByRole("heading", { name: "Demo catalog" });
+    const sequential = card("Results by arm", "sequential");
+    await userEvent.click(within(sequential).getByText("Run timings"));
+    expect(within(sequential).getByText("No timing figures: no counted trial has recorded run measurements.")).toBeInTheDocument();
+  });
+
+  it("states that twenty trials do not establish statistical significance", async () => {
+    serve(() => json(v2()));
+    renderAt(`/benchmarks/${ID}`);
+    await screen.findByRole("heading", { name: "Demo catalog" });
+    expect(section("Results by arm")).toHaveTextContent(
+      "twenty trials per arm and task do not establish a statistically significant difference",
+    );
+    expect(section("Results by arm and task")).toHaveTextContent("The sample requirement applies here, to each arm and task.");
   });
 });

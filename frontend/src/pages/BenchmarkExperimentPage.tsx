@@ -10,6 +10,7 @@ import type {
   BenchmarkTrialMetrics,
 } from "@/api/types";
 import { ExperimentStatusBadge, ProvenanceBadge } from "@/components/benchmarks/badges";
+import { TimingAggregateTable } from "@/components/benchmarks/timings";
 import { formatDate, formatDuration, humanize } from "@/components/execution/format";
 import { EmptyLine, Section, ToneBadge, Unknown, Value, type Tone } from "@/components/execution/primitives";
 import { Button } from "@/components/ui/button";
@@ -88,13 +89,19 @@ export function BenchmarkExperimentPage() {
       <Aggregates
         id="arm-aggregates"
         title="Results by arm"
-        description="Over every task. Rates and means count only trials that finished and were not excluded."
+        description={
+          <>
+            Over every task. Rates, means and timings count only measured trials: finished, not a warm-up, not excluded.
+            Cancellation and interrupted rates are over every non-warm-up trial. Medians and nearest-rank P95s describe the
+            measured trials; twenty trials per arm and task do not establish a statistically significant difference.
+          </>
+        }
         aggregates={data.aggregates}
       />
       <Aggregates
         id="task-aggregates"
         title="Results by arm and task"
-        description="The same, for each task separately."
+        description="The same, for each task separately. The sample requirement applies here, to each arm and task."
         aggregates={data.task_aggregates}
       />
       <Trials trials={data.trials} />
@@ -369,7 +376,7 @@ function Aggregates({
 }: {
   id: string;
   title: string;
-  description: string;
+  description: ReactNode;
   aggregates: BenchmarkAggregate[];
 }) {
   return (
@@ -387,22 +394,65 @@ function Aggregates({
   );
 }
 
+/** A count's share of a stated denominator; unknown (not 0%) when the denominator is 0. */
+function Share({ count, rate, of, ofLabel }: { count: number; rate: number | null; of: number; ofLabel: string }) {
+  if (rate === null) return <Unknown>no {ofLabel}</Unknown>;
+  return (
+    <>
+      {percent(rate)}{" "}
+      <span className="text-muted-foreground">
+        ({count} of {of} {ofLabel})
+      </span>
+    </>
+  );
+}
+
+/** Whether the measured sample meets the backend's requirement (per arm and task). */
+function SampleStatus({ aggregate }: { aggregate: BenchmarkAggregate }) {
+  const overall = aggregate.task_id === null;
+  if (aggregate.sample_complete) {
+    return (
+      <ToneBadge tone="completed" pulse={false}>
+        complete sample · {overall ? `every task has ${aggregate.sample_required}+ measured` : `${aggregate.counted} measured`}
+      </ToneBadge>
+    );
+  }
+  return (
+    <ToneBadge tone="findings" pulse={false}>
+      incomplete sample ·{" "}
+      {overall
+        ? `${aggregate.sample_required} measured per task needed`
+        : `${aggregate.counted} of ${aggregate.sample_required} measured`}
+    </ToneBadge>
+  );
+}
+
 function AggregateCard({ aggregate }: { aggregate: BenchmarkAggregate }) {
   const name = aggregate.task_id ? `${aggregate.arm_id} on ${aggregate.task_id}` : aggregate.arm_id;
   return (
     <li aria-label={`Results for ${name}`} className="rounded-lg border border-border/70 bg-card/40 p-3">
-      <p className="text-sm font-medium">
-        {aggregate.arm_id}
-        {aggregate.task_id && <span className="font-mono text-xs text-muted-foreground"> · {aggregate.task_id}</span>}
-      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm font-medium">
+          {aggregate.arm_id}
+          {aggregate.task_id && <span className="font-mono text-xs text-muted-foreground"> · {aggregate.task_id}</span>}
+        </p>
+        <SampleStatus aggregate={aggregate} />
+      </div>
       <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-        {aggregate.trials} trial{aggregate.trials === 1 ? "" : "s"} with results · {aggregate.counted} counted ·{" "}
-        {aggregate.excluded} excluded · {aggregate.incomplete} incomplete ·{" "}
+        <span className="text-foreground">measured n = {aggregate.counted}</span> · {aggregate.warmups} warm-up
+        {aggregate.warmups === 1 ? "" : "s"} · {aggregate.excluded} excluded · {aggregate.incomplete} incomplete ·{" "}
+        {aggregate.trials} trial{aggregate.trials === 1 ? "" : "s"} with results ·{" "}
         {Object.entries(aggregate.trial_statuses)
           .map(([status, count]) => `${count} ${humanize(status)}`)
           .join(", ")}
       </p>
       <dl className="mt-3 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+        <Fact label="cancelled">
+          <Share count={aggregate.cancelled} rate={aggregate.cancellation_rate} of={aggregate.non_warmup_trials} ofLabel="non-warm-up trials" />
+        </Fact>
+        <Fact label="interrupted">
+          <Share count={aggregate.interrupted} rate={aggregate.interrupted_rate} of={aggregate.non_warmup_trials} ofLabel="non-warm-up trials" />
+        </Fact>
         <Fact label="task success (run completed)">
           <Rate count={aggregate.task_successes} rate={aggregate.task_success_rate} counted={aggregate.counted} />
         </Fact>
@@ -458,6 +508,17 @@ function AggregateCard({ aggregate }: { aggregate: BenchmarkAggregate }) {
             .join("; ")}
         </p>
       )}
+      <details className="mt-3 rounded-md border border-border/50 px-3 py-2">
+        <summary className="cursor-pointer text-xs font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+          Run timings{" "}
+          <span className="font-normal text-muted-foreground">
+            · {aggregate.timings.measured} of {aggregate.counted} counted measured
+          </span>
+        </summary>
+        <div className="mt-2">
+          <TimingAggregateTable timings={aggregate.timings} counted={aggregate.counted} />
+        </div>
+      </details>
       {aggregate.notes.length > 0 && (
         <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">
           {aggregate.notes.map((note) => (

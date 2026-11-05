@@ -75,5 +75,9 @@ export type BenchmarkExperimentDetail = Schemas["BenchmarkExperimentDetail"];
 export type BenchmarkAggregate = Schemas["BenchmarkAggregate"];
 export type BenchmarkTrial = Schemas["BenchmarkTrialInfo"];
 export type BenchmarkTrialMetrics = Schemas["BenchmarkTrialMetrics"];
+/** Metrics v2 (M7.3): a counted trial's run timings, and an aggregate's timing distributions. */
+export type BenchmarkTrialTimings = Schemas["BenchmarkTrialTimings"];
+export type BenchmarkTimingAggregate = Schemas["BenchmarkTimingAggregate"];
+export type BenchmarkTimingSummary = Schemas["BenchmarkTimingSummary"];
 export type BenchmarkCancel = Schemas["BenchmarkCancelResponse"];
 export type BenchmarkExperimentStatus = BenchmarkExperimentSummary["status"];
