@@ -225,6 +225,8 @@ class RunStore:
         # Called with a run_id after a committed change to that run or its
         # trace (see add_listener). Carries no data: listeners re-read.
         self._listeners: list[Callable[[str], None]] = []
+        # Called after a new event commits (see add_commit_listener).
+        self._commit_listeners: list[Callable[[str, int, int], None]] = []
         self._conn = sqlite3.connect(
             self.db_path, check_same_thread=False, timeout=30
         )
@@ -300,6 +302,18 @@ class RunStore:
         store lock, so a reader they wake always sees the change.
         """
         self._listeners.append(listener)
+
+    def add_commit_listener(self, listener: Callable[[str, int, int], None]) -> None:
+        """Call ``listener(run_id, seq, committed_ns)`` after a new event commits.
+
+        ``committed_ns`` is ``time.perf_counter_ns()`` read immediately after
+        the commit (the start of ``sse_commit_to_yield_ms``, app.streaming).
+        Only for an event actually inserted (a duplicate is ignored), only
+        while the process histograms are enabled, before ``add_listener``
+        listeners are woken, outside the store lock. A listener that raises is
+        counted as an instrumentation failure; the write is unaffected.
+        """
+        self._commit_listeners.append(listener)
 
     def _changed(self, run_id: str) -> None:
         for listener in self._listeners:
@@ -430,9 +444,10 @@ class RunStore:
     def append_event(self, event: TraceEvent) -> None:
         data = event.model_dump(mode="json")
         timer = _WriteTimer("append_event")
+        committed_ns = 0
         with self._held("db_write"):
             timer.locked()
-            self._conn.execute(
+            cursor = self._conn.execute(
                 """
                 INSERT OR IGNORE INTO trace_events
                     (event_id, run_id, seq, at, kind, message, payload_json)
@@ -449,7 +464,15 @@ class RunStore:
                 ),
             )
             self._conn.commit()
+            if cursor.rowcount == 1 and self._commit_listeners and PROCESS.enabled:
+                committed_ns = time.perf_counter_ns()
         timer.written()
+        if committed_ns:
+            for listener in self._commit_listeners:
+                try:
+                    listener(event.run_id, event.seq, committed_ns)
+                except Exception:  # noqa: BLE001 - instrumentation never fails a write
+                    PROCESS.failed()
         self._changed(event.run_id)
 
     def recover_interrupted(self, reason: str) -> list[str]:

@@ -130,7 +130,7 @@ class ProcessHistograms:
                 return
             histogram.observe(value_ns)
         except Exception:  # noqa: BLE001 - instrumentation never fails its caller
-            self._failed()
+            self.failed()
 
     def increment(self, name: str) -> None:
         """Add one to a counter; never raises."""
@@ -143,9 +143,10 @@ class ProcessHistograms:
                 else:
                     self._unknown_names += 1
         except Exception:  # noqa: BLE001
-            self._failed()
+            self.failed()
 
-    def _failed(self) -> None:
+    def failed(self) -> None:
+        """Count an instrumentation failure (here or in a caller); never raises."""
         try:
             with self._lock:
                 self._errors += 1

@@ -64,6 +64,7 @@ async def lifespan(app: FastAPI):
     store = RunStore(settings.db_path)
     store.recover_interrupted("interrupted: the server stopped before this run finished")
     broker = RunEventBroker(settings.max_streams, settings.max_streams_per_client)
+    store.add_commit_listener(broker.record_commit)
     store.add_listener(broker.notify)
     app.state.store = store
     app.state.broker = broker
