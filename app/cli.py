@@ -11,9 +11,11 @@ from pathlib import Path
 from app.benchmarks.arms import ARMS
 from app.benchmarks.legacy import result_from_run, summarise, write_results
 from app.benchmarks.provenance import identical_by_design
+from app.benchmarks.report import render_report
 from app.benchmarks.runner import ExperimentError, ExperimentRunner, warmup_repetitions
 from app.benchmarks.store import BenchmarkStore, ExperimentBusyError
 from app.benchmarks.suites import all_suites, get_suite
+from app.benchmarks.views import experiment_detail
 from app.config import settings
 from app.demo_tasks import SAMPLE_GOAL, SAMPLE_LIMITS, SAMPLE_TASK_ID
 from app.models import Limits, RunRequest
@@ -136,6 +138,27 @@ def _cmd_trace(args: argparse.Namespace) -> int:
             print(f"{event.seq:>3}  {event.kind:<18} {event.message}")
     finally:
         store.close()
+    return 0
+
+
+def _cmd_report(args: argparse.Namespace) -> int:
+    """Render a stored experiment as Markdown (read-only; app.benchmarks.report)."""
+    store = RunStore(args.db)
+    try:
+        benchmarks = BenchmarkStore(store)
+        experiment = benchmarks.get_experiment(args.experiment_id)
+        if experiment is None:
+            print(f"experiment {args.experiment_id} not found", file=sys.stderr)
+            return 2
+        trials = benchmarks.get_trials(experiment.experiment_id)
+        text = render_report(experiment_detail(experiment, trials, settings))
+    finally:
+        store.close()
+    if args.out:
+        Path(args.out).write_text(text, encoding="utf-8", newline="\n")
+        print(f"wrote {args.out}")
+    else:
+        sys.stdout.write(text)
     return 0
 
 
@@ -426,6 +449,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="mark experiments left queued or running by a stopped process as interrupted",
     )
     bench.set_defaults(func=_cmd_bench)
+
+    report = sub.add_parser(
+        "report", help="render a stored benchmark experiment as a Markdown report (read-only)"
+    )
+    report.add_argument("experiment_id")
+    report.add_argument("--out", default=None, help="write the report here (default: stdout)")
+    report.set_defaults(func=_cmd_report)
 
     doctor = sub.add_parser("doctor", help="report configuration and probe the endpoint")
     doctor.set_defaults(func=_cmd_doctor)
