@@ -266,7 +266,7 @@ class BenchmarkStore:
 
     # ------------------------------------------------------------------
     def get_experiment(self, experiment_id: str) -> BenchmarkExperiment | None:
-        with self.store.transaction() as conn:
+        with self.store.transaction("read") as conn:
             row = conn.execute(
                 "SELECT * FROM benchmark_experiments WHERE experiment_id = ?", (experiment_id,)
             ).fetchone()
@@ -274,7 +274,7 @@ class BenchmarkStore:
 
     def get_trials(self, experiment_id: str) -> list[BenchmarkTrial]:
         """An experiment's trials in execution order."""
-        with self.store.transaction() as conn:
+        with self.store.transaction("read") as conn:
             rows = conn.execute(
                 "SELECT * FROM benchmark_trials WHERE experiment_id = ? ORDER BY ordinal",
                 (experiment_id,),
@@ -282,7 +282,7 @@ class BenchmarkStore:
         return [_trial(row) for row in rows]
 
     def trial_for_run(self, run_id: str) -> BenchmarkTrial | None:
-        with self.store.transaction() as conn:
+        with self.store.transaction("read") as conn:
             row = conn.execute(
                 "SELECT * FROM benchmark_trials WHERE run_id = ?", (run_id,)
             ).fetchone()
@@ -290,7 +290,7 @@ class BenchmarkStore:
 
     def active_experiments(self) -> list[BenchmarkExperiment]:
         """Experiments queued or running, oldest first."""
-        with self.store.transaction() as conn:
+        with self.store.transaction("read") as conn:
             rows = conn.execute(
                 "SELECT * FROM benchmark_experiments WHERE status IN ('queued', 'running') "
                 "ORDER BY created_at, experiment_id"
@@ -315,7 +315,7 @@ class BenchmarkStore:
             ordered = sorted(suite_ids)
             scope = f"suite_id IN ({','.join('?' for _ in ordered)})" if ordered else "0 = 1"
             scope_args = tuple(ordered)
-        with self.store.transaction() as conn:
+        with self.store.transaction("read") as conn:
             if before is None:
                 rows = conn.execute(
                     f"SELECT * FROM benchmark_experiments WHERE {scope} "

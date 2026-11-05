@@ -10,7 +10,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from app.events import validate_payload
 from app.models import (
@@ -22,6 +22,7 @@ from app.models import (
     utc_now,
 )
 from app.timings import current as current_timings
+from app.timings.process import PROCESS
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
@@ -252,11 +253,39 @@ class RunStore:
             self._conn.close()
 
     @contextmanager
-    def transaction(self) -> Iterator[sqlite3.Connection]:
+    def _held(self, kind: str) -> Iterator[None]:
+        """The store lock, timed for the process histograms (``kind`` is
+        ``db_read`` or ``db_write``): the wait for the lock
+        (``<kind>.lock_wait``) and the time it is held, executing and, for a
+        write, committing (``<kind>.execute``). Recorded after the lock is
+        released, also when the block raises; skipped when disabled."""
+        if not PROCESS.enabled:
+            with self._lock:
+                yield
+            return
+        requested = time.perf_counter_ns()
+        acquired = released = 0
+        try:
+            with self._lock:
+                acquired = time.perf_counter_ns()
+                try:
+                    yield
+                finally:
+                    released = time.perf_counter_ns()
+        finally:
+            if acquired and released:
+                PROCESS.observe(f"{kind}.lock_wait", acquired - requested)
+                PROCESS.observe(f"{kind}.execute", released - acquired)
+
+    @contextmanager
+    def transaction(self, kind: Literal["read", "write"] = "write") -> Iterator[sqlite3.Connection]:
         """The connection under the store's lock: committed when the block
         succeeds, rolled back when it raises. For modules that keep their own
-        tables in this database (benchmarks)."""
-        with self._lock:
+        tables in this database (benchmarks). ``kind`` only labels the block
+        for the process histograms (``db_read`` or ``db_write``)."""
+        if kind not in ("read", "write"):
+            raise ValueError(f"transaction kind must be 'read' or 'write', not {kind!r}")
+        with self._held(f"db_{kind}"):
             try:
                 yield self._conn
             except BaseException:
@@ -279,7 +308,7 @@ class RunStore:
     # ------------------------------------------------------------------
     def save_run(self, record: RunRecord) -> None:
         timer = _WriteTimer("save_run")
-        with self._lock:
+        with self._held("db_write"):
             timer.locked()
             self._upsert_run(record)
             self._conn.commit()
@@ -295,7 +324,7 @@ class RunStore:
         bounded) before this is called; here only its status is checked, so
         apart from that the database itself is all that can fail.
         """
-        with self._lock:
+        with self._held("db_write"):
             try:
                 self._upsert_run(record)
                 self._insert_measurement(measurement)
@@ -310,7 +339,7 @@ class RunStore:
         Returns whether a row was written."""
         if status not in MEASUREMENT_STATUSES or status == "recorded":
             raise ValueError(f"not a measurement marker: {status!r}")
-        with self._lock:
+        with self._held("db_write"):
             cursor = self._conn.execute(
                 "INSERT OR IGNORE INTO run_measurements (run_id, status, collected_at) "
                 "VALUES (?, ?, ?)",
@@ -320,7 +349,7 @@ class RunStore:
             return cursor.rowcount == 1
 
     def get_measurement(self, run_id: str) -> MeasurementRow | None:
-        with self._lock:
+        with self._held("db_read"):
             row = self._conn.execute(
                 "SELECT * FROM run_measurements WHERE run_id = ?", (run_id,)
             ).fetchone()
@@ -336,7 +365,7 @@ class RunStore:
 
     def measurements_installed_at(self) -> str | None:
         """When this database first had run_measurements (UTC ISO)."""
-        with self._lock:
+        with self._held("db_read"):
             row = self._conn.execute(
                 "SELECT value FROM measurement_meta WHERE key = 'installed_at'"
             ).fetchone()
@@ -401,7 +430,7 @@ class RunStore:
     def append_event(self, event: TraceEvent) -> None:
         data = event.model_dump(mode="json")
         timer = _WriteTimer("append_event")
-        with self._lock:
+        with self._held("db_write"):
             timer.locked()
             self._conn.execute(
                 """
@@ -433,7 +462,7 @@ class RunStore:
         ``process_crash`` measurement marker.
         """
         now = utc_now()
-        with self._lock:
+        with self._held("db_write"):
             rows = self._conn.execute(
                 "SELECT run_id FROM runs WHERE status IN ('queued', 'running')"
             ).fetchall()
@@ -485,7 +514,7 @@ class RunStore:
 
     # ------------------------------------------------------------------
     def get_run(self, run_id: str) -> RunRecord | None:
-        with self._lock:
+        with self._held("db_read"):
             row = self._conn.execute(
                 "SELECT * FROM runs WHERE run_id = ?", (run_id,)
             ).fetchone()
@@ -507,7 +536,7 @@ class RunStore:
         cursor.
         """
         limit = max(1, min(limit, 200))
-        with self._lock:
+        with self._held("db_read"):
             if before is None:
                 rows = self._conn.execute(
                     "SELECT * FROM runs ORDER BY created_at DESC, run_id DESC LIMIT ?",
@@ -534,7 +563,7 @@ class RunStore:
     ) -> list[TraceEvent]:
         """A run's events in ascending ``seq``; only those after ``after_seq`` if
         given, and at most ``limit`` of them if given."""
-        with self._lock:
+        with self._held("db_read"):
             rows = self._conn.execute(
                 "SELECT * FROM trace_events WHERE run_id = ? AND seq > ? ORDER BY seq ASC "
                 "LIMIT ?",

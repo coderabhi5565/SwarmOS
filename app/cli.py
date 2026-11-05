@@ -21,6 +21,7 @@ from app.providers import provider_name_for, resolve_provider
 from app.providers.base import ProbeableProvider, ProviderConfigError, ProviderError
 from app.service import RunService, effective_provider_choice
 from app.store import RunStore
+from app.timings.process import configure as configure_process_timings
 
 ROLLING_POLICIES = ("fixed-fast", "adaptive", "multi-agent")
 
@@ -439,6 +440,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    # Process histograms follow the per-run timings setting (SWARMOS_TIMINGS).
+    configure_process_timings(settings.timings_enabled)
     return int(args.func(args))
 
 

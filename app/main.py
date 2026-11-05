@@ -49,6 +49,7 @@ from app.streaming import (
     parse_last_event_id,
     run_event_stream,
 )
+from app.timings.process import configure as configure_process_timings
 from app.timings.view import measurements_view
 
 
@@ -58,6 +59,8 @@ async def lifespan(app: FastAPI):
     if errors:
         raise RuntimeError("refusing to start: " + "; ".join(errors))
     app.state.limiter = SlidingWindowLimiter(settings.runs_per_client_per_hour)
+    # Process histograms follow the per-run timings setting (SWARMOS_TIMINGS).
+    configure_process_timings(settings.timings_enabled)
     store = RunStore(settings.db_path)
     store.recover_interrupted("interrupted: the server stopped before this run finished")
     broker = RunEventBroker(settings.max_streams, settings.max_streams_per_client)
