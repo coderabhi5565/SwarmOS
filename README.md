@@ -215,8 +215,13 @@ value the backend leaves unknown is shown as unknown, with its reason, never
 as zero; task success (the run completed) and verification (the tests
 passed) are separate columns; excluded trials are listed with their reasons;
 and results from the demo fixture are labelled as scripted, not as a
-model's performance. The form appears only when `/api/benchmarks/suites`
-says `can_create` (never in the public demo, where the API refuses creation
+model's performance. Each arm (and arm and task) shows its measured n, its
+warm-ups and exclusions, cancellation and interrupted rates with their
+denominators, whether its sample is complete, and its run timings (median,
+nearest-rank P95, min, max, with missing values counted by reason); each
+measured trial's timings open on the same page. The creation form counts
+the warm-up runs the server adds. The form appears only when
+`/api/benchmarks/suites` says `can_create` (never in the public demo, where the API refuses creation
 anyway), and offers only the server's suites, arms and caps.
 
 Every run view renders the frontend execution model

@@ -383,15 +383,16 @@ layer (`frontend/src/api/benchmarkQueries.ts`); no page fetches on its own.
 - **Creation is the server's decision.** The form is mounted only when the
   suites response says `can_create`, offers only the server's suites,
   tasks, arms and caps, validates the trial count against `max_trials`
-  (without the warm-up repetitions the server adds: an M7.5 follow-up,
-  see `PROJECT_STATUS.md`), and reports 400/403/409/422/429/5xx as the
-  server worded them. It is a convenience, not a guard: the API enforces
-  every rule itself, and the public demo answers `403` whatever the
-  client sends.
+  (measured trials plus the `warmup_repetitions` the suites response
+  says the server adds per arm and task), and reports
+  400/403/409/422/429/5xx as the server worded them. It is a
+  convenience, not a guard: the API enforces every rule itself, and the
+  public demo answers `403` whatever the client sends.
 - **Metrics are displayed, never computed.** Rates, distributions, means,
-  exclusions and identical-by-design groups come from the backend. A null
-  value is shown as unknown with the backend's `null_reasons` entry (or
-  its `*` reason), never as `0`; a rate is shown with its denominator
+  exclusions, sample completeness, run timings and identical-by-design
+  groups come from the backend. A null value is shown as unknown with the
+  backend's `null_reasons` entry (or its `*` reason), never as `0`; a rate
+  is shown with its denominator
   ("50% (1 of 2)"). Task success (the run completed) and verification (the
   tests passed) are separate. Durations are formatted from recorded
   milliseconds; the only derived figure is an experiment's elapsed time,

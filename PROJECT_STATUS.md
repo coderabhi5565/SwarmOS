@@ -30,29 +30,31 @@ Milestones (revised 2026-11-01):
   - M7.2 measurement persistence and API ✅
   - M7.3 benchmark metrics v2 ✅
   - M7.4 process histograms and SSE timing ✅
-  - M7.5 onward (UI, baseline): not started
+  - M7.5 observability UI (benchmark pages) ✅; Run Detail timing panel deferred
+  - M7.6 onward (baseline): not started
 - M8 release
 
 ## Current milestone
 
-**M7.4 — Process histograms and SSE timing: complete and pushed**
-(commits `7afa383`, `79fe9f4`, `1fc2dc9` and this documentation commit).
-M7.1 to M7.3 are complete and pushed.
-Next: **M7.5 — UI**, awaiting approval (not started). M6.4 (benchmark
-charts) also awaits approval.
+**M7.5 — Observability UI (benchmark pages): complete and pushed**
+(commits `de90d4c`, `5fb6e8b`, `300b72b` and this documentation commit).
+M7.1 to M7.4 are complete and pushed. The proposal's Run Detail timing
+panel and span waterfall were left out of M7.5 by decision (2026-11-05)
+and remain to be scheduled.
+Next: **M7.6 — scripted baseline**, awaiting approval (not started). M6.4
+(benchmark charts) also awaits approval.
 
 ## Validation at the last milestone boundary
 
-M7.4, 2026-11-05, at `1fc2dc9` (backend only; no frontend file changed
-since M7.3):
+M7.5, 2026-11-05, at `300b72b`:
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest` (`.env` loading disabled) | 848 passed, 2 skipped (788 at M7.3) |
-| frontend `npx tsc --noEmit` / `vitest run` / `npm run build` | not rerun (unchanged); at `005e2b1`: clean / 305 passed (28 files) / builds |
+| `python -m pytest` (`.env` loading disabled) | 848 passed, 2 skipped (unchanged count since M7.4) |
+| frontend `npx tsc --noEmit` / `vitest run` / `npm run build` | clean / 339 passed (29 files; 305 in 28 at M7.3) / builds |
 | `ruff check .` | clean |
 | `ruff format --check` | not configured; the codebase has never been formatted |
-| Browser verification against the real backend | see M6.3 below |
+| Browser verification against the real backend | M7.5 pages: **not performed** (no browser in the session; jsdom component tests only); earlier pages: see M6.3 below |
 | Live local-model run with the guard | **not yet performed** |
 
 Suite wall time varies a lot on this machine (80 s to 300 s for the same code).
@@ -62,6 +64,57 @@ frontend runs used `vitest run --maxWorkers=2`, and a few `tsc`/build runs
 were killed by out-of-memory and passed unchanged on retry.
 
 ## Completed
+
+### M7.5 — observability UI (benchmark pages)
+
+- **Commits:** `de90d4c` warm-up-aware creation form; `5fb6e8b` aggregate
+  metrics v2; `300b72b` per-trial run timings.
+- **Scope (decided 2026-11-05):** the benchmark pages only. The proposal's
+  Run Detail timing panel and span waterfall (§7.1) were not built; the
+  frontend still does not call `GET /api/runs/{id}/measurements`. Process
+  histograms have no endpoint and no display (M7.4 decision).
+- **Creation form:** the suites response now states
+  `warmup_repetitions` (1), so the form does not assume it. The field
+  reads "Measured repetitions"; before submitting, the form shows the
+  measured trials, the warm-ups and the runs to execute (for example 2
+  arms × 2 tasks × 20: 80 measured + 4 warm-ups = 84 runs; 5 × 3 × 20:
+  300 + 15 = 315), explains that warm-ups are excluded from every result,
+  and checks the runs, warm-ups included, against `max_trials`. The
+  request body, server validation and scheduling are unchanged.
+- **Aggregates (per arm, and per arm and task):** a complete or
+  incomplete sample badge (measured n against `sample_required`; an arm
+  over all tasks is complete only when every task is); measured n beside
+  warm-ups, exclusions (with reasons) and incomplete trials; cancellation
+  and interrupted counts and rates with their denominator (non-warm-up
+  trials), unknown rather than 0% when there is none; and a collapsible
+  table of run timings: per metric n, missing (with reasons), median,
+  nearest-rank P95, min and max, each labelled elapsed, busy sum, total or
+  count, with trials lacking recorded measurements counted by status and
+  kept out. The section states that medians and P95s describe measured
+  trials only and that twenty trials do not establish a statistically
+  significant difference.
+- **Trials:** warm-up trials are labelled, measured repetitions are
+  numbered from 1 (experiments from before warm-ups keep their
+  numbering); a run timing column gives each trial's lifecycle or why it
+  has none; a Trial timings section counts the trials without timings by
+  reason and opens every metric of each measured trial by group, missing
+  values with the backend's reason.
+- **Nothing computed in the browser:** no figure is derived from another
+  and no interval is added to another; a missing value never reads as
+  zero; sub-millisecond values keep two decimals.
+- **Accessibility and layout:** native `<details>` disclosures (keyboard
+  focusable, toggled by the browser with Enter or Space, no animation, so
+  reduced motion is unaffected); real table headers, row headers and
+  captions; wide tables scroll horizontally inside their section; no new
+  dependency.
+- **Tests:** 34 more frontend test cases (339, 305 at M7.3): warm-up
+  arithmetic for several arm and task counts, the limit with and without
+  warm-ups, a server without warm-ups; sample badges at both levels,
+  denominators, unknown rates, the timing table (n, missing, reasons,
+  median, P95, counts, unavailable statuses, the empty state); per-trial
+  timings, missing reasons, a historical experiment. The existing
+  benchmark and Run Detail tests pass; the public demo still shows no
+  creation form (existing test).
 
 ### M7.4 — process histograms and SSE timing
 
@@ -699,15 +752,15 @@ restrictions instead (details in `docs/safety.md`):
     `GET /` fallback that the committed `frontend/openapi.json` lacks. A
     fresh checkout fails it until the frontend is built (or
     `SWARMOS_FRONTEND_DIST` points at a build). Pre-existing; not changed.
-12. **M7.5 follow-up:** the create-experiment form computes its trial
-    count as arms × tasks × repetitions, without the warm-up repetition
-    the server adds per arm and task, so the count it displays and checks
-    against `max_trials` is low by arms × tasks. At the current caps the
-    server never rejects such a request (the largest choice is exactly
-    315 trials); the server's count is authoritative. Not fixed.
-13. **M7.5 follow-up:** the aggregate v2 fields (warm-ups, exclusions,
-    rates, sample completeness, timing distributions) and trial timings
-    are in the API but not yet displayed by any page. Not fixed.
+12. Resolved in M7.5 (`de90d4c`): the create-experiment form now counts
+    the warm-up repetitions the server adds, from the suites response.
+13. Resolved in M7.5 (`5fb6e8b`, `300b72b`): the aggregate v2 fields and
+    trial timings are displayed on the experiment page.
+14. The proposal's Run Detail timing panel and span waterfall (§7.1) are
+    not built (left out of M7.5 by decision); run measurements are
+    available only from `GET /api/runs/{id}/measurements`.
+15. The M7.5 pages were verified with component tests in jsdom, not in a
+    real browser (none was available in that session).
 
 ## Blockers needing the user
 

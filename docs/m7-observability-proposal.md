@@ -882,3 +882,21 @@ unchanged. Opening and closing the store are not timed.
   or client detail reaches the registry, in local or public mode.
 - **Unchanged:** frames, their order, ids and cursors, reconnects, the
   stream limits, and the redaction of public frames.
+
+## 19. M7.5 implementation notes
+
+M7.5 is implemented for the benchmark pages (commits `de90d4c`, `5fb6e8b`
+and `300b72b`). Where it differs from §7, and why:
+
+| Plan | Implemented | Reason |
+| --- | --- | --- |
+| Run Detail "Timing" panel and span waterfall | not built | left out of M7.5 by decision (2026-11-05); the M7.5 brief covered the benchmark pages |
+| benchmark phase × arm table of median, P95 and `n` | per arm and per arm and task, a collapsible table of every trial timing metric: `n`, missing (with reasons), median, nearest-rank P95, min, max; plus the sample badge, warm-ups, exclusions and rates with denominators | the M7.3 aggregate fields, all shown, nothing derived |
+| the form shows the trial count | the suites response gained `warmup_repetitions`; the form shows measured trials, warm-ups and runs to execute, and checks runs against `max_trials` | the server stays the source of the warm-up count |
+| per-trial timings | a run timing column and a Trial timings section with every metric of each measured trial, by group | the M7.3 trial timings, all shown |
+
+Presentation rules: each timing is labelled elapsed (one interval or a
+union), busy (a sum, overlaps counted), total (time spent, not elapsed) or
+a count; a missing value shows the backend's reason, never zero; values
+below 1 ms keep two decimals; disclosures are native `<details>`; no chart
+is drawn. Process histograms (§18) have no endpoint and no display.
