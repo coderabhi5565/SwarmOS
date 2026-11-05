@@ -802,3 +802,83 @@ Rules:
   read-only experiment detail (numbers, statuses and fixed reasons only).
   Creating, cancelling and recovering experiments stay unavailable; the
   raised caps change nothing there.
+
+## 18. M7.4 implementation notes
+
+M7.4 is implemented (commits `7afa383`, `79fe9f4` and `1fc2dc9`). Where it
+differs from §3.5, §3.6 and §4.1, and why:
+
+| Plan | Implemented | Reason |
+| --- | --- | --- |
+| `db_write_ms`, `db_read_ms`: lock wait and execute-and-commit | four histograms: `db_read.lock_wait`, `db_read.execute`, `db_write.lock_wait`, `db_write.execute` | one histogram per quantity, so lock wait and statement time are never mixed |
+| one stamp map keyed by run and `seq`, entries dropped when yielded | stamps kept per subscribed stream, at most 4,096 across all streams | streams subscribe at different times; a shared entry dropped at the first stream's yield would lose the other streams' measurements, or give a later stream a stamp from before it subscribed |
+| entries dropped when yielded or when the map is full | also released when they can no longer be yielded (a seq below one just yielded) and when the stream ends | an event written from another thread can be read before its stamp is recorded; without this its stamp would wait for the stream to end |
+| example buckets: 48 from 50 µs to 120 s, plus overflow | exactly that: 48 log-spaced inclusive upper bounds, ratio about 1.367 | as proposed |
+
+### 18.1 Process histograms
+
+`app/timings/process.py`, one registry per process (`PROCESS`):
+
+- **Names:** the four database histograms above and `sse_commit_to_yield`, and one
+  counter, `sse_commit_to_yield.stamps_dropped`. There are no labels; an
+  unknown name is counted (`unknown_names`) and creates nothing.
+- **Buckets:** `BUCKET_BOUNDS_NS[i] = round(50,000 × 2,400,000^(i/47))` ns
+  for `i` = 0 to 46, and 120 s for the last. An observation `v` (integer
+  ns, `v >= 0`) goes to the first bucket whose bound is `>= v`: bounds are
+  inclusive upper bounds, and 0 to 50 µs is the first bucket. Above 120 s
+  it goes to the 49th bucket, overflow. Anything else is counted as
+  `invalid` and enters no bucket and no summary.
+- **Per histogram:** the 49 bucket counts, and `count`, `sum_ns`, `min_ns`
+  and `max_ns` of valid observations (`min_ns` and `max_ns` are null while
+  empty). Memory is constant.
+- **Concurrency:** a lock per histogram, and one for the counters.
+- **Failures:** `observe` and `increment` never raise; a failure is counted
+  (`errors`) and the observation dropped. Callers (the store, the broker,
+  the stream) also count, and never propagate, their own failures.
+- **Lifetime:** in memory, from process start; `reset()` empties it (tests).
+  Nothing is persisted, so a restarted process starts empty. There is no
+  HTTP endpoint and no UI; it is read in-process (`snapshot()`), by tests.
+- **On and off:** `configure(settings.timings_enabled)` is applied by the
+  API lifespan and by the CLI (`SWARMOS_TIMINGS`, the same setting as the
+  per-run spans). Disabled, nothing is recorded and no clock is read.
+
+### 18.2 Database
+
+`RunStore` times its lock for every read (`get_run`, `list_runs_page`,
+`get_events`, `get_measurement`, `measurements_installed_at`) and every
+write (`save_run`, `save_terminal`, `append_event`,
+`add_measurement_marker`, `recover_interrupted`): `<kind>.lock_wait` from
+asking for the lock to holding it, and `<kind>.execute` while it is held
+(the statements and, for a write, the commit). Both are recorded after the
+lock is released, also when the block raises. `transaction(kind)` is
+labelled by its caller: the benchmark store's reads (`get_experiment`,
+`get_trials`, `trial_for_run`, `active_experiments`,
+`list_experiments_page`) pass `"read"`; its lock, commit and rollback are
+unchanged. Opening and closing the store are not timed.
+
+### 18.3 `sse_commit_to_yield`
+
+- **Start:** `time.perf_counter_ns()` read inside the store lock,
+  immediately after `append_event` commits an event that was actually
+  inserted (a duplicate `event_id` is ignored and not stamped). The stamp
+  is handed to commit listeners after the lock is released and before the
+  streams are woken.
+- **Kept:** `RunEventBroker.record_commit` keeps the stamp for every stream
+  subscribed to the run at that moment, so an event is measured only by
+  the streams that were subscribed when it committed. The backlog a stream
+  reads on connect has no stamp for it and is not measured.
+- **End:** `time.perf_counter_ns()` read immediately before
+  `run_event_stream` yields the event's frame (after any public-demo
+  redaction and the framing). The difference is observed once per stream
+  and event.
+- **Bounds:** at most `MAX_COMMIT_STAMPS` (4,096) stamps across all
+  streams; one that does not fit is dropped and counted. A stream releases
+  a stamp when it uses it, releases stamps of lower seqs (which its cursor
+  has passed), and releases the rest when it ends or disconnects.
+- **Not measured:** the socket write, any proxy, the network, browser
+  parsing and rendering, and the polling endpoint. This is **not**
+  delivery latency and must not be presented as such.
+- **Privacy:** only durations are recorded; no run id, seq, event content
+  or client detail reaches the registry, in local or public mode.
+- **Unchanged:** frames, their order, ids and cursors, reconnects, the
+  stream limits, and the redaction of public frames.

@@ -285,6 +285,12 @@ redacted (`app/redaction.py`) before it is framed, exactly as
 `/api/runs/{id}/events` redacts it; the frame's `id` and the cursor stay
 the stored `seq`.
 
+**Commit-to-yield time (M7.4).** For events committed while a stream is
+subscribed, the in-memory process histogram `sse_commit_to_yield` records
+the time from the event's commit to the stream yielding its frame
+(`app/streaming.py`). It is server side only, not delivery latency, and
+it has no endpoint. See `docs/m7-observability-proposal.md` §18.
+
 **Frontend transport** (`frontend/src/api/`). One connection per run per
 QueryClient (`liveConnection.ts`), shared by every view of the run, reads
 the stream with `fetch` (`stream.ts`, `sse.ts`) and folds each chunk of
@@ -446,6 +452,11 @@ erDiagram
 ```
 
 Events are appended as they happen, so the dashboard can follow a live run. `run_id` is a foreign key; the service persists the run row before execution begins.
+
+Every store read and write records its wait for the store lock and the
+time it holds it in in-memory process histograms (`db_read.*`,
+`db_write.*`; `app/timings/process.py`, M7.4). They are reset with the
+process and have no endpoint.
 
 ## Provider abstraction
 

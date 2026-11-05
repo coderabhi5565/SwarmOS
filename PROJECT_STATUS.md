@@ -29,26 +29,27 @@ Milestones (revised 2026-11-01):
   - M7.1 in-memory timing spans ✅
   - M7.2 measurement persistence and API ✅
   - M7.3 benchmark metrics v2 ✅
-  - M7.4 onward (process histograms, UI, baseline): not started
+  - M7.4 process histograms and SSE timing ✅
+  - M7.5 onward (UI, baseline): not started
 - M8 release
 
 ## Current milestone
 
-**M7.3 — Benchmark metrics v2: complete and pushed** (commits
-`7b73a12`, `237f37e`, `dbffe85`, `9e75e1d`, `005e2b1` and this
-documentation commit). M7.1 and M7.2 are complete and pushed.
-Next: **M7.4 — process histograms**, awaiting approval (not started).
-M6.4 (benchmark charts) and M7.5 (UI) also await approval.
+**M7.4 — Process histograms and SSE timing: complete and pushed**
+(commits `7afa383`, `79fe9f4`, `1fc2dc9` and this documentation commit).
+M7.1 to M7.3 are complete and pushed.
+Next: **M7.5 — UI**, awaiting approval (not started). M6.4 (benchmark
+charts) also awaits approval.
 
 ## Validation at the last milestone boundary
 
-M7.3, 2026-11-04, at `005e2b1` (frontend: regenerated API types and test
-fixtures only):
+M7.4, 2026-11-05, at `1fc2dc9` (backend only; no frontend file changed
+since M7.3):
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest` (`.env` loading disabled) | 788 passed, 2 skipped (736 at M7.2) |
-| frontend `npx tsc --noEmit` / `vitest run` / `npm run build` | clean / 305 passed (28 files) / builds |
+| `python -m pytest` (`.env` loading disabled) | 848 passed, 2 skipped (788 at M7.3) |
+| frontend `npx tsc --noEmit` / `vitest run` / `npm run build` | not rerun (unchanged); at `005e2b1`: clean / 305 passed (28 files) / builds |
 | `ruff check .` | clean |
 | `ruff format --check` | not configured; the codebase has never been formatted |
 | Browser verification against the real backend | see M6.3 below |
@@ -61,6 +62,52 @@ frontend runs used `vitest run --maxWorkers=2`, and a few `tsc`/build runs
 were killed by out-of-memory and passed unchanged on retry.
 
 ## Completed
+
+### M7.4 — process histograms and SSE timing
+
+- **Commits:** `7afa383` the histogram registry; `79fe9f4` database
+  lock-wait and execute time; `1fc2dc9` `sse_commit_to_yield`.
+- **Process histograms** (`app/timings/process.py`): in memory only,
+  reset with the process, no endpoint and no UI. Exactly five, with no
+  labels: `db_read.lock_wait`, `db_read.execute`, `db_write.lock_wait`,
+  `db_write.execute` and `sse_commit_to_yield`, plus one counter,
+  `sse_commit_to_yield.stamps_dropped`. An unknown name is counted and
+  creates nothing.
+- **Buckets:** 48 inclusive upper bounds, log-spaced (ratio about 1.367)
+  from 50 µs to 120 s, plus an overflow bucket; an observation goes to the
+  first bucket whose bound is not below it. Each histogram also keeps
+  count, sum, min and max; a negative or non-integer observation is
+  counted as invalid, in no bucket. Memory is constant whatever the number
+  of observations.
+- **Concurrency and failures:** a lock per histogram (the store records
+  from any writing thread, streams from the event loop); recording never
+  raises, and a failure is counted (`errors`) and dropped.
+- **Database:** every `RunStore` read and write records its wait for the
+  store lock and the time it holds it (executing and, for a write,
+  committing), also when the statement fails. `transaction()` takes a
+  read/write label; the benchmark store's five read methods use `read`.
+  Opening and closing the store are not timed.
+- **`sse_commit_to_yield`:** for an event committed while a live stream is
+  subscribed to its run, from immediately after the commit to the moment
+  the stream yields that event's frame. Server side only, so not delivery
+  latency; the backlog read on connect and the polling endpoint are not
+  measured. Commit stamps are kept per stream, at most 4,096 across all
+  streams (drops counted), and released when used, when they can no longer
+  be used, or when the stream ends. Only times are recorded: no run id,
+  seq or event content. Frames, their order, cursors and reconnects are
+  unchanged.
+- **On and off:** the API lifespan and the CLI apply `SWARMOS_TIMINGS` to
+  the process histograms; disabled, nothing is recorded and the store and
+  streams skip their clock reads.
+- **Tests:** 60 more test cases (848 at `1fc2dc9`, 788 at M7.3): bucket
+  boundaries and overflow, invalid values, concurrent updates, constant
+  memory, a restarted process starting empty, disabled and failing
+  instrumentation, every store operation's label, lock wait against held
+  time, and real streams (backlog, several clients, a writing thread,
+  disconnects, polling, the public demo). The existing stream tests pass
+  unchanged.
+- **Not done in M7.4:** reading or reporting the histograms anywhere but
+  in-process (no endpoint, by decision); the UI (M7.5).
 
 ### M7.3 — benchmark metrics v2
 
