@@ -534,3 +534,132 @@ describe("aggregate metrics v2", () => {
     expect(section("Results by arm and task")).toHaveTextContent("The sample requirement applies here, to each arm and task.");
   });
 });
+
+describe("per-trial timings", () => {
+  const recordedTimings = {
+    measurement_status: "recorded" as const,
+    measurements_version: 1,
+    lifecycle_ms: 1420,
+    admission_ms: 0.42,
+    execution_ms: 1380,
+    setup_ms: 12.5,
+    graph_ms: 1300,
+    finalization_ms: 30,
+    planner_ms: null,
+    reviewer_ms: 50,
+    coder_busy_ms: 1100, // two overlapping steps: busy exceeds wall
+    coder_wall_ms: 710,
+    coder_critical_path_ms: 730,
+    provider_calls: 3,
+    provider_call_busy_ms: 1140,
+    provider_call_wall_ms: 650,
+    http_attempts: 0, // scripted provider: a measured zero
+    http_attempt_busy_ms: 0,
+    http_attempt_wall_ms: 0,
+    parse_total_ms: 3,
+    backoff_total_ms: 0,
+    verification_ms: 370,
+    diagnostic_verification_ms: null,
+    graph_gap_ms: 180,
+    critical_orchestration_ms: 350,
+    parallel_orchestration_ms: 50,
+    schedule_delay_total_ms: 50,
+    slot_wait_total_ms: null,
+    ledger_wait_total_ms: 2,
+    trial_slot_wait_ms: 0.31,
+    null_reasons: {
+      planner_ms: "no planner node ran",
+      diagnostic_verification_ms: "no diagnostic verification ran",
+      slot_wait_total_ms: "parallel coding: no coding slot",
+    },
+  };
+  const unavailable = {
+    ...Object.fromEntries(Object.keys(recordedTimings).map((key) => [key, null])),
+    measurement_status: "measurement_flush_failed" as const,
+    measurements_version: null,
+    null_reasons: { "*": "no run measurements: measurement_flush_failed" },
+  } as unknown as typeof recordedTimings;
+
+  function withTimings(experiment: Partial<BenchmarkExperimentDetail["experiment"]> = {}) {
+    const warm = trialMetrics({ outcome: "excluded", excluded_reason: "warm-up", task_success: null, verification_passed: null, null_reasons: { "*": "excluded from the comparison: warm-up" } });
+    return finished("completed", {
+      experiment: { ...finished().experiment, warmup_repetitions: 1, repetitions: 4, ...experiment },
+      trials: [
+        trial({ trial_id: "w", ordinal: 0, repetition: 0, status: "done", run_id: "run_warm", metrics: warm }),
+        trial({ trial_id: "a", ordinal: 1, repetition: 1, status: "done", run_id: "run_timed", metrics: trialMetrics({ metrics_version: 2, timings: recordedTimings }) }),
+        trial({ trial_id: "b", ordinal: 2, repetition: 2, status: "done", run_id: "run_flush", metrics: trialMetrics({ metrics_version: 2, timings: unavailable }) }),
+        trial({ trial_id: "c", ordinal: 3, repetition: 3, status: "done", run_id: "run_v1", metrics: trialMetrics({ metrics_version: 1, timings: null }) }),
+        trial({
+          trial_id: "d",
+          ordinal: 4,
+          repetition: 4,
+          status: "done",
+          run_id: "run_cancel",
+          metrics: trialMetrics({ outcome: "excluded", excluded_reason: "cancelled", null_reasons: { "*": "excluded from the comparison: cancelled" } }),
+        }),
+        trial({ trial_id: "e", ordinal: 5, repetition: 4, arm_id: "sequential", status: "pending" }),
+      ],
+    });
+  }
+
+  const timingCell = (n: number) => within(trialRow(n)).getAllByRole("cell")[7];
+
+  it("labels the warm-up and numbers measured repetitions from 1", async () => {
+    serve(() => json(withTimings()));
+    renderAt(`/benchmarks/${ID}`);
+    await screen.findByRole("heading", { name: "Demo catalog" });
+    expect(within(trialRow(1)).getAllByRole("cell")[1]).toHaveTextContent("parallel · sample_tag_normalization · warm-up");
+    expect(within(trialRow(2)).getAllByRole("cell")[1]).toHaveTextContent("parallel · sample_tag_normalization · 1");
+    expect(section("Trials")).toHaveTextContent("The first repetition of each arm and task is a warm-up, excluded from every result.");
+  });
+
+  it("gives each trial its lifecycle, or why it has no timings", async () => {
+    serve(() => json(withTimings()));
+    renderAt(`/benchmarks/${ID}`);
+    await screen.findByRole("heading", { name: "Demo catalog" });
+    expect(timingCell(1)).toHaveTextContent("warm-up: not measured");
+    expect(timingCell(2)).toHaveTextContent("lifecycle 1.42 s");
+    expect(timingCell(3)).toHaveTextContent("no run measurements: measurements could not be saved");
+    expect(timingCell(4)).toHaveTextContent("recorded before trial timings");
+    expect(timingCell(5)).toHaveTextContent("excluded (cancelled): not measured");
+    expect(timingCell(6)).toHaveTextContent("no result");
+    for (const n of [1, 3, 4, 5, 6]) expect(timingCell(n)).not.toHaveTextContent(/\b0 ms|0\.00 ms/);
+  });
+
+  it("lists every metric of a measured trial, with reasons for the missing ones", async () => {
+    serve(() => json(withTimings()));
+    renderAt(`/benchmarks/${ID}`);
+    await screen.findByRole("heading", { name: "Demo catalog" });
+    const timings = section("Trial timings");
+    expect(timings).toHaveTextContent(
+      "Without timings: warm-up: not measured (1); no run measurements: measurements could not be saved (1); " +
+        "recorded before trial timings (1); excluded (cancelled): not measured (1).",
+    );
+    const entries = within(timings).getAllByRole("listitem");
+    expect(entries).toHaveLength(1); // only the trial with recorded timings
+    await userEvent.click(within(entries[0]).getByText(/#2 parallel · sample_tag_normalization · 1/));
+    const value = (group: string, label: RegExp) =>
+      within(within(entries[0]).getByRole("region", { name: group })).getByText(label).closest("div")?.querySelector("dd");
+    expect(value("Agents", /^coder busy/)).toHaveTextContent("1.10 s");
+    expect(value("Agents", /^coder wall/)).toHaveTextContent("710 ms");
+    expect(value("Agents", /^coder critical path/)).toHaveTextContent("730 ms");
+    expect(value("Agents", /^planner/)).toHaveTextContent("no planner node ran");
+    expect(value("Run phases", /^admission/)).toHaveTextContent("0.42 ms");
+    expect(value("Provider calls", /^HTTP attempts/)).toHaveTextContent(/^0$/); // a measured zero
+    expect(value("Provider calls", /^call wall/)).toHaveTextContent("650 ms");
+    expect(value("Waits", /^coding slot wait/)).toHaveTextContent("parallel coding: no coding slot");
+    expect(value("Waits", /^trial slot wait/)).toHaveTextContent("0.31 ms");
+    expect(value("Verification and orchestration", /^diagnostic verification/)).toHaveTextContent("no diagnostic verification ran");
+    expect(within(entries[0]).getByText(/^coder busy/)).toHaveTextContent("busy: a sum, overlaps counted");
+  });
+
+  it("keeps a historical experiment's numbering and says it predates trial timings", async () => {
+    serve(() => json(finished()));
+    renderAt(`/benchmarks/${ID}`);
+    await screen.findByRole("heading", { name: "Demo catalog" });
+    expect(within(trialRow(1)).getAllByRole("cell")[1]).toHaveTextContent("parallel · sample_tag_normalization · 1");
+    expect(timingCell(1)).toHaveTextContent("recorded before trial timings");
+    expect(section("Trials")).not.toHaveTextContent("warm-up");
+    expect(within(section("Trial timings")).getByText("No trial has recorded run timings.")).toBeInTheDocument();
+  });
+});

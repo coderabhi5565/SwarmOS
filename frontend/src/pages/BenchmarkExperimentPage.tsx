@@ -10,7 +10,13 @@ import type {
   BenchmarkTrialMetrics,
 } from "@/api/types";
 import { ExperimentStatusBadge, ProvenanceBadge } from "@/components/benchmarks/badges";
-import { TimingAggregateTable } from "@/components/benchmarks/timings";
+import {
+  TimingAggregateTable,
+  TrialTimingPanel,
+  formatTiming,
+  measurementStatusText,
+  trialTimingState,
+} from "@/components/benchmarks/timings";
 import { formatDate, formatDuration, humanize } from "@/components/execution/format";
 import { EmptyLine, Section, ToneBadge, Unknown, Value, type Tone } from "@/components/execution/primitives";
 import { Button } from "@/components/ui/button";
@@ -104,7 +110,8 @@ export function BenchmarkExperimentPage() {
         description="The same, for each task separately. The sample requirement applies here, to each arm and task."
         aggregates={data.task_aggregates}
       />
-      <Trials trials={data.trials} />
+      <Trials trials={data.trials} warmups={data.experiment.warmup_repetitions} />
+      <TrialTimings trials={data.trials} warmups={data.experiment.warmup_repetitions} />
     </div>
   );
 }
@@ -563,12 +570,16 @@ function Metric({
   return <Unknown>{reason ?? "not recorded"}</Unknown>;
 }
 
-function Trials({ trials }: { trials: BenchmarkTrial[] }) {
+function Trials({ trials, warmups }: { trials: BenchmarkTrial[]; warmups: number }) {
   return (
     <Section
       id="trials"
       title="Trials"
-      description="Every trial in the order it ran (or will run). Open a run for its plan, agents, trace and replay."
+      description={
+        warmups > 0
+          ? `Every trial in the order it ran (or will run). The first ${warmups === 1 ? "repetition" : `${warmups} repetitions`} of each arm and task is a warm-up, excluded from every result. Open a run for its plan, agents, trace and replay.`
+          : "Every trial in the order it ran (or will run). Open a run for its plan, agents, trace and replay."
+      }
     >
       {trials.length === 0 ? (
         <EmptyLine>This experiment has no trials.</EmptyLine>
@@ -584,13 +595,14 @@ function Trials({ trials }: { trials: BenchmarkTrial[] }) {
                 <th scope="col" className="py-2 pr-3 font-normal">verification</th>
                 <th scope="col" className="py-2 pr-3 font-normal">latency</th>
                 <th scope="col" className="py-2 pr-3 font-normal">calls · retries (step/call)</th>
+                <th scope="col" className="py-2 pr-3 font-normal">run timing</th>
                 <th scope="col" className="py-2 pr-3 font-normal">notes</th>
                 <th scope="col" className="py-2 font-normal">run</th>
               </tr>
             </thead>
             <tbody>
               {trials.map((trial) => (
-                <TrialRow key={trial.trial_id} trial={trial} />
+                <TrialRow key={trial.trial_id} trial={trial} warmup={trial.repetition < warmups} warmups={warmups} />
               ))}
             </tbody>
           </table>
@@ -600,7 +612,7 @@ function Trials({ trials }: { trials: BenchmarkTrial[] }) {
   );
 }
 
-function TrialRow({ trial }: { trial: BenchmarkTrial }) {
+function TrialRow({ trial, warmup, warmups }: { trial: BenchmarkTrial; warmup: boolean; warmups: number }) {
   const status = TRIAL_STATUS[trial.status];
   const metrics = trial.metrics;
   const outcome = metrics ? OUTCOME[metrics.outcome] : null;
@@ -609,7 +621,7 @@ function TrialRow({ trial }: { trial: BenchmarkTrial }) {
     <tr aria-label={`Trial ${trial.ordinal + 1}: ${trial.arm_id} on ${trial.task_id}`} className="border-b border-border/30 align-top">
       <td className="py-2 pr-3 font-mono">{trial.ordinal + 1}</td>
       <td className="py-2 pr-3 font-mono">
-        {trial.arm_id} · {trial.task_id} · {trial.repetition + 1}
+        {trial.arm_id} · {trial.task_id} · {warmup ? "warm-up" : trial.repetition - warmups + 1}
       </td>
       <td className="space-y-1 py-2 pr-3">
         <ToneBadge tone={status.tone} pulse={trial.status === "running"}>
@@ -682,6 +694,9 @@ function TrialRow({ trial }: { trial: BenchmarkTrial }) {
           </>
         )}
       </td>
+      <td className="py-2 pr-3 font-mono">
+        <TrialTimingCell metrics={metrics} warmup={warmup} />
+      </td>
       <td className="max-w-64 py-2 pr-3 text-muted-foreground">
         {metrics?.outcome === "excluded" && (
           <p>
@@ -700,6 +715,81 @@ function TrialRow({ trial }: { trial: BenchmarkTrial }) {
         )}
       </td>
     </tr>
+  );
+}
+
+/** A trial's lifecycle from its run timings, or why it has none. */
+function TrialTimingCell({ metrics, warmup }: { metrics: BenchmarkTrialMetrics | null; warmup: boolean }) {
+  const state = trialTimingState(metrics, warmup);
+  if (state.reason !== null) return <Unknown>{state.reason}</Unknown>;
+  const timings = state.timings as NonNullable<typeof state.timings>;
+  const lifecycle = formatTiming(timings.lifecycle_ms);
+  return lifecycle === null ? (
+    <Unknown>{timings.null_reasons.lifecycle_ms ?? "not recorded"}</Unknown>
+  ) : (
+    <>lifecycle {lifecycle}</>
+  );
+}
+
+/**
+ * Each measured trial's run timings, from its persisted span measurements.
+ * Trials without timings are counted by reason instead of listed.
+ */
+function TrialTimings({ trials, warmups }: { trials: BenchmarkTrial[]; warmups: number }) {
+  const finished = trials.filter((trial) => trial.metrics !== null);
+  const states = finished.map((trial) => ({ trial, state: trialTimingState(trial.metrics, trial.repetition < warmups) }));
+  const timed = states.filter(({ state }) => state.timings !== null && state.timings.measurement_status === "recorded");
+  const without = new Map<string, number>();
+  for (const { state } of states) {
+    if (state.reason !== null) without.set(state.reason, (without.get(state.reason) ?? 0) + 1);
+  }
+  return (
+    <Section
+      id="trial-timings"
+      title="Trial timings"
+      description="Run timings of each measured trial, from its persisted span measurements. Busy and total figures are sums of possibly overlapping intervals, not elapsed time; trial slot wait was spent before the run started."
+    >
+      {finished.length === 0 ? (
+        <EmptyLine>No trial has finished yet.</EmptyLine>
+      ) : (
+        <div className="space-y-2">
+          {without.size > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Without timings:{" "}
+              {[...without.entries()].map(([reason, count]) => `${reason} (${count})`).join("; ")}.
+            </p>
+          )}
+          {timed.length === 0 ? (
+            <EmptyLine>No trial has recorded run timings.</EmptyLine>
+          ) : (
+            <ul className="space-y-2">
+              {timed.map(({ trial, state }) => {
+                const timings = state.timings as NonNullable<typeof state.timings>;
+                const rep = trial.repetition - warmups + 1;
+                return (
+                  <li key={trial.trial_id}>
+                    <details className="rounded-md border border-border/50 px-3 py-2">
+                      <summary className="cursor-pointer text-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                        <span className="font-mono">
+                          #{trial.ordinal + 1} {trial.arm_id} · {trial.task_id} · {rep}
+                        </span>{" "}
+                        <span className="text-muted-foreground">
+                          · lifecycle {formatTiming(timings.lifecycle_ms) ?? "unknown"} · measurements v
+                          {timings.measurements_version ?? "?"} ({measurementStatusText(timings.measurement_status)})
+                        </span>
+                      </summary>
+                      <div className="mt-3">
+                        <TrialTimingPanel timings={timings} />
+                      </div>
+                    </details>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+    </Section>
   );
 }
 

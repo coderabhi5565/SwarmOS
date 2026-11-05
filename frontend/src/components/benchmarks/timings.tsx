@@ -1,4 +1,9 @@
-import type { BenchmarkTimingSummary, BenchmarkTimingAggregate, BenchmarkTrialTimings } from "@/api/types";
+import type {
+  BenchmarkTimingAggregate,
+  BenchmarkTimingSummary,
+  BenchmarkTrialMetrics,
+  BenchmarkTrialTimings,
+} from "@/api/types";
 import { humanize } from "@/components/execution/format";
 import { EmptyLine, Unknown } from "@/components/execution/primitives";
 
@@ -219,5 +224,55 @@ function AggregateTimingRow({
         </>
       )}
     </tr>
+  );
+}
+
+/**
+ * Whether a trial has run timings, and if not, why: a warm-up, an excluded
+ * or unfinished trial, one recorded before trial timings, or a run whose
+ * measurements are unavailable (with the backend's status).
+ */
+export function trialTimingState(
+  metrics: BenchmarkTrialMetrics | null,
+  warmup: boolean,
+): { timings: BenchmarkTrialTimings | null; reason: string | null } {
+  if (warmup) return { timings: null, reason: "warm-up: not measured" };
+  if (metrics === null) return { timings: null, reason: "no result" };
+  if (metrics.outcome === "excluded") {
+    return { timings: null, reason: `excluded${metrics.excluded_reason ? ` (${metrics.excluded_reason})` : ""}: not measured` };
+  }
+  if (metrics.outcome === "incomplete") return { timings: null, reason: "run not finished" };
+  const timings = metrics.timings;
+  if (timings === null) return { timings: null, reason: measurementStatusText("metrics_v1") };
+  if (timings.measurement_status !== "recorded") {
+    return { timings, reason: `no run measurements: ${measurementStatusText(timings.measurement_status)}` };
+  }
+  return { timings, reason: null };
+}
+
+/** One trial's timings by group; an unknown carries the backend's reason. */
+export function TrialTimingPanel({ timings }: { timings: BenchmarkTrialTimings }) {
+  return (
+    <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-3">
+      {TIMING_GROUPS.map((group) => (
+        <section key={group.title} aria-label={group.title} className="min-w-0">
+          <h4 className="mb-1 text-[11px] font-medium text-foreground">{group.title}</h4>
+          <dl className="space-y-1 text-xs">
+            {group.rows.map((row) => {
+              const text = formatTimingValue(row.kind, timings[row.field]);
+              const reason = timings.null_reasons[row.field] ?? timings.null_reasons["*"] ?? "not recorded";
+              return (
+                <div key={row.field} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                  <dt className="text-muted-foreground">
+                    {row.label} <span className="text-[10px]">· {KIND_NOTE[row.kind]}</span>
+                  </dt>
+                  <dd className="font-mono">{text === null ? <Unknown>{reason}</Unknown> : text}</dd>
+                </div>
+              );
+            })}
+          </dl>
+        </section>
+      ))}
+    </div>
   );
 }
