@@ -37,6 +37,7 @@ export function benchmarkSuites(overrides: Partial<BenchmarkSuites> = {}): Bench
     ],
     max_repetitions: 10,
     max_trials: 60,
+    warmup_repetitions: 1,
     ...overrides,
   };
 }

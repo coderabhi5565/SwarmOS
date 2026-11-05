@@ -280,8 +280,13 @@ class BenchmarkSuitesResponse(_Response):
     can_create: bool
     suites: list[BenchmarkSuiteInfo]
     arms: list[BenchmarkArmInfo]
+    # Measured repetitions per arm and task (the create request's limit).
     max_repetitions: int
+    # Every scheduled trial, warm-ups included.
     max_trials: int
+    # Warm-up repetitions the server adds per arm and task, run first and
+    # excluded from every result.
+    warmup_repetitions: int
 
 
 class BenchmarkCreateRequest(BaseModel):

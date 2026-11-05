@@ -109,7 +109,7 @@ def test_suites_list_suites_arms_and_caps(api):
     assert catalog["public"] is True and catalog["version"].startswith("v1-")
     assert {task["id"] for task in catalog["tasks"]} == {SAMPLE, "sample_parallel_pipeline"}
     assert {arm["id"] for arm in body["arms"]} == {"parallel", "sequential", "fixed-fast", "adaptive", "multi-agent"}
-    assert (body["max_repetitions"], body["max_trials"]) == (20, 315)
+    assert (body["max_repetitions"], body["max_trials"], body["warmup_repetitions"]) == (20, 315, 1)
 
 
 # ----------------------------------------------------------------------

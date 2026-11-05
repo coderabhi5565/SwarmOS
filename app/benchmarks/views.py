@@ -32,7 +32,12 @@ from app.benchmarks.arms import ARMS
 from app.benchmarks.metrics import aggregate
 from app.benchmarks.models import BenchmarkExperiment, BenchmarkTrial
 from app.benchmarks.provenance import identical_by_design
-from app.benchmarks.runner import MAX_REPETITIONS, MAX_TRIALS, warmup_repetitions
+from app.benchmarks.runner import (
+    MAX_REPETITIONS,
+    MAX_TRIALS,
+    WARMUP_REPETITIONS,
+    warmup_repetitions,
+)
 from app.benchmarks.suites import SuiteError, all_suites, get_suite
 from app.config import Settings
 from app.redaction import REDACTED, PublicRedactor
@@ -101,6 +106,7 @@ def suites_response(settings: Settings) -> BenchmarkSuitesResponse:
         ],
         max_repetitions=MAX_REPETITIONS,
         max_trials=MAX_TRIALS,
+        warmup_repetitions=WARMUP_REPETITIONS,
     )
 
 

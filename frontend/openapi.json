@@ -1505,6 +1505,10 @@
             },
             "title": "Suites",
             "type": "array"
+          },
+          "warmup_repetitions": {
+            "title": "Warmup Repetitions",
+            "type": "integer"
           }
         },
         "required": [
@@ -1513,7 +1517,8 @@
           "suites",
           "arms",
           "max_repetitions",
-          "max_trials"
+          "max_trials",
+          "warmup_repetitions"
         ],
         "title": "BenchmarkSuitesResponse",
         "type": "object"

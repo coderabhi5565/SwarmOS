@@ -48,6 +48,21 @@ function draftFor(suite: BenchmarkSuite | undefined): Draft {
   };
 }
 
+/**
+ * What a draft schedules. `repetitions` counts measured repetitions; the
+ * server adds `warmup_repetitions` warm-up repetitions per arm and task,
+ * run first and excluded from every result. `runs` is every trial the
+ * server will execute, the number it checks against `max_trials`.
+ */
+export function plannedTrials(armCount: number, taskCount: number, repetitions: number, warmups: number) {
+  const pairs = armCount * taskCount;
+  const measured = pairs * repetitions;
+  const warmup = pairs * warmups;
+  return { pairs, measured, warmup, runs: measured + warmup };
+}
+
+const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
+
 /** Problems with the draft, by field; empty when it may be sent. */
 function validate(draft: Draft, suites: BenchmarkSuites): Partial<Record<keyof Draft | "trials", string>> {
   const problems: Partial<Record<keyof Draft | "trials", string>> = {};
@@ -65,9 +80,16 @@ function validate(draft: Draft, suites: BenchmarkSuites): Partial<Record<keyof D
   if (suite?.requires_real_model && draft.provider === "demo") {
     problems.provider = "This suite needs a real model: the demo fixture only scripts the catalog tasks.";
   }
-  const trials = draft.armIds.length * draft.taskIds.length * (problems.repetitions ? 1 : repetitions);
-  if (trials > suites.max_trials) {
-    problems.trials = `${trials} trials requested; this server allows at most ${suites.max_trials}.`;
+  const planned = plannedTrials(
+    draft.armIds.length,
+    draft.taskIds.length,
+    problems.repetitions ? 1 : repetitions,
+    suites.warmup_repetitions,
+  );
+  if (planned.runs > suites.max_trials) {
+    problems.trials =
+      `${plural(planned.runs, "run")} requested (${planned.measured} measured + ${planned.warmup} warm-up); ` +
+      `this server allows at most ${suites.max_trials}.`;
   }
   return problems;
 }
@@ -101,7 +123,8 @@ export function CreateExperimentForm({ suites }: { suites: BenchmarkSuites }) {
   const problems = validate(draft, suites);
   const valid = Object.keys(problems).length === 0;
   const repetitions = Number(draft.repetitions) || 0;
-  const trials = draft.armIds.length * draft.taskIds.length * repetitions;
+  const planned = plannedTrials(draft.armIds.length, draft.taskIds.length, repetitions, suites.warmup_repetitions);
+  const warmups = suites.warmup_repetitions;
 
   function update(change: Partial<Draft>) {
     setDraft((current) => ({ ...current, ...change }));
@@ -221,9 +244,12 @@ export function CreateExperimentForm({ suites }: { suites: BenchmarkSuites }) {
         </fieldset>
 
         <div className="grid gap-4 sm:grid-cols-3">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium">Repetitions</span>
+          <div className="flex flex-col gap-1 text-sm">
+            <label htmlFor="experiment-repetitions" className="font-medium">
+              Measured repetitions
+            </label>
             <input
+              id="experiment-repetitions"
               type="number"
               inputMode="numeric"
               min={1}
@@ -231,11 +257,15 @@ export function CreateExperimentForm({ suites }: { suites: BenchmarkSuites }) {
               value={draft.repetitions}
               onChange={(event) => update({ repetitions: event.target.value })}
               aria-invalid={showProblems && Boolean(problems.repetitions)}
-              aria-describedby={problems.repetitions ? "problem-repetitions" : undefined}
+              aria-describedby={["repetitions-help", problems.repetitions ? "problem-repetitions" : ""].join(" ").trim()}
               className={inputClass}
             />
+            <span id="repetitions-help" className="text-xs text-muted-foreground">
+              Per arm and task, at most {suites.max_repetitions}.
+              {warmups > 0 && ` Plus ${plural(warmups, "warm-up run")} each, not counted.`}
+            </span>
             {problem("repetitions")}
-          </label>
+          </div>
           <label className="flex flex-col gap-1 text-sm">
             <span className="font-medium">Provider</span>
             <select
@@ -269,14 +299,28 @@ export function CreateExperimentForm({ suites }: { suites: BenchmarkSuites }) {
           </label>
         </div>
 
+        <div aria-label="Planned trials" role="group" className="rounded-lg border border-border/70 bg-card/40 p-3 text-sm">
+          <p className="font-mono text-xs" aria-live="polite">
+            <span className="text-foreground">{plural(planned.measured, "measured trial")}</span>
+            {warmups > 0 && <> + {plural(planned.warmup, "warm-up")}</>} ={" "}
+            <span className="font-semibold text-foreground">{plural(planned.runs, "run")} to execute</span>{" "}
+            <span className="text-muted-foreground">
+              · at most {suites.max_trials} · run one at a time
+            </span>
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {warmups > 0
+              ? `Each of the ${plural(planned.pairs, "arm and task pair")} first runs ${plural(warmups, "warm-up")}, excluded from every rate, distribution and timing. `
+              : "This server runs no warm-up. "}
+            Trials excluded later (cancelled, interrupted) are not rerun.
+          </p>
+        </div>
+
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={create.isPending}>
             {create.isPending ? <Loader2 aria-hidden="true" className="animate-spin" /> : <FlaskConical aria-hidden="true" />}
             {create.isPending ? "Starting…" : "Start experiment"}
           </Button>
-          <p className="font-mono text-xs text-muted-foreground" aria-live="polite">
-            {trials} trial{trials === 1 ? "" : "s"} · at most {suites.max_trials} · run one at a time
-          </p>
           {problem("trials")}
           {create.isError && <CreateError error={create.error} />}
         </div>

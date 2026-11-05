@@ -223,6 +223,7 @@ def test_raised_caps_do_not_open_creation_in_the_public_demo(api, repetitions):
         listed = client.get("/api/benchmarks/experiments").json()["experiments"]
     assert suites["can_create"] is False
     assert (suites["max_repetitions"], suites["max_trials"]) == (MAX_REPETITIONS, MAX_TRIALS)
+    assert suites["warmup_repetitions"] == WARMUP_REPETITIONS
     assert created.status_code == 403
     assert created.json() == {"detail": "creating benchmark experiments is not available in the public demo"}
     assert listed == []

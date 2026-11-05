@@ -822,6 +822,8 @@ export interface components {
             mode: string;
             /** Suites */
             suites: components["schemas"]["BenchmarkSuiteInfo"][];
+            /** Warmup Repetitions */
+            warmup_repetitions: number;
         };
         /** BenchmarkTaskInfo */
         BenchmarkTaskInfo: {

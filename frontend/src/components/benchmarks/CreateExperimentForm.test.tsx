@@ -5,6 +5,7 @@ import type { BenchmarkSuites, Health } from "@/api/types";
 import { json, stubFetch } from "@/test/api";
 import { benchmarkSuites, experimentDetail, experimentPage } from "@/test/benchmarks";
 import { renderAt } from "@/test/render";
+import { plannedTrials } from "./CreateExperimentForm";
 
 const EXPERIMENTS = "/api/benchmarks/experiments";
 
@@ -92,7 +93,7 @@ describe("experiment creation", () => {
     expect(arms).toHaveLength(3);
     expect(within(form()).getByText("Server-only arm")).toBeInTheDocument();
     expect(arms.some((box) => (box as HTMLInputElement).checked)).toBe(false);
-    expect(within(form()).getByRole("spinbutton", { name: "Repetitions" })).toHaveAttribute("max", "4");
+    expect(within(form()).getByRole("spinbutton", { name: "Measured repetitions" })).toHaveAttribute("max", "4");
     expect(within(form()).getByText(/at most 12/)).toBeInTheDocument();
     const providers = within(within(form()).getByRole("combobox", { name: "Provider" })).getAllByRole("option");
     expect(providers.map((option) => (option as HTMLOptionElement).value)).toEqual(["auto", "demo", "openai"]);
@@ -137,7 +138,7 @@ describe("experiment creation", () => {
     expect(within(form()).getByText("Choose at least one task.")).toBeInTheDocument();
     await check(/Tag normalization/);
 
-    const repetitions = within(form()).getByRole("spinbutton", { name: "Repetitions" });
+    const repetitions = within(form()).getByRole("spinbutton", { name: "Measured repetitions" });
     fireEvent.change(repetitions, { target: { value: "5" } });
     await userEvent.click(start());
     expect(within(form()).getByText("Repetitions must be a whole number from 1 to 4.")).toBeInTheDocument();
@@ -158,9 +159,11 @@ describe("experiment creation", () => {
     await check(/Parallel coding/);
     await check(/Sequential coding/);
     await check(/Server-only arm/);
-    fireEvent.change(within(form()).getByRole("spinbutton", { name: "Repetitions" }), { target: { value: "3" } });
-    await userEvent.click(start()); // 3 arms x 2 tasks x 3 = 18 > 12
-    expect(within(form()).getByText("18 trials requested; this server allows at most 12.")).toBeInTheDocument();
+    fireEvent.change(within(form()).getByRole("spinbutton", { name: "Measured repetitions" }), { target: { value: "3" } });
+    await userEvent.click(start()); // 3 arms x 2 tasks x (3 measured + 1 warm-up) = 24 > 12
+    expect(
+      within(form()).getByText("24 runs requested (18 measured + 6 warm-up); this server allows at most 12."),
+    ).toBeInTheDocument();
     expect(posts).toEqual([]);
   });
 
@@ -185,10 +188,13 @@ describe("experiment creation", () => {
     await check(/Sequential coding/);
     await check(/Parallel coding/);
     await check(/Parallel pipeline/); // leave only the first task
-    fireEvent.change(within(form()).getByRole("spinbutton", { name: "Repetitions" }), { target: { value: "2" } });
+    fireEvent.change(within(form()).getByRole("spinbutton", { name: "Measured repetitions" }), { target: { value: "2" } });
     await userEvent.selectOptions(within(form()).getByRole("combobox", { name: "Provider" }), "demo");
     await userEvent.type(within(form()).getByRole("textbox", { name: /Order seed/ }), "42");
-    expect(within(form()).getByText(/^4 trials/)).toBeInTheDocument();
+    // 2 arms x 1 task: 2 x 2 measured, plus one warm-up per pair.
+    expect(within(form()).getByRole("group", { name: "Planned trials" })).toHaveTextContent(
+      "4 measured trials + 2 warm-ups = 6 runs to execute",
+    );
     await userEvent.click(start());
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/benchmarks/bex_new"));
@@ -279,5 +285,78 @@ describe("experiment creation", () => {
     await within(form()).findByRole("alert");
     await check(/Sequential coding/);
     expect(within(form()).queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("planned trials, warm-ups included", () => {
+  it.each([
+    // arms, tasks, measured repetitions, warm-ups -> pairs, measured, warm-up, runs
+    [1, 1, 1, 1, { pairs: 1, measured: 1, warmup: 1, runs: 2 }],
+    [2, 2, 20, 1, { pairs: 4, measured: 80, warmup: 4, runs: 84 }],
+    [5, 3, 20, 1, { pairs: 15, measured: 300, warmup: 15, runs: 315 }],
+    [3, 2, 4, 0, { pairs: 6, measured: 24, warmup: 0, runs: 24 }],
+    [0, 2, 3, 1, { pairs: 0, measured: 0, warmup: 0, runs: 0 }],
+  ])("%i arms x %i tasks x %i measured + %i warm-up", (arms, tasks, repetitions, warmups, expected) => {
+    expect(plannedTrials(arms, tasks, repetitions, warmups)).toEqual(expected);
+  });
+
+  it("shows measured trials, warm-ups and the runs to execute before submitting", async () => {
+    serve();
+    renderAt("/benchmarks");
+    await screen.findByRole("form", { name: "New experiment" });
+    const planned = () => within(form()).getByRole("group", { name: "Planned trials" });
+    expect(planned()).toHaveTextContent("0 measured trials + 0 warm-ups = 0 runs to execute");
+
+    await check(/Parallel coding/); // 1 arm x 2 tasks x 1
+    expect(planned()).toHaveTextContent("2 measured trials + 2 warm-ups = 4 runs to execute");
+    expect(planned()).toHaveTextContent(
+      "Each of the 2 arm and task pairs first runs 1 warm-up, excluded from every rate, distribution and timing.",
+    );
+    await check(/Sequential coding/);
+    fireEvent.change(within(form()).getByRole("spinbutton", { name: "Measured repetitions" }), { target: { value: "3" } });
+    expect(planned()).toHaveTextContent("12 measured trials + 4 warm-ups = 16 runs to execute");
+    const help = within(form()).getByText(/^Per arm and task, at most 4\./);
+    expect(help).toHaveTextContent("Plus 1 warm-up run each, not counted.");
+    expect(within(form()).getByRole("spinbutton", { name: "Measured repetitions" })).toHaveAccessibleDescription(
+      /Plus 1 warm-up run each/,
+    );
+  });
+
+  it("refuses when the warm-ups take the runs over the limit, though the measured trials fit", async () => {
+    const { posts } = serve();
+    renderAt("/benchmarks");
+    await screen.findByRole("form", { name: "New experiment" });
+    await check(/Parallel coding/);
+    await check(/Sequential coding/);
+    fireEvent.change(within(form()).getByRole("spinbutton", { name: "Measured repetitions" }), { target: { value: "3" } });
+    await userEvent.click(start()); // 12 measured fit the limit of 12; 16 runs do not
+    expect(
+      within(form()).getByText("16 runs requested (12 measured + 4 warm-up); this server allows at most 12."),
+    ).toBeInTheDocument();
+    expect(posts).toEqual([]);
+  });
+
+  it("sends a request whose runs, warm-ups included, are exactly at the limit", async () => {
+    const { posts } = serve({ post: json(experimentDetail({ experiment_id: "bex_edge" }), 202) });
+    const { router } = renderAt("/benchmarks");
+    await screen.findByRole("form", { name: "New experiment" });
+    await check(/Parallel coding/);
+    await check(/Sequential coding/);
+    await check(/Server-only arm/); // 3 arms x 2 tasks x (1 + 1) = 12 runs, the limit
+    expect(within(form()).getByRole("group", { name: "Planned trials" })).toHaveTextContent("= 12 runs to execute");
+    await userEvent.click(start());
+    await waitFor(() => expect(router.state.location.pathname).toBe("/benchmarks/bex_edge"));
+    expect(posts).toEqual([{ suite_id: "catalog", arm_ids: ["parallel", "sequential", "zz-arm"], repetitions: 1, provider: "auto" }]);
+  });
+
+  it("says so when the server runs no warm-up", async () => {
+    serve({ options: suites({ warmup_repetitions: 0 }) });
+    renderAt("/benchmarks");
+    await screen.findByRole("form", { name: "New experiment" });
+    await check(/Parallel coding/);
+    const planned = within(form()).getByRole("group", { name: "Planned trials" });
+    expect(planned).toHaveTextContent("2 measured trials = 2 runs to execute");
+    expect(planned).toHaveTextContent("This server runs no warm-up.");
+    expect(planned).not.toHaveTextContent("warm-ups");
   });
 });
