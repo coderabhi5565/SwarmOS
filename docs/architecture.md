@@ -333,6 +333,16 @@ unmeasured, and it starts no further trials). There is no recovery
 endpoint. A lease or heartbeat would remove this limitation; it
 is not implemented.
 
+**Warm-up and metrics v2 (M7.3).** `repetitions` counts measured
+repetitions; the schedule adds one warm-up repetition (repetition 0) per
+arm and task, excluded as `warm-up`. The warm-up count is derived from the
+stored schedule, not stored (no schema change). A counted trial's
+`timings` come from its run's persisted span measurements; aggregates
+report measured n, warm-ups, exclusions, cancellation and interrupted
+rates over non-warm-up trials, sample completeness (20 per arm and task),
+and timing distributions over trials with recorded measurements only.
+Definitions and conventions: `docs/m7-observability-proposal.md` §17.
+
 **Public demo.** The benchmark API is read-only: only the catalog suite and
 experiments on it are visible (others are indistinguishable from unknown
 ones), creation and cancellation are `403`, host details are left out, and
@@ -366,10 +376,12 @@ layer (`frontend/src/api/benchmarkQueries.ts`); no page fetches on its own.
   cancellation yet.
 - **Creation is the server's decision.** The form is mounted only when the
   suites response says `can_create`, offers only the server's suites,
-  tasks, arms and caps, validates the trial count against `max_trials`,
-  and reports 400/403/409/422/429/5xx as the server worded them. It is a
-  convenience, not a guard: the API enforces every rule itself, and the
-  public demo answers `403` whatever the client sends.
+  tasks, arms and caps, validates the trial count against `max_trials`
+  (without the warm-up repetitions the server adds: an M7.5 follow-up,
+  see `PROJECT_STATUS.md`), and reports 400/403/409/422/429/5xx as the
+  server worded them. It is a convenience, not a guard: the API enforces
+  every rule itself, and the public demo answers `403` whatever the
+  client sends.
 - **Metrics are displayed, never computed.** Rates, distributions, means,
   exclusions and identical-by-design groups come from the backend. A null
   value is shown as unknown with the backend's `null_reasons` entry (or

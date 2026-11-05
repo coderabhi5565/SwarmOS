@@ -303,6 +303,18 @@ results are not evidence that the policies are equivalent.
 
 Tasks are in `benchmarks/tasks.jsonl`; results are written to `benchmarks/results/`, which is git-ignored.
 
+`--repetitions` (and the API's `repetitions`) counts **measured**
+repetitions per arm and task, at most 20. Every experiment adds one
+warm-up repetition per arm and task, run first and excluded from every
+rate, distribution and the JSONL. A full sample is 20 measured trials per
+arm and task; excluded trials are not rerun, so a short sample reports its
+actual n. Experiment aggregates report measured n, warm-ups, exclusions by
+reason, cancellation and interrupted rates, and per-phase timings (median,
+nearest-rank P95, min, max, with missing values counted by reason). Twenty
+trials do not establish a statistically significant difference, and no
+arm is declared best. Definitions:
+[docs/m7-observability-proposal.md](docs/m7-observability-proposal.md) §17.
+
 Only one benchmark experiment may be active per database. An experiment is
 owned by the process running it (an API server or a `bench` command), and
 nothing records that ownership across processes. The API server closes

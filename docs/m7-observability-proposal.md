@@ -695,3 +695,110 @@ In local mode the endpoint returns validated ids as stored, as Run Detail
 does: an id-shaped token passes, while paths, URLs and hosts cannot (they
 fail validation). `predates_measurements` compares the run's `created_at`
 with `installed_at`: a classification, not a measurement.
+
+## 17. M7.3 implementation notes
+
+M7.3 is implemented (commits `7b73a12`, `237f37e`, `dbffe85`, `9e75e1d`
+and `005e2b1`). Where it differs from §4, §6 and §8, and why:
+
+| Plan | Implemented | Reason |
+| --- | --- | --- |
+| 1 warm-up + 20 measured = 21 repetitions per arm and task | `repetitions` counts **measured** repetitions (default 1, at most 20); the schedule adds one warm-up repetition, so 20 gives 21 runs per pair | a total including the warm-up would make the existing default of 1 schedule no measured trial |
+| warm-up as repetition 0, no schema change | as planned: the warm-up count is derived from the persisted schedule (`runner.warmup_repetitions`: scheduled repetitions minus `repetitions`), never stored | experiments created before M7.3 derive 0 and count every trial; a finished trial keeps its snapshotted outcome |
+| caps raised for local experiments (example: 84 trials) | `MAX_REPETITIONS` 20 (measured), `MAX_TRIALS` 315 with warm-ups: the largest suite (3 tasks) with all 5 arms at 21 repetitions | the smallest caps that fit the full sample for every suite and arm; the public demo still cannot create experiments |
+| `http_attempt_ms` per attempt | per call in the run measurements API, as before; per run, `http_attempt_ms` (busy, a sum) and the new `http_attempt_wall_ms` (a union), with `call_wall_ms` beside `call_ms` and `provider_calls` | concurrent calls of a parallel wave must not be summed and labelled elapsed |
+| failure rate by error class (§4.2) | not implemented | not required by the M7.3 review; classes remain in the events |
+| arm-position counts for unbalanced orders (§8) | not implemented | not required by the M7.3 review |
+
+The new analysis values (`provider_calls`, `call_wall_ms`,
+`http_attempt_ms`, `http_attempt_wall_ms`) are not fields of
+`GET /api/runs/{id}/measurements`; when null, their reasons appear in its
+`unknown` map like any other derived value.
+
+### 17.1 Trial timings
+
+A counted trial (success or failure) carries `timings` (metrics version
+2), derived only from its run's persisted span measurements, read through
+the same revalidating loader as the run measurements API. Warm-up,
+excluded and incomplete trials, and trials recorded before version 2, have
+`timings: null`.
+
+- `measurement_status`: `recorded`, or why there are no measurements
+  (`predates_measurements`, `process_crash`, `measurement_flush_failed`,
+  `instrumentation_disabled`, `not_recorded`, `unreadable`,
+  `run_in_progress`, or `unsupported_version` for a snapshot version this
+  code cannot read). Only `recorded` is derived; otherwise every run
+  metric is null and `null_reasons["*"]` names the status.
+- Fields, each from the analysis value in brackets where the name
+  differs: `lifecycle_ms`, `admission_ms`, `execution_ms`, `setup_ms`,
+  `graph_ms`, `finalization_ms`, `planner_ms`, `reviewer_ms`,
+  `coder_busy_ms`, `coder_wall_ms`, `coder_critical_path_ms`,
+  `provider_calls`, `provider_call_busy_ms` (`call_ms`),
+  `provider_call_wall_ms` (`call_wall_ms`), `http_attempts`,
+  `http_attempt_busy_ms` (`http_attempt_ms`), `http_attempt_wall_ms`,
+  `parse_total_ms` (`parse_ms`), `backoff_total_ms` (`backoff_ms`),
+  `verification_ms`, `diagnostic_verification_ms`, `graph_gap_ms`,
+  `critical_orchestration_ms`, `parallel_orchestration_ms`,
+  `schedule_delay_total_ms` (`schedule_delay_ms`), `slot_wait_total_ms`
+  (`slot_wait_ms`), `ledger_wait_total_ms` (`ledger_wait_ms`).
+- `*_busy_ms` and `*_total_ms` are sums over possibly overlapping
+  intervals: time spent, not time elapsed. `*_wall_ms` and the phases are
+  elapsed time (the length of a union, or one interval).
+  `coder_critical_path_ms` runs from each dispatch to the end of its last
+  step, summed over dispatches.
+- `trial_slot_wait_ms`: timed by the benchmark runner on
+  `time.perf_counter_ns`, from claiming the trial to its run's admission,
+  including any wait for a free run slot. Null, with a reason, when
+  startup recovery rather than the trial's own runner finished the trial.
+- Every null field has a reason in `null_reasons`; nothing is zero for
+  want of data. A zero is a measured zero (a scripted call makes no HTTP
+  attempt).
+
+### 17.2 Aggregates
+
+Each arm has one aggregate over all its tasks and one per task, with the
+same fields:
+
+| Field | Definition |
+| --- | --- |
+| `trials` | trials with metrics (a trial that never ran has none) |
+| `counted` | measured n: success and failure trials; never a warm-up or an excluded trial |
+| `warmups` | trials excluded as `warm-up` |
+| `excluded`, `excluded_reasons` | other excluded trials, by reason: `cancelled`, `interrupted: the server stopped during the run`, `orchestration error (<class>)` |
+| `incomplete` | trials whose run has not finished |
+| `non_warmup_trials` | `trials - warmups` |
+| `cancelled`, `cancellation_rate` | cancelled trials, and their share of `non_warmup_trials` (null when it is 0) |
+| `interrupted`, `interrupted_rate` | interrupted trials, and their share of `non_warmup_trials` (null when it is 0) |
+| `task_success_rate`, `verification_pass_rate` | over `counted`, kept apart: a passed verification is not a task success |
+| `sample_required`, `sample_complete` | 20; per task, complete when `counted >= 20`; over all tasks, complete only when every task of the arm is |
+| `timings.measured` | counted trials whose measurements are `recorded` |
+| `timings.unavailable` | the other counted trials, by `measurement_status` (or `metrics_v1` for trials without timings) |
+| `timings.metrics[name]` | for each trial timing field: `n`, `missing`, `missing_reasons`, `median`, `p95`, `min`, `max` |
+
+Rules:
+
+- `n` counts the measured trials that established the value; `missing`
+  counts those that did not, by reason. `n + missing = timings.measured`
+  for every metric. A counted trial without recorded measurements is in no
+  timing figure and is counted in `timings.unavailable` instead, so
+  measurement statuses are never mixed and none is dropped silently.
+- **Median:** `statistics.median` of the n values: the middle value, or
+  the mean of the two middle values when n is even.
+- **P95:** nearest-rank. Sort the n values ascending and take the one at
+  1-based rank `ceil(0.95 × n)`. It is always an observed value: for
+  n < 20 it is the maximum; for n = 20 it is the 19th value, for n = 21
+  the 20th. When fewer than 20 trials are measured (`timings.measured`),
+  a note says the timing P95s are not stable tail estimates.
+- `min` and `max` are the smallest and largest of the n values. With n = 0
+  every statistic is null, never zero.
+- **Sample:** at least 20 counted trials per arm and task. Warm-ups and
+  excluded trials never count towards it and are never rerun; a short
+  sample keeps its actual n, `sample_complete` is false and a note says so.
+- **Significance:** the experiment notes state that 20 trials per arm and
+  task do not establish a statistically significant difference; no
+  confidence interval or significance test is computed, and no arm is
+  declared best.
+- **Public demo:** the aggregates and trial timings are part of the
+  read-only experiment detail (numbers, statuses and fixed reasons only).
+  Creating, cancelling and recovering experiments stay unavailable; the
+  raised caps change nothing there.

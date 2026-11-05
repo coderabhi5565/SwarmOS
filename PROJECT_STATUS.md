@@ -1,6 +1,6 @@
 # SwarmOS project status
 
-Last updated: 2026-11-03
+Last updated: 2026-11-05
 
 ## Scope
 
@@ -28,24 +28,26 @@ Milestones (revised 2026-11-01):
   - M7.0 observability architecture proposal ✅ (`docs/m7-observability-proposal.md`)
   - M7.1 in-memory timing spans ✅
   - M7.2 measurement persistence and API ✅
-  - M7.3 onward (benchmark v2, process histograms, UI, baseline): not started
+  - M7.3 benchmark metrics v2 ✅
+  - M7.4 onward (process histograms, UI, baseline): not started
 - M8 release
 
 ## Current milestone
 
-**M7.2 — Measurement persistence and API: complete and pushed** (commits
-`f4a83cb`, `7763eee`, `62da00c`, `9425d05`, `d571e50` and this
-documentation commit). M7.1 is complete and pushed.
-Next: **M7.3 — benchmark metrics v2**, awaiting approval (not started).
-M6.4 (benchmark charts) also awaits approval.
+**M7.3 — Benchmark metrics v2: complete and pushed** (commits
+`7b73a12`, `237f37e`, `dbffe85`, `9e75e1d`, `005e2b1` and this
+documentation commit). M7.1 and M7.2 are complete and pushed.
+Next: **M7.4 — process histograms**, awaiting approval (not started).
+M6.4 (benchmark charts) and M7.5 (UI) also await approval.
 
 ## Validation at the last milestone boundary
 
-M7.2, 2026-11-03 (frontend: regenerated API types only):
+M7.3, 2026-11-04, at `005e2b1` (frontend: regenerated API types and test
+fixtures only):
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest` (`.env` loading disabled) | 736 passed, 2 skipped (694 at M7.1) |
+| `python -m pytest` (`.env` loading disabled) | 788 passed, 2 skipped (736 at M7.2) |
 | frontend `npx tsc --noEmit` / `vitest run` / `npm run build` | clean / 305 passed (28 files) / builds |
 | `ruff check .` | clean |
 | `ruff format --check` | not configured; the codebase has never been formatted |
@@ -59,6 +61,68 @@ frontend runs used `vitest run --maxWorkers=2`, and a few `tsc`/build runs
 were killed by out-of-memory and passed unchanged on retry.
 
 ## Completed
+
+### M7.3 — benchmark metrics v2
+
+- **Commits:** `7b73a12` warm-up and caps; `237f37e` a rounding fix in
+  the M7.2 harness test (the harness is unchanged); `dbffe85` call and
+  HTTP-attempt wall time; `9e75e1d` trial timings; `005e2b1` aggregates.
+- **Warm-up:** `repetitions` is the number of **measured** repetitions per
+  arm and task (API and `bench --repetitions`; default 1, at most 20).
+  Every new experiment schedules one more, repetition 0, as the warm-up of
+  each arm and task pair. The schedule is repetition-major, so every
+  warm-up runs before any measured trial; the seeded interleaving and the
+  configuration fingerprints are unchanged. A warm-up runs in full and is
+  excluded whatever its outcome (`excluded_reason` `warm-up`; a cancelled
+  or interrupted warm-up says so in its null reason). `bench` lists
+  warm-ups as excluded and keeps them out of its table, summary and JSONL.
+- **No schema change:** the warm-up count is never stored. It is read
+  from the persisted trial schedule (`runner.warmup_repetitions`: the
+  scheduled repetitions minus `repetitions`), so experiments created
+  before M7.3 report 0 and count every trial; a finished trial keeps the
+  outcome snapshotted when it finished. The experiment summary reports it
+  as `warmup_repetitions`.
+- **Caps (local, operator-created experiments only):** `MAX_REPETITIONS`
+  10 → 20 measured repetitions; `MAX_TRIALS` 60 → 315, warm-ups included
+  (the largest suite, 3 tasks, with all 5 arms at 20 + 1 repetitions). The
+  public demo still refuses creation and cancellation (`403`) and has no
+  recovery endpoint; a new test checks that creation is still refused at
+  the raised caps, and the existing public tests cover the rest.
+- **Trial timings** (`TrialMetrics.timings`, metrics version 2): for a
+  counted trial, from its run's persisted span measurements only, through
+  the same revalidating loader as `GET /api/runs/{id}/measurements`: run
+  phases, planner and reviewer time; coder busy (sum), wall (union) and
+  critical path; provider calls and HTTP attempts, each with busy (sum)
+  and wall (union) time; parse and backoff totals; gating and diagnostic
+  verification; graph gap, critical and parallel orchestration;
+  schedule-delay, slot-wait and ledger-wait totals; and
+  `trial_slot_wait_ms`, timed by the runner from claiming the trial to its
+  run's admission. A run without usable measurements keeps every timing
+  null with its `measurement_status` as the reason. Warm-up, excluded,
+  incomplete and pre-v2 trials have no timings.
+- **Aggregates v2** (per arm, and per arm and task): measured n
+  (`counted`), `warmups`, `excluded` and `excluded_reasons` (warm-ups are
+  not exclusions), `cancelled`/`cancellation_rate` and
+  `interrupted`/`interrupted_rate` over `non_warmup_trials`,
+  `sample_required` (20) and `sample_complete`, and `timings`: for every
+  timing metric `n`, `missing` (with `missing_reasons`), median,
+  nearest-rank P95, min and max over the counted trials whose
+  measurements were recorded. `n + missing` always equals
+  `timings.measured`; every other counted trial is counted in
+  `timings.unavailable` by status and enters no figure. Exact definitions
+  and conventions: `docs/m7-observability-proposal.md` §17.
+- **No significance claims:** every experiment carries the note that 20
+  trials per arm and task do not establish a statistically significant
+  difference. Excluded trials are never rerun; a short sample reports its
+  actual n and is flagged incomplete.
+- **Tests:** 52 more test cases (788 at `005e2b1`, 736 at M7.2),
+  including percentile, aggregation, exclusion, denominator and
+  missing-value checks against hand-calculated datasets and overlapping
+  parallel spans.
+- **Not done in M7.3:** the proposal's failure rate by error class (§4.2)
+  and the arm-position counts for unbalanced orders (§8); the scripted
+  baseline report (acceptance criterion 11); the UI (M7.5, see known
+  issues 12 and 13).
 
 ### M7.2 — measurement persistence and API
 
@@ -588,6 +652,15 @@ restrictions instead (details in `docs/safety.md`):
     `GET /` fallback that the committed `frontend/openapi.json` lacks. A
     fresh checkout fails it until the frontend is built (or
     `SWARMOS_FRONTEND_DIST` points at a build). Pre-existing; not changed.
+12. **M7.5 follow-up:** the create-experiment form computes its trial
+    count as arms × tasks × repetitions, without the warm-up repetition
+    the server adds per arm and task, so the count it displays and checks
+    against `max_trials` is low by arms × tasks. At the current caps the
+    server never rejects such a request (the largest choice is exactly
+    315 trials); the server's count is authoritative. Not fixed.
+13. **M7.5 follow-up:** the aggregate v2 fields (warm-ups, exclusions,
+    rates, sample completeness, timing distributions) and trial timings
+    are in the API but not yet displayed by any page. Not fixed.
 
 ## Blockers needing the user
 
