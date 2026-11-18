@@ -4,9 +4,11 @@ import { Tabs } from "radix-ui";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { BackendStatus } from "@/app/layout/BackendStatus";
+import { EvidenceGuardDemo, SandboxChecks, SpanWaterfall, WaveGantt } from "@/components/landing/ArchitectureWidgets";
 import { BeamDiagram } from "@/components/landing/BeamDiagram";
 import { HeroVisual } from "@/components/landing/HeroVisual";
 import { PhaseTicker } from "@/components/landing/PhaseTicker";
+import { Reveal, ScrollProgress } from "@/components/landing/Reveal";
 import type { PhaseId } from "@/components/landing/simulation";
 import { SpotlightCard } from "@/components/landing/SpotlightCard";
 import { WALKTHROUGH, type TraceExcerpt } from "@/components/landing/traceWalkthrough";
@@ -21,6 +23,7 @@ import { cn } from "@/lib/utils";
 export function LandingPage() {
   return (
     <div className="flex flex-col">
+      <ScrollProgress className="sticky top-14 z-30" />
       <Hero />
       <div className="mx-auto w-full max-w-7xl space-y-20 px-4 py-14 sm:px-6 sm:py-20">
         <Architecture />
@@ -100,8 +103,9 @@ function Hero() {
 interface Feature {
   icon: LucideIcon;
   title: string;
-  body: string;
-  points: string[];
+  /** One line; the widget shows the rest. */
+  caption: string;
+  widget: ReactNode;
   source: string[];
   span: string;
   tone: string;
@@ -111,8 +115,8 @@ const FEATURES: Feature[] = [
   {
     icon: GitBranch,
     title: "LangGraph parallel waves",
-    body: "The plan's dependencies become waves. Steps of a wave fan out to coders that each work in their own checkout, and their results fold back through typed state reducers.",
-    points: ["Typed state with merge reducers", "Dependency fan-out per wave", "Conflicting changes are rejected at merge"],
+    caption: "Independent steps fan out together and fold back through typed state reducers.",
+    widget: <WaveGantt />,
     source: ["app/orchestrator.py", "app/state.py"],
     span: "md:col-span-4",
     tone: "text-agent-coder",
@@ -120,8 +124,8 @@ const FEATURES: Feature[] = [
   {
     icon: ScanSearch,
     title: "Reviewer evidence guard",
-    body: "A reviewer cannot block a run on a claim. A blocker must cite a real file, a line that exists and test output; otherwise the run ends as review_invalid, never as an approval.",
-    points: ["Checks files, lines and test output", "review_invalid is its own terminal status"],
+    caption: "A blocker needs a real file, line and test output.",
+    widget: <EvidenceGuardDemo />,
     source: ["app/review_evidence.py"],
     span: "md:col-span-2",
     tone: "text-agent-reviewer",
@@ -129,8 +133,8 @@ const FEATURES: Feature[] = [
   {
     icon: Gauge,
     title: "Monotonic span observability",
-    body: "Run timings are spans on perf_counter_ns, never differences of wall-clock timestamps. Benchmarks exclude one warm-up per arm and task and report median and nearest-rank P95 with their n.",
-    points: ["Nanosecond monotonic spans", "Warm-up excluded, missing values stay unknown"],
+    caption: "Timings are spans on one monotonic clock, never wall-clock subtraction.",
+    widget: <SpanWaterfall />,
     source: ["app/timings/", "app/benchmarks/"],
     span: "md:col-span-2",
     tone: "text-brand-cyan",
@@ -138,8 +142,8 @@ const FEATURES: Feature[] = [
   {
     icon: ShieldCheck,
     title: "Fail-closed public sandbox",
-    body: "The public demo runs only curated tasks. Generated code passes a static AST policy before merge, tests run under an audit-hooked pytest launcher, and every response is redacted. The server refuses to start if any of these is off.",
-    points: ["Static AST code policy", "Audit-hooked pytest launcher", "Response redaction at the API boundary"],
+    caption: "Curated tasks only; the server refuses to start with any check off.",
+    widget: <SandboxChecks />,
     source: ["app/runtime/code_policy.py", "app/runtime/sandbox_launcher.py", "app/redaction.py"],
     span: "md:col-span-4",
     tone: "text-agent-verifier",
@@ -149,27 +153,25 @@ const FEATURES: Feature[] = [
 function Architecture() {
   return (
     <section aria-labelledby="architecture-heading" className="space-y-6">
-      <SectionHeading id="architecture-heading" eyebrow="Architecture" title="Four decisions that shape every run">
-        Each card names the modules that implement it.
-      </SectionHeading>
+      <Reveal>
+        <SectionHeading id="architecture-heading" eyebrow="Architecture" title="Four decisions that shape every run" />
+      </Reveal>
       <ul className="grid gap-4 md:grid-cols-6">
         {FEATURES.map((feature, index) => (
           <li key={feature.title} className={feature.span}>
-            <Rise delay={0.04 * index} className="h-full">
-              <SpotlightCard className="p-5 sm:p-6">
-                <feature.icon aria-hidden="true" className={cn("size-5", feature.tone)} />
-                <h3 className="mt-3 text-lg font-semibold tracking-tight">{feature.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{feature.body}</p>
-                <ul className="mt-4 flex flex-wrap gap-2">
-                  {feature.points.map((point) => (
-                    <li key={point} className="rounded-full border border-border/70 px-2.5 py-0.5 text-xs text-foreground/90">
-                      {point}
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-4 font-mono text-[11px] text-muted-foreground">{feature.source.join(" · ")}</p>
+            <Reveal delay={0.06 * index} className="h-full">
+              <SpotlightCard className="flex flex-col gap-4 p-5 sm:p-6">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <feature.icon aria-hidden="true" className={cn("size-4", feature.tone)} />
+                    <h3 className="text-base font-semibold tracking-tight">{feature.title}</h3>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">{feature.caption}</p>
+                </div>
+                <div className="flex-1 rounded-xl border border-border/50 bg-background/40 p-3">{feature.widget}</div>
+                <p className="font-mono text-[11px] text-muted-foreground">{feature.source.join(" · ")}</p>
               </SpotlightCard>
-            </Rise>
+            </Reveal>
           </li>
         ))}
       </ul>
@@ -177,14 +179,14 @@ function Architecture() {
   );
 }
 
-function SectionHeading({ id, eyebrow, title, children }: { id: string; eyebrow: string; title: string; children: ReactNode }) {
+function SectionHeading({ id, eyebrow, title, children }: { id: string; eyebrow: string; title: string; children?: ReactNode }) {
   return (
     <div className="space-y-2">
       <p className="font-mono text-xs tracking-[0.2em] text-brand-cyan uppercase">{eyebrow}</p>
       <h2 id={id} className="text-2xl font-semibold tracking-tight sm:text-3xl">
         {title}
       </h2>
-      <p className="max-w-2xl text-sm text-muted-foreground">{children}</p>
+      {children && <p className="max-w-2xl text-sm text-muted-foreground">{children}</p>}
     </div>
   );
 }
@@ -223,9 +225,9 @@ function Walkthrough() {
 
   return (
     <section aria-labelledby="walkthrough-heading" className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <Reveal className="flex flex-wrap items-end justify-between gap-4">
         <SectionHeading id="walkthrough-heading" eyebrow="Trace" title="One run, as the trace records it">
-          Events from a recorded run of the catalog task "Parallel pipeline", unedited apart from leaving fields out.
+          A recorded run of the catalog task "Parallel pipeline". Fields are left out; none is changed.
         </SectionHeading>
         <div className="flex items-center gap-3">
           <p role="status" aria-label="Replay progress" className="font-mono text-[11px] text-muted-foreground">
@@ -236,86 +238,105 @@ function Walkthrough() {
             Replay Execution Cycle
           </Button>
         </div>
-      </div>
-      <BeamDiagram steps={WALKTHROUGH} activeIndex={activeIndex} />
-      <Tabs.Root
-        value={active}
-        onValueChange={(value) => {
-          stop(); // choosing a stage by hand ends a replay
-          setActive(value);
-        }}
-        className="glass overflow-hidden rounded-2xl"
-      >
-        <Tabs.List aria-label="Stages of a run" className="flex gap-1 overflow-x-auto border-b border-border/70 p-2">
-          {WALKTHROUGH.map((step, index) => (
-            <Tabs.Trigger
-              key={step.id}
-              value={step.id}
-              className="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
-            >
-              <span className="mr-1.5 font-mono text-[11px] text-muted-foreground">{index + 1}</span>
-              {step.tab}
-            </Tabs.Trigger>
+      </Reveal>
+      <Reveal delay={0.05}>
+        <BeamDiagram steps={WALKTHROUGH} activeIndex={activeIndex} />
+      </Reveal>
+      <Reveal delay={0.1}>
+        <Tabs.Root
+          value={active}
+          onValueChange={(value) => {
+            stop(); // choosing a stage by hand ends a replay
+            setActive(value);
+          }}
+          className="glass overflow-hidden rounded-2xl"
+        >
+          <Tabs.List aria-label="Stages of a run" className="flex gap-1 overflow-x-auto border-b border-border/70 p-2">
+            {WALKTHROUGH.map((step, index) => (
+              <Tabs.Trigger
+                key={step.id}
+                value={step.id}
+                className="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[state=active]:bg-accent data-[state=active]:text-accent-foreground"
+              >
+                <span className="mr-1.5 font-mono text-[11px] text-muted-foreground">{index + 1}</span>
+                {step.tab}
+              </Tabs.Trigger>
+            ))}
+          </Tabs.List>
+          {WALKTHROUGH.map((step) => (
+            <Tabs.Content key={step.id} value={step.id} className="grid gap-5 p-4 outline-none sm:p-6 lg:grid-cols-[1fr_1.4fr]">
+              <m.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="space-y-2">
+                <h3 className="text-lg font-semibold tracking-tight">{step.title}</h3>
+                <p className="text-sm text-muted-foreground">{step.explanation}</p>
+              </m.div>
+              <ol aria-label={`Trace events: ${step.tab}`} className="space-y-3 rounded-xl border border-border/60 bg-background/60 p-3 font-mono text-xs">
+                {step.events.map((event, index) => (
+                  <TraceEvent key={event.seq} event={event} delay={index * 0.18} />
+                ))}
+              </ol>
+            </Tabs.Content>
           ))}
-        </Tabs.List>
-        {WALKTHROUGH.map((step) => (
-          <Tabs.Content key={step.id} value={step.id} className="grid gap-5 p-4 outline-none sm:p-6 lg:grid-cols-[1fr_1.4fr]">
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold tracking-tight">{step.title}</h3>
-              <p className="text-sm text-muted-foreground">{step.explanation}</p>
-            </div>
-            <ol aria-label={`Trace events: ${step.tab}`} className="space-y-3 rounded-xl border border-border/60 bg-background/60 p-3 font-mono text-xs">
-              {step.events.map((event) => (
-                <TraceEvent key={event.seq} event={event} />
-              ))}
-            </ol>
-          </Tabs.Content>
-        ))}
-      </Tabs.Root>
+        </Tabs.Root>
+      </Reveal>
     </section>
   );
 }
 
-function TraceEvent({ event }: { event: TraceExcerpt }) {
+/** One recorded event; its payload is revealed line by line. */
+function TraceEvent({ event, delay }: { event: TraceExcerpt; delay: number }) {
+  const lines = JSON.stringify(event.payload, null, 2).split("\n");
   return (
-    <li className="space-y-1">
+    <m.li className="space-y-1" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay }}>
       <p className="flex flex-wrap items-baseline gap-x-2">
         <span className="text-muted-foreground">seq {event.seq}</span>
         <span className="text-brand-cyan">{event.kind}</span>
         <span className="font-sans text-foreground">{event.message}</span>
       </p>
       <pre className="overflow-x-auto rounded-md bg-card/60 p-2 text-[11px] leading-relaxed text-muted-foreground">
-        {JSON.stringify(event.payload, null, 2)}
+        {lines.map((line, index) => (
+          <m.span
+            key={index}
+            className="block"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.12, delay: delay + 0.1 + index * 0.04 }}
+          >
+            {line}
+          </m.span>
+        ))}
       </pre>
-    </li>
+    </m.li>
   );
 }
 
 // ----------------------------------------------------------------------
+const DEPLOYMENT = ["Scripted Demo Provider", "Curated Catalog Tasks", "Ephemeral SQLite", "₹0/mo Architecture"];
+
 function Honesty() {
   return (
-    <footer className="space-y-4">
-      <aside
-        role="note"
-        aria-label="About this deployment"
-        className="rounded-2xl border border-status-findings/30 bg-status-findings/5 p-5 text-sm sm:p-6"
-      >
-        <p className="font-medium text-foreground">What the public deployment runs</p>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-          <li>
-            The <span className="text-foreground">deterministic scripted provider</span>: the agents follow a script, so
-            results describe the orchestration, not a model's ability.
-          </li>
-          <li>Curated catalog tasks only. Free-form goals, uploads and provider overrides are refused.</li>
-          <li>Ephemeral SQLite storage on a free tier: run history resets when the server restarts or redeploys.</li>
-          <li>A free-tier backend sleeps when idle; the first request can take up to a minute.</li>
-        </ul>
-        <p className="mt-3 text-xs text-muted-foreground">A ₹0/month architecture: a static frontend and one small API process.</p>
-      </aside>
-      <p className="text-center text-xs text-muted-foreground">
-        SwarmOS is a portfolio project. Benchmarks report measured trials with their sample sizes and claim no
-        statistical significance.
-      </p>
-    </footer>
+    <Reveal>
+      <footer className="space-y-3">
+        <aside
+          role="note"
+          aria-label="About this deployment"
+          className="glass flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-full px-5 py-2.5 font-mono text-xs text-foreground/90"
+        >
+          {DEPLOYMENT.map((fact, index) => (
+            <span key={fact} className="flex items-center gap-3">
+              {index > 0 && (
+                <span aria-hidden="true" className="text-muted-foreground/60">
+                  •
+                </span>
+              )}
+              {fact}
+            </span>
+          ))}
+        </aside>
+        <p className="text-center text-xs text-muted-foreground">
+          Scripted results describe the orchestration, not a model. History resets on restart, and a sleeping free-tier
+          server can take a minute to wake. Benchmarks claim no statistical significance.
+        </p>
+      </footer>
+    </Reveal>
   );
 }

@@ -120,10 +120,9 @@ describe("landing page", () => {
     serve();
     renderAt("/");
     const note = await screen.findByRole("note", { name: "About this deployment" });
-    expect(note).toHaveTextContent("deterministic scripted provider");
-    expect(note).toHaveTextContent("Curated catalog tasks only");
-    expect(note).toHaveTextContent("Ephemeral SQLite storage");
-    expect(note).toHaveTextContent("₹0/month");
+    expect(note).toHaveTextContent("Scripted Demo Provider•Curated Catalog Tasks•Ephemeral SQLite•₹0/mo Architecture");
+    expect(note.parentElement).toHaveTextContent("Scripted results describe the orchestration, not a model.");
+    expect(note.parentElement).toHaveTextContent("Benchmarks claim no statistical significance.");
   });
 
   it("only reads the backend's health", async () => {
@@ -155,6 +154,60 @@ describe("the trace walkthrough", () => {
     const shown = WALKTHROUGH.flatMap((step) => step.events.map((event) => event.kind));
     for (const kind of shown) expect(kinds.has(kind)).toBe(true);
     expect([...new Set(shown)]).toEqual(["routing_decision", "agent_invocation", "verification"]);
+  });
+});
+
+describe("landing page widgets", () => {
+  const cardFor = async (title: string) => {
+    const architecture = await screen.findByRole("region", { name: "Four decisions that shape every run" });
+    return within(architecture)
+      .getAllByRole("article")
+      .find((card) => within(card).queryByRole("heading", { level: 3, name: title })) as HTMLElement;
+  };
+
+  it("shows each decision with a one-line caption and a live diagram, not a paragraph", async () => {
+    serve();
+    renderAt("/");
+    const architecture = await screen.findByRole("region", { name: "Four decisions that shape every run" });
+    for (const card of within(architecture).getAllByRole("article")) {
+      const caption = within(card).getByRole("heading", { level: 3 }).parentElement?.nextElementSibling;
+      expect(caption?.textContent?.length ?? 0).toBeLessThan(90);
+    }
+    expect(within(await cardFor("LangGraph parallel waves")).getByRole("figure")).toHaveTextContent("code_step × 3");
+    expect(within(await cardFor("Monotonic span observability")).getByRole("figure")).toHaveTextContent("verify.process");
+    expect(within(await cardFor("Fail-closed public sandbox")).getByRole("list", { name: "Public sandbox checks" })).toBeInTheDocument();
+  });
+
+  it("lets a visitor try the evidence guard: no evidence is review_invalid, a cited blocker is request_changes", async () => {
+    serve();
+    renderAt("/");
+    const card = await cardFor("Reviewer evidence guard");
+    expect(within(card).getByRole("status", { name: "Guard outcome" })).toHaveTextContent("guard → review_invalid");
+    await userEvent.click(within(card).getByRole("radio", { name: "Blocker, file + line cited" }));
+    expect(await within(card).findByText("guard → request_changes")).toBeInTheDocument();
+    expect(within(card).getByRole("status", { name: "Guard outcome" })).not.toHaveTextContent("review_invalid");
+  });
+
+  it("moves one highlight along the pipeline as the stage changes", async () => {
+    serve();
+    renderAt("/");
+    await screen.findByRole("tablist", { name: "Stages of a run" });
+    const diagram = screen.getByTestId("beam-diagram");
+    expect(diagram.querySelectorAll("[data-highlight]")).toHaveLength(1);
+    expect(diagram.querySelector("[data-pulse]")).toBeNull(); // the first stage has no beam into it
+    await userEvent.click(within(screen.getByRole("tablist", { name: "Stages of a run" })).getByRole("tab", { name: /Parallel wave/ }));
+    expect(diagram.querySelector('[data-pulse="wave"]')).not.toBeNull();
+    expect(diagram.querySelectorAll("[data-highlight]")).toHaveLength(1);
+  });
+
+  it("reveals each section's content", async () => {
+    serve();
+    const { container } = renderAt("/");
+    await screen.findByRole("heading", { level: 1 });
+    expect(container.querySelectorAll("[data-reveal]").length).toBeGreaterThanOrEqual(8);
+    for (const name of ["Four decisions that shape every run", "One run, as the trace records it"]) {
+      expect(screen.getByRole("heading", { level: 2, name })).toBeInTheDocument();
+    }
   });
 });
 
