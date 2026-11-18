@@ -1,6 +1,6 @@
 # SwarmOS project status
 
-Last updated: 2026-11-05
+Last updated: 2026-11-18
 
 ## Scope
 
@@ -31,27 +31,27 @@ Milestones (revised 2026-11-01):
   - M7.3 benchmark metrics v2 ✅
   - M7.4 process histograms and SSE timing ✅
   - M7.5 observability UI (benchmark pages) ✅; Run Detail timing panel deferred
-  - M7.6 onward (baseline): not started
+  - M7.6 scripted baseline report ✅ (`docs/benchmarks/m7-scripted-baseline.md`)
 - M8 release
 
 ## Current milestone
 
-**M7.5 — Observability UI (benchmark pages): complete and pushed**
-(commits `de90d4c`, `5fb6e8b`, `300b72b` and this documentation commit).
-M7.1 to M7.4 are complete and pushed. The proposal's Run Detail timing
-panel and span waterfall were left out of M7.5 by decision (2026-11-05)
-and remain to be scheduled.
-Next: **M7.6 — scripted baseline**, awaiting approval (not started). M6.4
-(benchmark charts) also awaits approval.
+**M7.6 — Scripted baseline report: complete and pushed** (commits
+`48455d0`, `44f2c01`, `f704de5` and this documentation commit). The M7
+measurement phases M7.0 to M7.6 are complete; the Run Detail timing panel
+and span waterfall stay deferred (known issue 14).
+Next: a whole-project review, then the ₹0/month portfolio deployment,
+each awaiting approval. M6.4 (benchmark charts) also awaits approval.
 
 ## Validation at the last milestone boundary
 
-M7.5, 2026-11-05, at `300b72b`:
+M7.6, 2026-11-18, at `f704de5` (backend only; no frontend file changed
+since M7.5):
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest` (`.env` loading disabled) | 848 passed, 2 skipped (unchanged count since M7.4) |
-| frontend `npx tsc --noEmit` / `vitest run` / `npm run build` | clean / 339 passed (29 files; 305 in 28 at M7.3) / builds |
+| `python -m pytest` (`.env` loading disabled) | 871 passed, 2 skipped (848 at M7.5) |
+| frontend `npx tsc --noEmit` / `vitest run` / `npm run build` | not rerun (unchanged); at `300b72b`: clean / 339 passed (29 files) / builds |
 | `ruff check .` | clean |
 | `ruff format --check` | not configured; the codebase has never been formatted |
 | Browser verification against the real backend | M7.5 pages: **not performed** (no browser in the session; jsdom component tests only); earlier pages: see M6.3 below |
@@ -64,6 +64,58 @@ frontend runs used `vitest run --maxWorkers=2`, and a few `tsc`/build runs
 were killed by out-of-memory and passed unchanged on retry.
 
 ## Completed
+
+### M7.6 — scripted baseline report
+
+- **Commits:** `48455d0` the report renderer and `swarmos report`;
+  `44f2c01` exact zeros apart from sub-0.01 ms values; `f704de5` the
+  baseline report.
+- **Renderer** (`app/benchmarks/report.py`): a stored experiment as
+  Markdown, from the same detail the API serves. It computes no
+  statistic, reads no clock or host fact, and renders a missing value as
+  a dash with its reason. Its only derivation is the arm-position count
+  per measured block (proposal §8). `swarmos report EXPERIMENT_ID
+  [--out FILE]` writes it; there is no API endpoint, so the public demo
+  is unchanged.
+- **Baseline** (`docs/benchmarks/m7-scripted-baseline.md`, acceptance
+  criterion 11): experiment `bex_e0d3d7862818`, catalog suite
+  `v1-b5ba9a35a1a8`, demo provider, arms `parallel` and `sequential`, 20
+  measured repetitions plus one excluded warm-up per arm and task (84
+  trials, all done), seed 7606, concurrency 1, on a scratch database.
+  Every pair has a complete sample of 20 with no exclusion, and arm
+  positions are balanced. Median lifecycle per pair: 1.19 s and 1.18 s
+  on `sample_tag_normalization`, 1.22 s and 1.22 s on
+  `sample_parallel_pipeline` (`parallel`, `sequential`); verification is
+  most of it.
+- **Observation, not a claim:** on the parallel pipeline the `parallel`
+  arm's coder busy time equals its coder wall time, as in the sequential
+  arm: with the scripted provider the steps of a wave did not overlap in
+  measurable time, so this baseline cannot show a parallel-coding
+  difference. On `sample_tag_normalization` the two arms are identical by
+  construction (flagged in the report).
+- **How to reproduce:**
+
+```bash
+# A scratch database, never swarmos.db; .env loading off, no provider keys.
+export PYTHON_DOTENV_DISABLED=1 OPENAI_COMPAT_BASE_URL= OPENAI_COMPAT_API_KEY=
+swarmos --db /tmp/baseline.db bench --provider demo --suite catalog \
+  --arm parallel sequential --repetitions 20 --seed 7606
+swarmos --db /tmp/baseline.db report <experiment id printed above> \
+  --out docs/benchmarks/m7-scripted-baseline.md
+```
+
+  Timings vary run to run; outcomes, schedule and positions do not (a
+  test runs the same seed twice).
+- **Tests:** 23 in `tests/test_benchmark_report.py` (871 at `f704de5`, 848
+  at M7.5): a real scripted experiment (warm-up exclusion, measured n, an
+  incomplete sample, byte-identical output), same-seed determinism,
+  hand-built samples (exclusions, an interrupted and a failed run,
+  denominators, unavailable measurements, missing reasons, median and
+  P95 as given), position counts, throughput kept apart, the command,
+  no API route, public-mode redaction, line length, and duration
+  formatting.
+- **Open items:** known issues 16 to 18 (throughput, host facts, failure
+  classes); real-browser verification (known issue 15).
 
 ### M7.5 — observability UI (benchmark pages)
 
@@ -761,6 +813,14 @@ restrictions instead (details in `docs/safety.md`):
     available only from `GET /api/runs/{id}/measurements`.
 15. The M7.5 pages were verified with component tests in jsdom, not in a
     real browser (none was available in that session).
+16. Throughput is not measured: trials run one at a time and there is no
+    fixed-concurrency harness (proposal §8, gap G10). The M7.6 baseline is
+    a sequential latency baseline only.
+17. Coarse host facts (CPU count, memory band, proposal §8) are not
+    recorded in experiment provenance; reports state the platform string
+    and Python version only.
+18. Failures are not broken down by terminal error class (proposal §4.2):
+    trial metrics do not record the class. Deferred.
 
 ## Blockers needing the user
 

@@ -900,3 +900,64 @@ union), busy (a sum, overlaps counted), total (time spent, not elapsed) or
 a count; a missing value shows the backend's reason, never zero; values
 below 1 ms keep two decimals; disclosures are native `<details>`; no chart
 is drawn. Process histograms (§18) have no endpoint and no display.
+
+## 20. M7.6 implementation notes
+
+M7.6 is implemented (commits `48455d0`, `44f2c01` and `f704de5`): the
+scripted baseline of acceptance criterion 11, in
+`docs/benchmarks/m7-scripted-baseline.md`. Where it differs from §8 and
+§12, and why:
+
+| Plan | Implemented | Reason |
+| --- | --- | --- |
+| scripted baseline experiments, 1 + 20 per arm and task | one experiment: catalog suite, arms `parallel` and `sequential`, 20 measured + 1 warm-up per arm and task (84 trials), seed 7606, concurrency 1 | the execution arms are the scripted comparison §8 describes; the model-policy arms cannot differ on the scripted provider (no stronger model to escalate to) |
+| a written report | rendered by `swarmos report` from the stored records (`app/benchmarks/report.py`) | reproducible from the database; no hand-copied figure |
+| separate throughput experiments at a fixed N | not run | no fixed-concurrency harness exists (gap G10); the report states that throughput is not measured and derives none |
+| coarse host facts (CPU count, memory band) | not recorded | provenance does not hold them, and reading the host at report time would describe a different moment |
+| failure classification by terminal `error_class` | not reported | trial metrics do not record it (§4.2, deferred) |
+| position counts when unbalanced | always listed per arm and position, with whether they balance | cheap, and read from the stored schedule |
+
+### 20.1 Method
+
+- `swarmos bench` runs every trial through `RunService`, one at a time,
+  in the seeded repetition-major order; the warm-up of each arm and task
+  runs first and is excluded (§17).
+- Measured n counts success and failure trials; exclusions are listed by
+  reason and never rerun; a sample is complete at 20 measured trials per
+  arm and task (§17.2).
+- Timings come only from each run's persisted spans (§17.1); a counted
+  trial without recorded measurements is counted by status and enters no
+  figure. Each timing is labelled elapsed, busy, total or count.
+- Median and nearest-rank P95 as in §17.2. No confidence interval or
+  significance test; twenty trials do not establish a statistically
+  significant difference.
+- The renderer computes nothing but the position counts. An exact zero
+  reads `0 ms`; a value below 0.01 ms keeps three decimals; a missing
+  value is a dash with its reason.
+
+### 20.2 Reproduction
+
+```bash
+# A scratch database, never swarmos.db; .env loading off, no provider keys.
+export PYTHON_DOTENV_DISABLED=1 OPENAI_COMPAT_BASE_URL= OPENAI_COMPAT_API_KEY=
+swarmos --db /tmp/baseline.db bench --provider demo --suite catalog \
+  --arm parallel sequential --repetitions 20 --seed 7606
+swarmos --db /tmp/baseline.db report <experiment id printed above> \
+  --out docs/benchmarks/m7-scripted-baseline.md
+```
+
+Outcomes, the schedule and positions are deterministic for a seed;
+timings are not. The committed report is one run on one machine
+(Windows 11, Python 3.13.3).
+
+### 20.3 Result and limits
+
+All four pairs have complete samples (20 measured, no exclusion) and
+balanced positions. With the scripted provider a run's lifecycle is
+about 1.2 s, mostly the gating verification (a pytest subprocess); the
+`parallel` arm's coder busy time equals its wall time on the pipeline
+task, so the steps of a wave did not overlap measurably and the baseline
+shows no parallel-coding effect. On `sample_tag_normalization` the arms
+are identical by construction. These are latencies of sequential runs on
+one machine, not a throughput and not a model's performance. A
+real-provider baseline waits for an approved provider (§12).

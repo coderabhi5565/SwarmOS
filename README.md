@@ -320,6 +320,12 @@ trials do not establish a statistically significant difference, and no
 arm is declared best. Definitions:
 [docs/m7-observability-proposal.md](docs/m7-observability-proposal.md) §17.
 
+`swarmos report EXPERIMENT_ID [--out FILE]` renders a stored experiment as
+a Markdown report (read-only; no API endpoint). The M7 scripted baseline,
+with the commands that reproduce it, is
+[docs/benchmarks/m7-scripted-baseline.md](docs/benchmarks/m7-scripted-baseline.md)
+(see `PROJECT_STATUS.md`, M7.6).
+
 Only one benchmark experiment may be active per database. An experiment is
 owned by the process running it (an API server or a `bench` command), and
 nothing records that ownership across processes. The API server closes
