@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Health } from "@/api/types";
@@ -6,6 +6,7 @@ import { WALKTHROUGH } from "@/components/landing/traceWalkthrough";
 import { fixtures } from "@/domain/execution/fixtures";
 import { json, stubFetch } from "@/test/api";
 import { renderAt } from "@/test/render";
+import { REPLAY_STEP_MS } from "./LandingPage";
 
 const publicHealth: Health = {
   status: "ok",
@@ -151,5 +152,124 @@ describe("the trace walkthrough", () => {
     const shown = WALKTHROUGH.flatMap((step) => step.events.map((event) => event.kind));
     for (const kind of shown) expect(kinds.has(kind)).toBe(true);
     expect([...new Set(shown)]).toEqual(["routing_decision", "agent_invocation", "verification"]);
+  });
+});
+
+describe("landing page interactions", () => {
+  const tab = (name: RegExp) => within(screen.getByRole("tablist", { name: "Stages of a run" })).getByRole("tab", { name });
+  const stageState = (id: string) => screen.getByTestId("beam-diagram").querySelector(`[data-stage="${id}"]`)?.getAttribute("data-state");
+
+  it("states what it is built on, in the hero", async () => {
+    serve();
+    renderAt("/");
+    await screen.findByRole("heading", { level: 1 });
+    expect(within(hero()).getByLabelText("Built on")).toHaveTextContent("LangGraph • Monotonic Spans • Fail-Closed Sandbox");
+  });
+
+  it("puts each engineering decision on a spotlight card that follows the pointer", async () => {
+    serve();
+    renderAt("/");
+    const architecture = await screen.findByRole("region", { name: "Four decisions that shape every run" });
+    const cards = within(architecture).getAllByRole("article");
+    expect(cards).toHaveLength(4);
+    expect(cards.every((card) => card.hasAttribute("data-spotlight"))).toBe(true);
+    fireEvent.pointerMove(cards[1], { clientX: 42, clientY: 17 });
+    expect(cards[1].style.getPropertyValue("--mouse-x")).toBe("42px");
+    expect(cards[0].style.getPropertyValue("--mouse-x")).toBe(""); // only the card under the pointer
+    expect(within(cards[1]).getByRole("heading", { level: 3 })).toHaveTextContent("Reviewer evidence guard");
+  });
+
+  it("leaves the cards still under reduced motion", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    serve();
+    renderAt("/");
+    const architecture = await screen.findByRole("region", { name: "Four decisions that shape every run" });
+    const [card] = within(architecture).getAllByRole("article");
+    fireEvent.pointerMove(card, { clientX: 42, clientY: 17 });
+    expect(card.style.getPropertyValue("--mouse-x")).toBe("");
+    // The page is all there without motion: content, tabs and calls to action.
+    expect(within(card).getByRole("heading", { level: 3 })).toHaveTextContent("LangGraph parallel waves");
+    expect(within(hero()).getByRole("link", { name: /Launch Live Demo/ })).toHaveAttribute("href", "/runs/new");
+  });
+
+  it("moves the beam diagram with the tab in view", async () => {
+    serve();
+    renderAt("/");
+    await screen.findByRole("tablist", { name: "Stages of a run" });
+    expect(stageState("plan")).toBe("active");
+    await userEvent.click(tab(/Review/));
+    expect(["plan", "wave", "review", "verify"].map(stageState)).toEqual(["done", "done", "active", "idle"]);
+    expect(screen.getByTestId("beam-diagram").querySelector('[data-beam="review"]')).toHaveClass("landing-beam");
+  });
+
+  it("replays the execution cycle stage by stage, then rests on the last", async () => {
+    serve();
+    renderAt("/");
+    await screen.findByRole("tablist", { name: "Stages of a run" });
+    await userEvent.click(tab(/Verify/)); // start somewhere else: a replay begins at the plan
+    const status = () => screen.getByRole("status", { name: "Replay progress" });
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Replay Execution Cycle" }));
+      expect(tab(/Plan/)).toHaveAttribute("aria-selected", "true");
+      expect(status()).toHaveTextContent("Replaying: step 1 of 4");
+      const expected: [RegExp, string][] = [
+        [/Parallel wave/, "wave"],
+        [/Review/, "review"],
+        [/Verify/, "verify"],
+      ];
+      for (const [index, [name, id]] of expected.entries()) {
+        act(() => vi.advanceTimersByTime(REPLAY_STEP_MS));
+        expect(tab(name)).toHaveAttribute("aria-selected", "true");
+        expect(stageState(id)).toBe("active");
+        expect(status()).toHaveTextContent(`Replaying: step ${index + 2} of 4`);
+      }
+      expect(screen.getByRole("tabpanel")).toHaveTextContent("Verification passed");
+      act(() => vi.advanceTimersByTime(REPLAY_STEP_MS));
+      expect(status()).toHaveTextContent(/^$/); // finished
+      act(() => vi.advanceTimersByTime(REPLAY_STEP_MS * 3));
+      expect(tab(/Verify/)).toHaveAttribute("aria-selected", "true"); // it does not loop
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ends a replay when a stage is chosen by hand", async () => {
+    serve();
+    renderAt("/");
+    await screen.findByRole("tablist", { name: "Stages of a run" });
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Replay Execution Cycle" }));
+      act(() => vi.advanceTimersByTime(REPLAY_STEP_MS));
+      expect(tab(/Parallel wave/)).toHaveAttribute("aria-selected", "true");
+      fireEvent.mouseDown(tab(/Plan/)); // Radix selects a tab on mouse down
+      expect(tab(/Plan/)).toHaveAttribute("aria-selected", "true");
+      act(() => vi.advanceTimersByTime(REPLAY_STEP_MS * 4));
+      expect(tab(/Plan/)).toHaveAttribute("aria-selected", "true"); // the replay no longer advances
+      expect(screen.queryByText(/Replaying: step/)).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reaches the replay control and the calls to action from the keyboard", async () => {
+    serve();
+    renderAt("/");
+    await screen.findByRole("heading", { level: 1 });
+    const replay = screen.getByRole("button", { name: "Replay Execution Cycle" });
+    replay.focus();
+    expect(replay).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByText("Replaying: step 1 of 4")).toBeInTheDocument();
+    const cta = within(hero()).getByRole("link", { name: /Launch Live Demo/ });
+    cta.focus();
+    expect(cta).toHaveFocus();
   });
 });

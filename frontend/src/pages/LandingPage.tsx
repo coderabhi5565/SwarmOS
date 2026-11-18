@@ -1,10 +1,12 @@
-import { ArrowRight, Gauge, GitBranch, ScanSearch, ShieldCheck, type LucideIcon } from "lucide-react";
+import { ArrowRight, Gauge, GitBranch, RotateCw, ScanSearch, ShieldCheck, type LucideIcon } from "lucide-react";
 import * as m from "motion/react-m";
 import { Tabs } from "radix-ui";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { BackendStatus } from "@/app/layout/BackendStatus";
+import { BeamDiagram } from "@/components/landing/BeamDiagram";
 import { HeroVisual } from "@/components/landing/HeroVisual";
+import { SpotlightCard } from "@/components/landing/SpotlightCard";
 import { WALKTHROUGH, type TraceExcerpt } from "@/components/landing/traceWalkthrough";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -38,6 +40,10 @@ function Rise({ children, delay = 0, className }: { children: ReactNode; delay?:
   );
 }
 
+/** A small lift on hover and a press on click; no movement under reduced motion. */
+const CTA_MOTION =
+  "transition-transform duration-150 motion-safe:hover:-translate-y-0.5 motion-safe:active:translate-y-0 motion-safe:active:scale-[0.98]";
+
 // ----------------------------------------------------------------------
 function Hero() {
   return (
@@ -49,7 +55,7 @@ function Hero() {
         </div>
         <h1 id="hero-heading" className="max-w-2xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl lg:text-6xl">
           Agents that plan, code, review and verify.{" "}
-          <span className="bg-gradient-to-r from-brand-cyan via-primary to-brand-violet bg-clip-text text-transparent">
+          <span className="landing-shimmer bg-gradient-to-r from-brand-cyan via-brand-violet to-brand-cyan bg-[length:200%_auto] bg-clip-text text-transparent">
             Every decision on the record.
           </span>
         </h1>
@@ -57,14 +63,21 @@ function Hero() {
           SwarmOS runs a planner, parallel coders, an evidence-checked reviewer and a deterministic test runner through
           one explicit state machine, with bounded retries and budgets. Each run leaves a typed, replayable trace.
         </p>
+        <p
+          aria-label="Built on"
+          className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-border/70 bg-background/40 px-3 py-1 font-mono text-[11px] text-muted-foreground"
+        >
+          <span aria-hidden="true" className="size-1.5 rounded-full bg-brand-cyan" />
+          LangGraph <span aria-hidden="true">•</span> Monotonic Spans <span aria-hidden="true">•</span> Fail-Closed Sandbox
+        </p>
         <div className="flex flex-wrap items-center gap-3">
-          <Button asChild size="lg">
+          <Button asChild size="lg" className={cn(CTA_MOTION, "shadow-[0_0_24px_-6px_var(--brand-cyan)]")}>
             <Link to="/runs/new">
               Launch Live Demo
               <ArrowRight aria-hidden="true" />
             </Link>
           </Button>
-          <Button asChild size="lg" variant="outline">
+          <Button asChild size="lg" variant="outline" className={CTA_MOTION}>
             <Link to="/benchmarks">Inspect Benchmarks</Link>
           </Button>
           <Link to="/app" className="px-2 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
@@ -148,7 +161,7 @@ function Architecture() {
         {FEATURES.map((feature, index) => (
           <li key={feature.title} className={feature.span}>
             <Rise delay={0.04 * index} className="h-full">
-              <article className="glass group h-full rounded-2xl p-5 transition-colors hover:border-foreground/25 sm:p-6">
+              <SpotlightCard className="p-5 sm:p-6">
                 <feature.icon aria-hidden="true" className={cn("size-5", feature.tone)} />
                 <h3 className="mt-3 text-lg font-semibold tracking-tight">{feature.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{feature.body}</p>
@@ -160,7 +173,7 @@ function Architecture() {
                   ))}
                 </ul>
                 <p className="mt-4 font-mono text-[11px] text-muted-foreground">{feature.source.join(" · ")}</p>
-              </article>
+              </SpotlightCard>
             </Rise>
           </li>
         ))}
@@ -182,13 +195,62 @@ function SectionHeading({ id, eyebrow, title, children }: { id: string; eyebrow:
 }
 
 // ----------------------------------------------------------------------
+/** How long the replay shows each stage. */
+export const REPLAY_STEP_MS = 1600;
+
 function Walkthrough() {
+  const [active, setActive] = useState(WALKTHROUGH[0].id);
+  const [replaying, setReplaying] = useState(false);
+  const timer = useRef<number | undefined>(undefined);
+  const activeIndex = WALKTHROUGH.findIndex((step) => step.id === active);
+
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  function stop() {
+    window.clearTimeout(timer.current);
+    setReplaying(false);
+  }
+
+  /** Walk the stages from the first, one every REPLAY_STEP_MS, and stop on the last. */
+  function replay() {
+    window.clearTimeout(timer.current);
+    setReplaying(true);
+    const show = (index: number) => {
+      setActive(WALKTHROUGH[index].id);
+      if (index === WALKTHROUGH.length - 1) {
+        timer.current = window.setTimeout(() => setReplaying(false), REPLAY_STEP_MS);
+      } else {
+        timer.current = window.setTimeout(() => show(index + 1), REPLAY_STEP_MS);
+      }
+    };
+    show(0);
+  }
+
   return (
     <section aria-labelledby="walkthrough-heading" className="space-y-6">
-      <SectionHeading id="walkthrough-heading" eyebrow="Trace" title="One run, as the trace records it">
-        Events from a recorded run of the catalog task "Parallel pipeline", unedited apart from leaving fields out.
-      </SectionHeading>
-      <Tabs.Root defaultValue={WALKTHROUGH[0].id} className="glass overflow-hidden rounded-2xl">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <SectionHeading id="walkthrough-heading" eyebrow="Trace" title="One run, as the trace records it">
+          Events from a recorded run of the catalog task "Parallel pipeline", unedited apart from leaving fields out.
+        </SectionHeading>
+        <div className="flex items-center gap-3">
+          <p role="status" aria-label="Replay progress" className="font-mono text-[11px] text-muted-foreground">
+            {replaying ? `Replaying: step ${activeIndex + 1} of ${WALKTHROUGH.length}` : ""}
+          </p>
+          <Button variant="outline" size="sm" onClick={replay} className={CTA_MOTION}>
+            <RotateCw aria-hidden="true" />
+            Replay Execution Cycle
+          </Button>
+        </div>
+      </div>
+      <BeamDiagram steps={WALKTHROUGH} activeIndex={activeIndex} />
+      <Tabs.Root
+        value={active}
+        onValueChange={(value) => {
+          stop(); // choosing a stage by hand ends a replay
+          setActive(value);
+        }}
+        className="glass overflow-hidden rounded-2xl"
+      >
         <Tabs.List aria-label="Stages of a run" className="flex gap-1 overflow-x-auto border-b border-border/70 p-2">
           {WALKTHROUGH.map((step, index) => (
             <Tabs.Trigger
