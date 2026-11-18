@@ -131,6 +131,34 @@ CREATE TABLE IF NOT EXISTS measurement_meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+-- Accounts (app.auth). Additive: no existing table changes. ``email`` is
+-- stored lowercase and ``phone`` as digits only, so each is unique however
+-- it was typed. Only a password's scrypt hash is kept.
+CREATE TABLE IF NOT EXISTS users (
+    user_id       TEXT PRIMARY KEY,
+    email         TEXT NOT NULL UNIQUE,
+    phone         TEXT NOT NULL UNIQUE,
+    full_name     TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    role          TEXT NOT NULL CHECK (role IN ('user', 'operator')),
+    created_at    TEXT NOT NULL
+);
+-- A session is stored as the SHA-256 of its token, never the token.
+-- ``expires_at`` is in Unix seconds.
+CREATE TABLE IF NOT EXISTS auth_sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id    TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    expires_at INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
+-- Who started a run (a user_id, or 'api_token'), so a user may cancel only
+-- their own runs. Kept apart from runs, which stay unchanged.
+CREATE TABLE IF NOT EXISTS run_owners (
+    run_id  TEXT PRIMARY KEY,
+    subject TEXT NOT NULL
+);
 """
 
 MEASUREMENT_STATUSES = frozenset({"recorded", "disabled", "flush_failed", "process_crash"})

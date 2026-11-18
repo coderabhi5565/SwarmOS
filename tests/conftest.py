@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
@@ -165,6 +166,11 @@ def make_settings(tmp_path: Path, **overrides):
         "max_streams_per_client": 0,
         "stream_heartbeat_seconds": 15.0,
         "stream_max_seconds": 600.0,
+        # Accounts: no operator unless a test names one; generous limits.
+        "operator_email": "",
+        "session_ttl_hours": 168,
+        "login_attempts_per_client": 0,
+        "registrations_per_client_per_hour": 0,
     }
     values.update(overrides)
     return replace(base_settings, **values)
@@ -222,3 +228,21 @@ def build_run(tmp_path):
 
 def trace_kinds(result) -> list[str]:
     return [event.kind for event in result.events]
+
+def new_account(email: str | None = None) -> dict[str, str]:
+    """A fresh synthetic registration: random password, reserved 555 number."""
+    tag = secrets.token_hex(4)
+    return {
+        "full_name": f"Test User {tag}",
+        "email": email or f"user-{tag}@example.test",
+        "phone": f"+1555{secrets.randbelow(10**7):07d}",
+        "password": secrets.token_urlsafe(18),
+    }
+
+
+def sign_up(client, email: str | None = None) -> dict[str, str]:
+    """Register (and so sign in) a new account on ``client``; its details."""
+    account = new_account(email)
+    response = client.post("/api/auth/register", json=account)
+    assert response.status_code == 201, response.text
+    return account

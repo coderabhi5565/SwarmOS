@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 import app.main as main_module
 from app.models import RunRecord, TraceEvent
-from tests.conftest import make_settings
+from tests.conftest import make_settings, sign_up
 
 GOAL = "Implement tag normalization so the failing tests pass"
 SECRET_KEY = "sk-contract-test-secret-000"
@@ -244,6 +244,7 @@ def test_no_public_response_leaks_the_endpoint_or_key(tmp_path, monkeypatch):
 
     overrides = {**PUBLIC, "base_url": PRIVATE_URL, "fast_model": "m", "api_key": SECRET_KEY}
     with client_with(tmp_path, monkeypatch, **overrides) as client:
+        sign_up(client)  # a signed-in user, not an operator
         created = client.post(
             "/api/runs", json={"goal": "catalog run", "demo_task": "sample_tag_normalization"}
         )
@@ -267,9 +268,9 @@ def test_no_public_response_leaks_the_endpoint_or_key(tmp_path, monkeypatch):
         ]
         # The restrictions themselves are unchanged by the new parameters.
         assert client.post("/api/runs", json={"goal": "arbitrary goal text"}).status_code == 403
-        assert client.post(f"/api/runs/{run_id}/cancel").status_code == 403
+        assert client.post(f"/api/runs/{run_id}/cancel").status_code == 409  # own, finished
         assert client.get("/api/provider/models").status_code == 403
-        # Benchmarks are read-only in the public demo.
+        # Benchmarks are read-only in the public demo, except for operators.
         experiment = {"suite_id": "catalog", "arm_ids": ["parallel"]}
         assert client.post("/api/benchmarks/experiments", json=experiment).status_code == 403
         assert client.post("/api/benchmarks/experiments/bex_any/cancel").status_code == 403

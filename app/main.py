@@ -1,17 +1,21 @@
 from __future__ import annotations
 
-import hmac
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import __version__
+from app import __version__, auth
 from app.api_models import (
+    AuthResponse,
+    AuthUser,
     BenchmarkCancelResponse,
     BenchmarkCreateRequest,
     BenchmarkExperimentDetail,
@@ -22,7 +26,10 @@ from app.api_models import (
     DemoTaskInfo,
     DemoTasksResponse,
     HealthResponse,
+    LoginRequest,
+    MeResponse,
     ProviderModelsResponse,
+    RegisterRequest,
     RunEventsResponse,
     RunListResponse,
     RunMeasurements,
@@ -59,6 +66,10 @@ async def lifespan(app: FastAPI):
     if errors:
         raise RuntimeError("refusing to start: " + "; ".join(errors))
     app.state.limiter = SlidingWindowLimiter(settings.runs_per_client_per_hour)
+    app.state.login_limiter = SlidingWindowLimiter(
+        settings.login_attempts_per_client, window_seconds=15 * 60
+    )
+    app.state.register_limiter = SlidingWindowLimiter(settings.registrations_per_client_per_hour)
     # Process histograms follow the per-run timings setting (SWARMOS_TIMINGS).
     configure_process_timings(settings.timings_enabled)
     store = RunStore(settings.db_path)
@@ -67,6 +78,7 @@ async def lifespan(app: FastAPI):
     store.add_commit_listener(broker.record_commit)
     store.add_listener(broker.notify)
     app.state.store = store
+    app.state.auth = auth.AuthStore(store, settings.session_ttl_hours * 3600)
     app.state.broker = broker
     app.state.service = RunService(settings, store)
     # Experiments a stopped process left running are closed as interrupted
@@ -133,6 +145,8 @@ app.add_middleware(
         "http://127.0.0.1:4173",
         *settings.cors_origin_list,
     ],
+    # Sessions are cookies: a configured frontend origin may send them.
+    allow_credentials=bool(settings.cors_origin_list),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -140,16 +154,22 @@ app.add_middleware(
 
 @app.middleware("http")
 async def require_token(request: Request, call_next):
-    """Optional bearer auth for the API.
+    """Optional bearer auth for the API (local mode).
 
     Execution endpoints can run code, so when SWARMOS_API_TOKEN is set every
-    /api route requires it. /health stays open for liveness checks.
+    /api route requires it, account routes included. /health stays open for
+    liveness checks. In the public demo the token is an operator credential
+    instead (see _principal).
     """
     token = settings.api_token
-    if token and request.method != "OPTIONS" and request.url.path.startswith("/api"):
+    if (
+        settings.api_token_gates_api
+        and request.method != "OPTIONS"
+        and request.url.path.startswith("/api")
+    ):
         supplied = request.headers.get("authorization", "")
         expected = f"Bearer {token}"
-        if not hmac.compare_digest(supplied, expected):
+        if not auth.same_secret(supplied, expected):
             return JSONResponse(
                 status_code=401,
                 content={"detail": "missing or invalid API token"},
@@ -187,6 +207,126 @@ def _public_demo_only_allows(feature: str) -> None:
         )
 
 
+# ----------------------------------------------------------------------
+# accounts and authorization (app.auth)
+# ----------------------------------------------------------------------
+def _auth() -> auth.AuthStore:
+    return app.state.auth
+
+
+def _bearer(request: Request) -> str | None:
+    scheme, _, value = request.headers.get("authorization", "").partition(" ")
+    return value.strip() if scheme.lower() == "bearer" and value.strip() else None
+
+
+def _session_token(request: Request) -> str | None:
+    """The session token a request carries: a bearer token, else the cookie."""
+    bearer = _bearer(request)
+    if bearer is not None:
+        return bearer
+    return request.cookies.get(auth.SESSION_COOKIE) or None
+
+
+def _principal(request: Request) -> auth.Principal | None:
+    """Who is asking: the operator API token, a signed-in user, or nobody."""
+    bearer = _bearer(request)
+    if bearer is not None and settings.api_token and auth.same_secret(bearer, settings.api_token):
+        return auth.Principal(role="operator")
+    token = _session_token(request)
+    user = _auth().user_for_token(token) if token else None
+    if user is None:
+        return None
+    return auth.Principal(role=auth.role_for(user.email, settings), user=user)
+
+
+def _require_account(request: Request, action: str) -> auth.Principal | None:
+    """In the public demo, ``action`` needs a signed-in user (401 otherwise).
+    Locally nothing is required; the principal is returned if there is one."""
+    principal = _principal(request)
+    if principal is None and settings.is_public_demo:
+        raise HTTPException(status_code=401, detail=f"sign in to {action}")
+    return principal
+
+
+def _require_operator(request: Request, action: str) -> None:
+    """In the public demo, ``action`` needs the operator role."""
+    principal = _require_account(request, action)
+    if settings.is_public_demo and (principal is None or not principal.is_operator):
+        raise HTTPException(status_code=403, detail=f"only operators may {action}")
+
+
+def _auth_user(principal: auth.Principal) -> AuthUser:
+    user = principal.user
+    if user is None:
+        return AuthUser(
+            user_id=auth.API_TOKEN_SUBJECT,
+            full_name="Operator (API token)",
+            email=None,
+            phone_masked=None,
+            role=principal.role,
+        )
+    return AuthUser(
+        user_id=user.user_id,
+        full_name=user.full_name,
+        email=user.email,
+        phone_masked=auth.mask_phone(user.phone),
+        role=principal.role,
+    )
+
+
+def _set_session_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        auth.SESSION_COOKIE,
+        token,
+        max_age=settings.session_ttl_hours * 3600,
+        path="/",
+        httponly=True,
+        samesite="lax",
+        # Behind the deployment's TLS proxy the cookie travels over HTTPS only.
+        secure=settings.trust_proxy_headers,
+    )
+
+
+def _clear_session_cookie(response: Response) -> None:
+    response.delete_cookie(
+        auth.SESSION_COOKIE,
+        path="/",
+        httponly=True,
+        samesite="lax",
+        secure=settings.trust_proxy_headers,
+    )
+
+
+def _limit(limiter: SlidingWindowLimiter, request: Request, what: str) -> None:
+    retry_after = limiter.acquire(_client_key(request))
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429,
+            detail=f"too many {what} from this client; retry in {retry_after}s",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+def _checked(check, value: str) -> str:
+    try:
+        return check(value)
+    except auth.AuthInputError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError) -> Response:
+    """FastAPI's 422, except that on account routes the submitted values are
+    left out, so a password is never echoed back."""
+    if request.url.path.startswith("/api/auth/"):
+        errors = [
+            {"type": error.get("type"), "loc": list(error.get("loc", ())), "msg": error.get("msg")}
+            for error in exc.errors()
+        ]
+        return JSONResponse(status_code=422, content={"detail": errors})
+    return await request_validation_exception_handler(request, exc)
+
+
 def _public_view() -> PublicRedactor | None:
     """How run data is shown: redacted in the public demo (no host paths,
     executed command lines, endpoint, key or addresses), as stored otherwise."""
@@ -215,7 +355,7 @@ async def health() -> HealthResponse:
         provider_mode=settings.provider,
         provider_kind=settings.provider_kind,
         openai_configured=settings.openai_configured,
-        auth_required=bool(settings.api_token),
+        auth_required=settings.api_token_gates_api,
     )
 
 
@@ -268,7 +408,7 @@ async def config() -> ConfigResponse:
             "repo_checkout_allowed": settings.allow_repo_checkout,
         },
         "api": {
-            "auth_required": bool(settings.api_token),
+            "auth_required": settings.api_token_gates_api,
             "remote_bind_allowed": settings.allow_remote_bind,
         },
         "sample_files": sample_files,
@@ -299,6 +439,72 @@ async def provider_models() -> ProviderModelsResponse:
     )
 
 
+# ----------------------------------------------------------------------
+# accounts
+# ----------------------------------------------------------------------
+@app.post("/api/auth/register", status_code=201)
+async def register(body: RegisterRequest, request: Request, response: Response) -> AuthResponse:
+    """Create an account and sign in. Email and phone are each unique (409)."""
+    _limit(request.app.state.register_limiter, request, "registrations")
+    full_name = _checked(auth.check_name, body.full_name)
+    email = _checked(auth.normalize_email, body.email)
+    phone = _checked(auth.normalize_phone, body.phone)
+    password = _checked(auth.check_password, body.password)
+    # scrypt takes tens of milliseconds: off the event loop.
+    password_hash = await asyncio.to_thread(auth.hash_password, password)
+    try:
+        user = _auth().create_user(email, phone, full_name, password_hash, auth.role_for(email, settings))
+    except auth.DuplicateAccountError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    _set_session_cookie(response, _auth().create_session(user.user_id))
+    principal = auth.Principal(role=auth.role_for(user.email, settings), user=user)
+    return AuthResponse(authenticated=True, user=_auth_user(principal))
+
+
+@app.post("/api/auth/login")
+async def login(body: LoginRequest, request: Request, response: Response) -> AuthResponse:
+    """Sign in with an email or a phone number and the password (401 if wrong)."""
+    _limit(request.app.state.login_limiter, request, "sign-in attempts")
+    if len(body.password) > auth.MAX_PASSWORD or len(body.identifier) > auth.MAX_EMAIL:
+        raise HTTPException(status_code=401, detail="incorrect email, phone or password")
+    found = _auth().find_login(body.identifier)
+    if found is None:
+        await asyncio.to_thread(auth.burn_password_check, body.password)
+        raise HTTPException(status_code=401, detail="incorrect email, phone or password")
+    user, password_hash = found
+    if not await asyncio.to_thread(auth.verify_password, body.password, password_hash):
+        raise HTTPException(status_code=401, detail="incorrect email, phone or password")
+    previous = request.cookies.get(auth.SESSION_COOKIE)
+    if previous:
+        _auth().revoke(previous)
+    _set_session_cookie(response, _auth().create_session(user.user_id))
+    principal = auth.Principal(role=auth.role_for(user.email, settings), user=user)
+    return AuthResponse(authenticated=True, user=_auth_user(principal))
+
+
+@app.post("/api/auth/logout")
+async def logout(request: Request, response: Response) -> AuthResponse:
+    """End this session (cookie or bearer). The API token cannot be revoked here."""
+    token = _session_token(request)
+    if token and not (settings.api_token and auth.same_secret(token, settings.api_token)):
+        _auth().revoke(token)
+    _clear_session_cookie(response)
+    return AuthResponse(authenticated=False, user=None)
+
+
+@app.get("/api/auth/me")
+async def me(request: Request) -> MeResponse:
+    principal = _principal(request)
+    return MeResponse(
+        authenticated=principal is not None,
+        user=_auth_user(principal) if principal is not None else None,
+        mode=settings.mode,
+    )
+
+
+# ----------------------------------------------------------------------
+# runs
+# ----------------------------------------------------------------------
 @app.post("/api/runs", status_code=202)
 async def create_run(
     request: RunRequest,
@@ -307,6 +513,7 @@ async def create_run(
     wait: bool = Query(default=False, description="Execute inline instead of in the background"),
 ) -> RunDetail:
     service = _service()
+    principal = _require_account(http_request, "start a run")
     if wait:
         # An inline run holds a connection open for the whole run.
         _public_demo_only_allows("wait=true")
@@ -339,6 +546,9 @@ async def create_run(
         raise HTTPException(status_code=400, detail=_public_text(str(exc))) from exc
     except CapacityError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
+    if principal is not None:
+        # Recorded before the run's task first runs, so no cancel can race it.
+        _auth().set_run_owner(record.run_id, principal.subject)
     return _detail(record.run_id)
 
 
@@ -372,13 +582,20 @@ async def get_run(run_id: str) -> RunDetail:
 
 
 @app.post("/api/runs/{run_id}/cancel", status_code=202)
-async def cancel_run(run_id: str) -> CancelResponse:
-    # Without accounts, any visitor could cancel any other visitor's run.
-    # Demo runs are short and bounded, so cancellation is simply off there.
-    _public_demo_only_allows("cancelling runs")
+async def cancel_run(run_id: str, request: Request) -> CancelResponse:
+    """Cancel an active run. In the public demo a signed-in user may cancel
+    the runs they started; an operator may cancel any run."""
+    principal = _require_account(request, "cancel a run")
     record = _store().get_run(run_id)
     if record is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} not found")
+    if (
+        settings.is_public_demo
+        and principal is not None
+        and not principal.is_operator
+        and _auth().run_owner(run_id) != principal.subject
+    ):
+        raise HTTPException(status_code=403, detail="you can cancel only runs you started")
     if _service().cancel(run_id):
         return CancelResponse(run_id=run_id)
     if record.status not in {"queued", "running"}:
@@ -508,8 +725,8 @@ async def stream_run_events(
 
 
 # ----------------------------------------------------------------------
-# benchmarks (M6). Read-only in the public demo: visitors can inspect
-# experiments on the public catalog suite; creating and cancelling are local.
+# benchmarks (M6). In the public demo visitors can inspect experiments on
+# the public catalog suite; creating and cancelling need the operator role.
 # Recovery of experiments a stopped process left running is operator-only
 # (startup, or `swarmos bench --recover`); there is no API for it.
 # ----------------------------------------------------------------------
@@ -533,10 +750,13 @@ def _experiment_detail(experiment_id: str) -> BenchmarkExperimentDetail:
 
 
 @app.get("/api/benchmarks/suites")
-async def benchmark_suites() -> BenchmarkSuitesResponse:
+async def benchmark_suites(request: Request) -> BenchmarkSuitesResponse:
     """The benchmark suites and arms this server offers (the public demo
-    shows only public suites)."""
-    return benchmark_views.suites_response(settings)
+    shows only public suites, and lets only operators create)."""
+    principal = _principal(request)
+    return benchmark_views.suites_response(
+        settings, operator=principal is not None and principal.is_operator
+    )
 
 
 @app.get("/api/benchmarks/experiments")
@@ -577,13 +797,15 @@ async def get_benchmark_experiment(experiment_id: str) -> BenchmarkExperimentDet
 @app.post("/api/benchmarks/experiments", status_code=202)
 async def create_benchmark_experiment(
     request: BenchmarkCreateRequest,
+    http_request: Request,
 ) -> BenchmarkExperimentDetail:
     """Create an experiment and start running it in the background.
 
     Fixed suites and arms only, by id: no goals, files, models or limits.
-    Not available in the public demo.
+    In the public demo: operators only, public suites and the server's
+    provider only.
     """
-    _public_demo_only_allows("creating benchmark experiments")
+    _require_operator(http_request, "create benchmark experiments")
     runner = _experiments()
     try:
         experiment = runner.create(
@@ -606,10 +828,13 @@ async def create_benchmark_experiment(
 
 
 @app.post("/api/benchmarks/experiments/{experiment_id}/cancel", status_code=202)
-async def cancel_benchmark_experiment(experiment_id: str) -> BenchmarkCancelResponse:
+async def cancel_benchmark_experiment(
+    experiment_id: str, request: Request
+) -> BenchmarkCancelResponse:
     """Cancel an experiment running in this server process: its current run
-    is cancelled and its remaining trials never start. Not in the public demo."""
-    _public_demo_only_allows("cancelling benchmark experiments")
+    is cancelled and its remaining trials never start. In the public demo,
+    operators only."""
+    _require_operator(request, "cancel benchmark experiments")
     experiment = _visible_experiment(experiment_id)
     if _experiments().cancel(experiment_id):
         return BenchmarkCancelResponse(experiment_id=experiment_id)

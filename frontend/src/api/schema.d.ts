@@ -4,6 +4,83 @@
  */
 
 export interface paths {
+    "/api/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Login
+         * @description Sign in with an email or a phone number and the password (401 if wrong).
+         */
+        post: operations["login_api_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout
+         * @description End this session (cookie or bearer). The API token cannot be revoked here.
+         */
+        post: operations["logout_api_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Me */
+        get: operations["me_api_auth_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register
+         * @description Create an account and sign in. Email and phone are each unique (409).
+         */
+        post: operations["register_api_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/benchmarks/experiments": {
         parameters: {
             query?: never;
@@ -22,7 +99,8 @@ export interface paths {
          * @description Create an experiment and start running it in the background.
          *
          *     Fixed suites and arms only, by id: no goals, files, models or limits.
-         *     Not available in the public demo.
+         *     In the public demo: operators only, public suites and the server's
+         *     provider only.
          */
         post: operations["create_benchmark_experiment_api_benchmarks_experiments_post"];
         delete?: never;
@@ -64,7 +142,8 @@ export interface paths {
         /**
          * Cancel Benchmark Experiment
          * @description Cancel an experiment running in this server process: its current run
-         *     is cancelled and its remaining trials never start. Not in the public demo.
+         *     is cancelled and its remaining trials never start. In the public demo,
+         *     operators only.
          */
         post: operations["cancel_benchmark_experiment_api_benchmarks_experiments__experiment_id__cancel_post"];
         delete?: never;
@@ -83,7 +162,7 @@ export interface paths {
         /**
          * Benchmark Suites
          * @description The benchmark suites and arms this server offers (the public demo
-         *     shows only public suites).
+         *     shows only public suites, and lets only operators create).
          */
         get: operations["benchmark_suites_api_benchmarks_suites_get"];
         put?: never;
@@ -200,7 +279,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cancel Run */
+        /**
+         * Cancel Run
+         * @description Cancel an active run. In the public demo a signed-in user may cancel
+         *     the runs they started; an operator may cancel any run.
+         */
         post: operations["cancel_run_api_runs__run_id__cancel_post"];
         delete?: never;
         options?: never;
@@ -487,6 +570,28 @@ export interface components {
             auth_required: boolean;
             /** Remote Bind Allowed */
             remote_bind_allowed: boolean;
+        };
+        /** AuthResponse */
+        AuthResponse: {
+            /** Authenticated */
+            authenticated: boolean;
+            user: components["schemas"]["AuthUser"] | null;
+        };
+        /** AuthUser */
+        AuthUser: {
+            /** Email */
+            email: string | null;
+            /** Full Name */
+            full_name: string;
+            /** Phone Masked */
+            phone_masked: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "operator";
+            /** User Id */
+            user_id: string;
         };
         /**
          * BenchmarkAggregate
@@ -1528,6 +1633,24 @@ export interface components {
              */
             parallel_coding: boolean;
         };
+        /** LoginRequest */
+        LoginRequest: {
+            /**
+             * Identifier
+             * @description The account's email or phone number
+             */
+            identifier: string;
+            /** Password */
+            password: string;
+        };
+        /** MeResponse */
+        MeResponse: {
+            /** Authenticated */
+            authenticated: boolean;
+            /** Mode */
+            mode: string;
+            user: components["schemas"]["AuthUser"] | null;
+        };
         /** MeasurementAgents */
         MeasurementAgents: {
             /** Backoff Ms */
@@ -1839,6 +1962,17 @@ export interface components {
             max_concurrent_runs: number;
             /** Runs Per Client Per Hour */
             runs_per_client_per_hour: number;
+        };
+        /** RegisterRequest */
+        RegisterRequest: {
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name: string;
+            /** Password */
+            password: string;
+            /** Phone */
+            phone: string;
         };
         /**
          * RepairPayload
@@ -2525,6 +2659,112 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    login_api_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_api_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
+                };
+            };
+        };
+    };
+    me_api_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    register_api_auth_register_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_benchmark_experiments_api_benchmarks_experiments_get: {
         parameters: {
             query?: {

@@ -15,7 +15,7 @@ import app.main as main_module
 from app.demo_tasks import PIPELINE_TASK_ID
 from app.models import RunRecord, TraceEvent, utc_now
 from app.store import MeasurementRow
-from tests.conftest import make_settings
+from tests.conftest import make_settings, sign_up
 from tests.test_public_redaction import (
     CANARY_ENDPOINT,
     CANARY_KEY,
@@ -39,6 +39,7 @@ def local_client(tmp_path, monkeypatch):
 def public_client(tmp_path, monkeypatch):
     monkeypatch.setattr(main_module, "settings", make_settings(tmp_path, **PUBLIC, **CANARY_ENDPOINT))
     with TestClient(main_module.app) as client:
+        sign_up(client)  # starting a run in the public demo needs an account
         yield client
 
 

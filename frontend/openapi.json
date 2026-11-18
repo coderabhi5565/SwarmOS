@@ -410,6 +410,81 @@
         "title": "ApiInfo",
         "type": "object"
       },
+      "AuthResponse": {
+        "properties": {
+          "authenticated": {
+            "title": "Authenticated",
+            "type": "boolean"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AuthUser"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "authenticated",
+          "user"
+        ],
+        "title": "AuthResponse",
+        "type": "object"
+      },
+      "AuthUser": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "phone_masked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone Masked"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "operator"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "full_name",
+          "email",
+          "phone_masked",
+          "role"
+        ],
+        "title": "AuthUser",
+        "type": "object"
+      },
       "BenchmarkAggregate": {
         "description": "An arm's results, over all tasks (task_id null) or one task.\nRates and means are over counted trials only, except the cancellation\nand interrupted rates (over non_warmup_trials).",
         "properties": {
@@ -3510,6 +3585,54 @@
         "title": "Limits",
         "type": "object"
       },
+      "LoginRequest": {
+        "properties": {
+          "identifier": {
+            "description": "The account's email or phone number",
+            "title": "Identifier",
+            "type": "string"
+          },
+          "password": {
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "identifier",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "type": "object"
+      },
+      "MeResponse": {
+        "properties": {
+          "authenticated": {
+            "title": "Authenticated",
+            "type": "boolean"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AuthUser"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "authenticated",
+          "user",
+          "mode"
+        ],
+        "title": "MeResponse",
+        "type": "object"
+      },
       "MeasurementAgents": {
         "properties": {
           "backoff_ms": {
@@ -4697,6 +4820,34 @@
           "runs_per_client_per_hour"
         ],
         "title": "PublicDemoInfo",
+        "type": "object"
+      },
+      "RegisterRequest": {
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "password": {
+            "title": "Password",
+            "type": "string"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "full_name",
+          "email",
+          "phone",
+          "password"
+        ],
+        "title": "RegisterRequest",
         "type": "object"
       },
       "RepairPayload": {
@@ -6477,6 +6628,121 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/auth/login": {
+      "post": {
+        "description": "Sign in with an email or a phone number and the password (401 if wrong).",
+        "operationId": "login_api_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login"
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "description": "End this session (cookie or bearer). The API token cannot be revoked here.",
+        "operationId": "logout_api_auth_logout_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout"
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "me_api_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Me"
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "description": "Create an account and sign in. Email and phone are each unique (409).",
+        "operationId": "register_api_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register"
+      }
+    },
     "/api/benchmarks/experiments": {
       "get": {
         "description": "Newest-first experiments, paged like the run history.",
@@ -6539,7 +6805,7 @@
         "summary": "List Benchmark Experiments"
       },
       "post": {
-        "description": "Create an experiment and start running it in the background.\n\nFixed suites and arms only, by id: no goals, files, models or limits.\nNot available in the public demo.",
+        "description": "Create an experiment and start running it in the background.\n\nFixed suites and arms only, by id: no goals, files, models or limits.\nIn the public demo: operators only, public suites and the server's\nprovider only.",
         "operationId": "create_benchmark_experiment_api_benchmarks_experiments_post",
         "requestBody": {
           "content": {
@@ -6618,7 +6884,7 @@
     },
     "/api/benchmarks/experiments/{experiment_id}/cancel": {
       "post": {
-        "description": "Cancel an experiment running in this server process: its current run\nis cancelled and its remaining trials never start. Not in the public demo.",
+        "description": "Cancel an experiment running in this server process: its current run\nis cancelled and its remaining trials never start. In the public demo,\noperators only.",
         "operationId": "cancel_benchmark_experiment_api_benchmarks_experiments__experiment_id__cancel_post",
         "parameters": [
           {
@@ -6658,7 +6924,7 @@
     },
     "/api/benchmarks/suites": {
       "get": {
-        "description": "The benchmark suites and arms this server offers (the public demo\nshows only public suites).",
+        "description": "The benchmark suites and arms this server offers (the public demo\nshows only public suites, and lets only operators create).",
         "operationId": "benchmark_suites_api_benchmarks_suites_get",
         "responses": {
           "200": {
@@ -6883,6 +7149,7 @@
     },
     "/api/runs/{run_id}/cancel": {
       "post": {
+        "description": "Cancel an active run. In the public demo a signed-in user may cancel\nthe runs they started; an operator may cancel any run.",
         "operationId": "cancel_run_api_runs__run_id__cancel_post",
         "parameters": [
           {

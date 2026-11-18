@@ -178,9 +178,21 @@ class Settings:
     # SWARMOS_TIMINGS=0 turns recording off (for overhead comparisons).
     timings_enabled: bool = _env_bool("SWARMOS_TIMINGS", True)
 
-    # API surface safety.
+    # API surface safety. Locally, SWARMOS_API_TOKEN gates every /api route.
+    # In the public demo it is an operator credential instead: visitors may
+    # browse, and accounts (app.auth) decide who may start or cancel work.
     api_token: str = os.getenv("SWARMOS_API_TOKEN", "").strip()
     allow_remote_bind: bool = _env_bool("SWARMOS_ALLOW_REMOTE_BIND", False)
+
+    # Accounts (app.auth). The account registered with this email is an
+    # operator. Emails are not verified, so keep it private (see README).
+    operator_email: str = os.getenv("SWARMOS_OPERATOR_EMAIL", "").strip().lower()
+    session_ttl_hours: int = _env_int("SWARMOS_SESSION_TTL_HOURS", 168)
+    # Per client; 0 means unlimited. Login attempts count per 15 minutes.
+    login_attempts_per_client: int = _env_int("SWARMOS_LOGIN_ATTEMPTS_PER_CLIENT", 10)
+    registrations_per_client_per_hour: int = _env_int(
+        "SWARMOS_REGISTRATIONS_PER_CLIENT_PER_HOUR", 5
+    )
 
     db_path: Path = field(
         default_factory=lambda: _env_path("SWARMOS_DB_PATH", PROJECT_ROOT / "swarmos.db")
@@ -277,6 +289,11 @@ class Settings:
         return self.mode == "public_demo"
 
     @property
+    def api_token_gates_api(self) -> bool:
+        """Whether every /api route needs SWARMOS_API_TOKEN (local mode only)."""
+        return bool(self.api_token) and not self.is_public_demo
+
+    @property
     def cors_origin_list(self) -> list[str]:
         return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
 
@@ -290,6 +307,12 @@ class Settings:
                 "SWARMOS_EXECUTION_SANDBOX must be 'none' or 'restricted', "
                 f"not {self.execution_sandbox!r}"
             )
+        if self.session_ttl_hours <= 0:
+            errors.append("SWARMOS_SESSION_TTL_HOURS must be positive")
+        if self.operator_email and (
+            "@" not in self.operator_email or any(c.isspace() for c in self.operator_email)
+        ):
+            errors.append("SWARMOS_OPERATOR_EMAIL must be an email address")
         if self.stream_heartbeat_seconds <= 0 or self.stream_max_seconds <= 0:
             errors.append(
                 "SWARMOS_STREAM_HEARTBEAT_SECONDS and SWARMOS_STREAM_MAX_SECONDS must be positive"

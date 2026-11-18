@@ -99,9 +99,10 @@ def test_the_public_demo_is_read_only(world):
         cancel_known = client.post(f"/api/benchmarks/experiments/{catalog_id}/cancel")
         cancel_unknown = client.post("/api/benchmarks/experiments/bex_unknown/cancel")
         listed = client.get("/api/benchmarks/experiments").json()["experiments"]
-    assert created.status_code == 403
-    assert created.json() == {"detail": "creating benchmark experiments is not available in the public demo"}
-    assert cancel_known.status_code == cancel_unknown.status_code == 403
+    # A visitor must sign in; a signed-in user is not an operator (test_auth.py).
+    assert created.status_code == 401
+    assert created.json() == {"detail": "sign in to create benchmark experiments"}
+    assert cancel_known.status_code == cancel_unknown.status_code == 401
     assert len(listed) == 1  # nothing was created
 
 

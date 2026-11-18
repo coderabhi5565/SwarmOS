@@ -65,11 +65,12 @@ def is_visible(experiment: BenchmarkExperiment, settings: Settings) -> bool:
     return experiment.suite_id in visible_suite_ids(settings)
 
 
-def suites_response(settings: Settings) -> BenchmarkSuitesResponse:
+def suites_response(settings: Settings, operator: bool = False) -> BenchmarkSuitesResponse:
+    """``can_create``: always locally; in the public demo, for operators only."""
     visible = visible_suite_ids(settings)
     return BenchmarkSuitesResponse(
         mode=settings.mode,
-        can_create=not settings.is_public_demo,
+        can_create=operator or not settings.is_public_demo,
         suites=[
             BenchmarkSuiteInfo(
                 id=suite.id,

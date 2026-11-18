@@ -241,6 +241,41 @@ class CancelResponse(_Response):
 
 
 # ----------------------------------------------------------------------
+# accounts (app.auth). Request fields are plain strings: the endpoints
+# validate them, so an error never echoes a password back.
+# ----------------------------------------------------------------------
+class RegisterRequest(BaseModel):
+    full_name: str
+    email: str
+    phone: str
+    password: str
+
+
+class LoginRequest(BaseModel):
+    identifier: str = Field(description="The account's email or phone number")
+    password: str
+
+
+class AuthUser(_Response):
+    user_id: str
+    full_name: str
+    # Null for the operator API token, which has no account.
+    email: str | None
+    # Every digit but the last four hidden, e.g. ******3210.
+    phone_masked: str | None
+    role: Literal["user", "operator"]
+
+
+class AuthResponse(_Response):
+    authenticated: bool
+    user: AuthUser | None
+
+
+class MeResponse(AuthResponse):
+    mode: str
+
+
+# ----------------------------------------------------------------------
 # benchmarks (M6). Explicit API shapes, converted from app.benchmarks; tests
 # keep their fields in step with the domain models they mirror.
 # ----------------------------------------------------------------------

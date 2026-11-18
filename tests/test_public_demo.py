@@ -20,7 +20,7 @@ from app.rate_limit import SlidingWindowLimiter
 from app.runtime import sandbox_launcher
 from app.runtime.code_policy import check_changes, check_file
 from app.runtime.workspace import Workspace
-from tests.conftest import TARGET_IMPLEMENTATION, ScriptedProvider, make_settings
+from tests.conftest import TARGET_IMPLEMENTATION, ScriptedProvider, make_settings, sign_up
 
 TERMINAL = set(get_args(RunStatus)) - {"queued", "running"}
 PUBLIC = {
@@ -305,8 +305,10 @@ def test_api_refuses_to_start_with_an_unsafe_public_config(tmp_path, monkeypatch
 # ----------------------------------------------------------------------
 @pytest.fixture
 def public_client(tmp_path, monkeypatch):
+    """A signed-in user of the public demo (visitors are in test_auth.py)."""
     monkeypatch.setattr(main_module, "settings", make_settings(tmp_path, **PUBLIC))
     with TestClient(main_module.app) as client:
+        sign_up(client)
         yield client
 
 
@@ -356,9 +358,9 @@ def test_public_demo_rate_limits_per_client(public_client):
     assert int(third.headers["Retry-After"]) > 0
 
 
-def test_public_demo_disables_probe_and_cancel_and_redacts_config(public_client):
+def test_public_demo_disables_probe_and_redacts_config(public_client):
     assert public_client.get("/api/provider/models").status_code == 403
-    assert public_client.post("/api/runs/run_x/cancel").status_code == 403
+    assert public_client.post("/api/runs/run_x/cancel").status_code == 404
     config = public_client.get("/api/config").json()
     assert config["base_url"] is None
     assert config["public_demo"]["enabled"] is True
