@@ -40,18 +40,15 @@ describe("hero focus", () => {
 function Harness() {
   const [focus, dispatch] = useReducer(focusReducer, NO_FOCUS);
   return (
-    <HeroHud phase="fan-out" focused={focusedNode(focus)} locked={focus.locked} onSelect={(id) => dispatch({ type: "toggle", id })} />
+    <HeroHud focused={focusedNode(focus)} locked={focus.locked} onSelect={(id) => dispatch({ type: "toggle", id })} />
   );
 }
 
 describe("HeroHud", () => {
-  it("marks the phase the cycle is showing", () => {
-    render(<HeroHud phase="evidence-guard" focused={null} locked={null} onSelect={vi.fn()} />);
-    const steps = within(screen.getByRole("list", { name: "Execution cycle" })).getAllByRole("listitem");
-    expect(steps.map((step) => step.getAttribute("aria-current"))).toEqual([null, null, "step", null]);
-    expect(steps[2]).toHaveTextContent("3 Evidence guard · reviewer · evidence checked");
-    expect(steps[0]).toHaveTextContent(/^1 Plan$/);
-    expect(screen.queryByRole("status")).not.toBeInTheDocument(); // nothing focused
+  it("shows no telemetry until a node is in focus", () => {
+    render(<HeroHud focused={null} locked={null} onSelect={vi.fn()} />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Focus a pipeline node" })).toBeInTheDocument();
   });
 
   it("offers every node as a button and locks the one chosen", async () => {
@@ -84,7 +81,7 @@ describe("HeroHud", () => {
   });
 
   it("shows a hovered node's telemetry without a lock", () => {
-    render(<HeroHud phase="verify" focused="verifier" locked={null} onSelect={vi.fn()} />);
+    render(<HeroHud focused="verifier" locked={null} onSelect={vi.fn()} />);
     const telemetry = screen.getByRole("status", { name: "Telemetry: Deterministic verifier" });
     expect(telemetry).toHaveTextContent("sandbox: audit_hook + rlimits");
     expect(telemetry).toHaveTextContent("runner: deterministic_subprocess");

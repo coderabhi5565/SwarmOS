@@ -6,6 +6,8 @@ import { Link } from "react-router";
 import { BackendStatus } from "@/app/layout/BackendStatus";
 import { BeamDiagram } from "@/components/landing/BeamDiagram";
 import { HeroVisual } from "@/components/landing/HeroVisual";
+import { PhaseTicker } from "@/components/landing/PhaseTicker";
+import type { PhaseId } from "@/components/landing/simulation";
 import { SpotlightCard } from "@/components/landing/SpotlightCard";
 import { WALKTHROUGH, type TraceExcerpt } from "@/components/landing/traceWalkthrough";
 import { Button } from "@/components/ui/button";
@@ -18,11 +20,13 @@ import { cn } from "@/lib/utils";
  */
 export function LandingPage() {
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-20 px-4 py-10 sm:px-6 sm:py-16">
+    <div className="flex flex-col">
       <Hero />
-      <Architecture />
-      <Walkthrough />
-      <Honesty />
+      <div className="mx-auto w-full max-w-7xl space-y-20 px-4 py-14 sm:px-6 sm:py-20">
+        <Architecture />
+        <Walkthrough />
+        <Honesty />
+      </div>
     </div>
   );
 }
@@ -46,57 +50,48 @@ const CTA_MOTION =
 
 // ----------------------------------------------------------------------
 function Hero() {
+  // The phase the 3D scene is playing; null with the 2D diagram (no cycle to follow).
+  const [phase, setPhase] = useState<PhaseId | null>(null);
   return (
-    <section aria-labelledby="hero-heading" className="grid items-center gap-10 lg:grid-cols-[1.05fr_1fr]">
-      <Rise className="space-y-6">
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="font-mono text-xs tracking-[0.2em] text-brand-cyan uppercase">Multi-agent coding orchestrator</p>
+    <section aria-labelledby="hero-heading" className="relative isolate flex flex-col overflow-hidden border-b border-border/50 lg:block lg:min-h-[680px]">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(900px_520px_at_70%_40%,color-mix(in_oklch,var(--brand-violet)_14%,transparent),transparent_70%)]"
+      />
+      {/* The stage: the whole hero on a wide screen, a band under the copy on a narrow one. */}
+      <HeroVisual
+        onPhase={setPhase}
+        className="order-last h-[360px] w-full lg:absolute lg:inset-0 lg:h-auto"
+        fallbackClassName="lg:ml-auto lg:w-[56%] lg:pr-8"
+      />
+      {/* The copy passes pointer events through, so the stage behind stays draggable. */}
+      <div className="pointer-events-none relative order-first mx-auto flex w-full max-w-7xl flex-col px-4 pt-12 pb-6 sm:px-6 lg:min-h-[680px] lg:justify-center lg:py-16">
+        <Rise className="pointer-events-auto max-w-xl space-y-6">
           <BackendStatus />
-        </div>
-        <h1 id="hero-heading" className="max-w-2xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl lg:text-6xl">
-          Agents that plan, code, review and verify.{" "}
-          <span className="landing-shimmer bg-gradient-to-r from-brand-cyan via-brand-violet to-brand-cyan bg-[length:200%_auto] bg-clip-text text-transparent">
-            Every decision on the record.
-          </span>
-        </h1>
-        <p className="max-w-xl text-base text-muted-foreground sm:text-lg">
-          SwarmOS runs a planner, parallel coders, an evidence-checked reviewer and a deterministic test runner through
-          one explicit state machine, with bounded retries and budgets. Each run leaves a typed, replayable trace.
-        </p>
-        <p
-          aria-label="Built on"
-          className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-border/70 bg-background/40 px-3 py-1 font-mono text-[11px] text-muted-foreground"
-        >
-          <span aria-hidden="true" className="size-1.5 rounded-full bg-brand-cyan" />
-          LangGraph <span aria-hidden="true">•</span> Monotonic Spans <span aria-hidden="true">•</span> Fail-Closed Sandbox
-        </p>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button asChild size="lg" className={cn(CTA_MOTION, "shadow-[0_0_24px_-6px_var(--brand-cyan)]")}>
-            <Link to="/runs/new">
-              Launch Live Demo
-              <ArrowRight aria-hidden="true" />
-            </Link>
-          </Button>
-          <Button asChild size="lg" variant="outline" className={CTA_MOTION}>
-            <Link to="/benchmarks">Inspect Benchmarks</Link>
-          </Button>
-          <Link to="/app" className="px-2 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
-            Open Workspace
-          </Link>
-        </div>
-      </Rise>
-      <Rise delay={0.08}>
-        <div className="glass relative h-[300px] overflow-hidden rounded-2xl sm:h-[380px]">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(420px_240px_at_50%_0%,color-mix(in_oklch,var(--brand-cyan)_12%,transparent),transparent_70%)]"
-          />
-          <HeroVisual className="size-full p-2" />
-        </div>
-        <p className="mt-2 text-center font-mono text-[11px] text-muted-foreground">
-          planner → parallel coder wave → reviewer evidence guard → deterministic verifier
-        </p>
-      </Rise>
+          <h1 id="hero-heading" className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl lg:text-6xl">
+            Deterministic{" "}
+            <span className="landing-shimmer bg-gradient-to-r from-brand-cyan via-brand-violet to-brand-cyan bg-[length:200%_auto] bg-clip-text text-transparent">
+              Multi-Agent
+            </span>{" "}
+            Orchestration.
+          </h1>
+          <p className="max-w-md text-base text-muted-foreground sm:text-lg">
+            Parallel LangGraph waves, evidence-guarded reviews, and nanosecond span traces.
+          </p>
+          <PhaseTicker phase={phase} />
+          <div className="flex flex-wrap items-center gap-3">
+            <Button asChild className={cn(CTA_MOTION, "shadow-[0_0_24px_-6px_var(--brand-cyan)]")}>
+              <Link to="/runs/new">
+                Launch Live Demo
+                <ArrowRight aria-hidden="true" />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className={CTA_MOTION}>
+              <Link to="/benchmarks">Benchmarks</Link>
+            </Button>
+          </div>
+        </Rise>
+      </div>
     </section>
   );
 }

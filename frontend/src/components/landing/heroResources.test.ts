@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHeroResources, STAR_COUNT } from "./heroResources";
+import { createHeroResources, GRID_SIZE, GRID_STEP, STAR_COUNT } from "./heroResources";
 import { PIPELINE_EDGES, pipelineNode } from "./pipeline";
 
 describe("hero scene resources", () => {
   it("disposes every geometry, material and shader it created", () => {
     const resources = createHeroResources();
     // Geometries: core, shell, rim, gyro ring, coder, 3 coder rings, reviewer,
-    // scan ring, verifier, shock ring, packet, stars, 7 tubes = 21.
+    // scan ring, verifier, shock ring, packet, stars, glow, grid, 7 tubes = 23.
     // Materials: 7 tubes, core, rim shader, wire, gyro, 3 coders, 3 coder
-    // rings, reviewer, scan, verifier, shock, packet, stars = 23.
-    expect(resources.all).toHaveLength(21 + 23);
+    // rings, reviewer, scan, verifier, shock, packet, stars, glow, grid = 25.
+    expect(resources.all).toHaveLength(23 + 25);
     expect(new Set(resources.all).size).toBe(resources.all.length);
     expect(resources.all).toContain(resources.rimMaterial);
     const spies = resources.all.map((resource) => vi.spyOn(resource, "dispose"));
@@ -51,6 +51,15 @@ describe("hero scene resources", () => {
     for (let i = 0; i < positions.count; i += 1) expect(positions.getZ(i)).toBeLessThanOrEqual(-2);
     first.dispose();
     second.dispose();
+  });
+
+  it("lays a floor grid of line segments below the pipeline", () => {
+    const { grid, dispose } = createHeroResources();
+    const lines = GRID_SIZE / GRID_STEP + 1; // per direction
+    const positions = grid.getAttribute("position");
+    expect(positions.count).toBe(lines * 2 * 2); // two directions, two points per line
+    for (let i = 0; i < positions.count; i += 1) expect(positions.getY(i)).toBe(0);
+    dispose();
   });
 
   it("pulses the planner's rim through shader uniforms", () => {

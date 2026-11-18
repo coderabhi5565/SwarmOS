@@ -10,9 +10,9 @@
  * freed twice. One useFrame drives everything from the simulation state.
  */
 import { OrbitControls } from "@react-three/drei";
-import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
-import { useEffect, useMemo, useReducer, useRef, useState, type Dispatch } from "react";
-import type { Group, Mesh } from "three";
+import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
+import { useEffect, useMemo, useReducer, useRef, type Dispatch } from "react";
+import { Vector3, type Group, type Mesh } from "three";
 import { createHeroResources, type HeroResources } from "./heroResources";
 import { focusedNode, focusReducer, NO_FOCUS, type FocusAction } from "./heroFocus";
 import { HeroHud } from "./HeroHud";
@@ -22,21 +22,28 @@ import { simulationState, type PhaseId } from "./simulation";
 export interface HeroScene3DProps {
   /** The browser dropped the WebGL context. */
   onContextLost: () => void;
+  /** The execution cycle moved to another phase. */
+  onPhase?: (phase: PhaseId) => void;
 }
 
-export default function HeroScene3D({ onContextLost }: HeroScene3DProps) {
+/** Fog colour: the page's dark background, so distance fades into it. */
+const FOG = "#0b1020";
+/** On a wide stage the pipeline sits to the right, clear of the headline. */
+const WIDE_STAGE_PX = 1024;
+const WIDE_OFFSET_X = 2.6;
+
+export default function HeroScene3D({ onContextLost, onPhase }: HeroScene3DProps) {
   const resources = useMemo(createHeroResources, []);
   useEffect(() => () => resources.dispose(), [resources]);
   const [focus, dispatch] = useReducer(focusReducer, NO_FOCUS);
   const focused = focusedNode(focus);
-  const [phase, setPhase] = useState<PhaseId>("plan");
 
   return (
     <div className="relative size-full" style={{ cursor: focus.hovered ? "pointer" : "grab" }}>
       <Canvas
         dpr={[1, 1.5]}
         gl={{ antialias: true, powerPreference: "low-power" }}
-        camera={{ position: [0, 1.2, 11], fov: 42, near: 0.1, far: 100 }}
+        camera={{ position: [0, 0.9, 8.6], fov: 44, near: 0.1, far: 100 }}
         onPointerMissed={() => dispatch({ type: "clear" })}
         onCreated={({ gl }) => {
           gl.domElement.addEventListener("webglcontextlost", (event) => {
@@ -47,10 +54,10 @@ export default function HeroScene3D({ onContextLost }: HeroScene3DProps) {
         aria-hidden="true"
         data-testid="hero-scene-3d"
       >
-        <ambientLight intensity={0.55} />
-        <directionalLight position={[4, 6, 8]} intensity={1.2} />
-        <pointLight position={[-4.4, 0, 2]} intensity={6} color="#a78bfa" distance={7} />
-        <Scene resources={resources} focused={focused} dispatch={dispatch} onPhase={setPhase} />
+        <fogExp2 attach="fog" args={[FOG, 0.045]} />
+        <ambientLight intensity={0.7} />
+        <directionalLight position={[4, 6, 8]} intensity={1.5} />
+        <Scene resources={resources} focused={focused} dispatch={dispatch} onPhase={onPhase} />
         {/* Damped orbit; zoom and pan stay off so the page still scrolls. */}
         <OrbitControls
           makeDefault
@@ -66,7 +73,7 @@ export default function HeroScene3D({ onContextLost }: HeroScene3DProps) {
           maxAzimuthAngle={Math.PI / 4}
         />
       </Canvas>
-      <HeroHud phase={phase} focused={focused} locked={focus.locked} onSelect={(id) => dispatch({ type: "toggle", id })} />
+      <HeroHud focused={focused} locked={focus.locked} onSelect={(id) => dispatch({ type: "toggle", id })} />
     </div>
   );
 }
@@ -80,8 +87,14 @@ function Scene({
   resources: HeroResources;
   focused: string | null;
   dispatch: Dispatch<FocusAction>;
-  onPhase: (phase: PhaseId) => void;
+  onPhase?: (phase: PhaseId) => void;
 }) {
+  const wide = useThree((state) => state.size.width >= WIDE_STAGE_PX);
+  const controls = useThree((state) => state.controls) as { target: Vector3 } | null;
+  const offsetX = wide ? WIDE_OFFSET_X : 0;
+  const scale = wide ? 1 : 0.72;
+  const aim = useMemo(() => new Vector3(), []);
+  const reported = useRef(false);
   const parallax = useRef<Group>(null);
   const stars = useRef<Group>(null);
   const gyro = useRef<(Group | null)[]>([]);
@@ -98,11 +111,22 @@ function Scene({
 
   useFrame(({ clock, pointer }, delta) => {
     const sim = simulationState(clock.elapsedTime);
-    if (sim.phase !== lastPhase.current) {
+    if (sim.phase !== lastPhase.current || !reported.current) {
       lastPhase.current = sim.phase;
-      onPhase(sim.phase);
+      reported.current = true;
+      onPhase?.(sim.phase);
     }
     const ease = Math.min(1, delta * 4);
+
+    // The camera eases towards a focused node (part of the way), and back.
+    if (controls) {
+      aim.set(offsetX, 0, 0);
+      if (focused) {
+        const [x, y, z] = pipelineNode(focused).position;
+        aim.set(offsetX + x * scale * 0.45, y * scale * 0.45, z * scale * 0.45);
+      }
+      controls.target.lerp(aim, Math.min(1, delta * 2.5));
+    }
 
     // Pointer parallax, layered over the orbit controls' camera.
     if (parallax.current) {
@@ -122,7 +146,8 @@ function Scene({
     });
     resources.rimMaterial.uniforms.uTime.value = clock.elapsedTime;
     resources.rimMaterial.uniforms.uIntensity.value = 0.8 + sim.glow.planner * 1.2;
-    resources.coreMaterial.emissiveIntensity = 0.8 + sim.glow.planner * 1.4;
+    resources.coreMaterial.emissiveIntensity = 1.2 + sim.glow.planner * 1.8;
+    resources.glowMaterial.opacity = 0.1 + sim.glow.planner * 0.16;
     if (plannerPulse.current) {
       const pulse = sim.plannerPulse;
       plannerPulse.current.visible = pulse !== null;
@@ -173,7 +198,7 @@ function Scene({
         if (progress !== null) resources.curves[edge.id].getPoint(progress, packet.position);
       }
       const material = resources.tubeMaterials[edge.id];
-      const lit = highlighted === null ? 0.45 : highlighted.has(edge.id) ? 0.95 : 0.12;
+      const lit = highlighted === null ? 0.6 : highlighted.has(edge.id) ? 1 : 0.12;
       material.opacity += (lit - material.opacity) * ease;
       material.color.set(highlighted?.has(edge.id) ? "#7dd3fc" : "#64748b");
     }
@@ -208,6 +233,8 @@ function Scene({
       <group ref={stars}>
         <points geometry={resources.stars} material={resources.starMaterial} dispose={null} />
       </group>
+      <lineSegments geometry={resources.grid} material={resources.gridMaterial} position={[offsetX, -3.2, -4]} dispose={null} />
+      <group position={[offsetX, 0, 0]} scale={scale}>
       <group ref={parallax}>
         {PIPELINE_EDGES.map((edge) => (
           <group key={edge.id}>
@@ -228,6 +255,8 @@ function Scene({
           <mesh geometry={resources.core} material={resources.coreMaterial} dispose={null} {...handlers("planner")} />
           <mesh geometry={resources.shell} material={resources.wireMaterial} dispose={null} />
           <mesh geometry={resources.rim} material={resources.rimMaterial} dispose={null} />
+          <mesh geometry={resources.glow} material={resources.glowMaterial} dispose={null} />
+          <pointLight intensity={8} color="#a78bfa" distance={8} />
           {[0, 1, 2].map((index) => (
             <group
               key={index}
@@ -273,6 +302,7 @@ function Scene({
           <mesh ref={verifierMesh} geometry={resources.verifier} material={resources.verifierMaterial} dispose={null} {...handlers("verifier")} />
           <mesh ref={shock} geometry={resources.shockRing} material={resources.shockMaterial} visible={false} dispose={null} />
         </group>
+      </group>
       </group>
     </>
   );

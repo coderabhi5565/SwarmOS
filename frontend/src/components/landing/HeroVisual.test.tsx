@@ -87,6 +87,25 @@ describe("HeroVisual", () => {
     expect(stages).toHaveTextContent("Reviewer evidence guard: A blocker must cite a real file, line and test output");
   });
 
+  it("passes the scene's phase on, and says when there is none to follow", async () => {
+    stubWebgl2(true);
+    stubReducedMotion(false);
+    const onPhase = vi.fn();
+    render(<HeroVisual onPhase={onPhase} />);
+    await screen.findByTestId("scene-stand-in");
+    act(() => scene.props?.onPhase?.("evidence-guard"));
+    expect(onPhase).toHaveBeenLastCalledWith("evidence-guard");
+    act(() => scene.props?.onContextLost()); // back to the 2D diagram
+    expect(onPhase).toHaveBeenLastCalledWith(null);
+  });
+
+  it("reports no phase with the 2D diagram", () => {
+    const onPhase = vi.fn();
+    render(<HeroVisual onPhase={onPhase} />); // jsdom: no WebGL2
+    expect(onPhase).toHaveBeenCalledWith(null);
+    expect(onPhase).toHaveBeenCalledTimes(1);
+  });
+
   it("returns to the 2D diagram when the WebGL context is lost", async () => {
     stubWebgl2(true);
     stubReducedMotion(false);

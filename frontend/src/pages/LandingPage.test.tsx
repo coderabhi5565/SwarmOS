@@ -26,21 +26,24 @@ function serve(health: Health | "down" = publicHealth) {
   });
 }
 
-const hero = () => screen.getByRole("region", { name: /Agents that plan, code, review and verify/ });
+const hero = () => screen.getByRole("region", { name: "Deterministic Multi-Agent Orchestration." });
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe("landing page", () => {
-  it("is the front page, inside the shell, with its three ways in", async () => {
+  it("is the front page, inside the shell, with a short headline and two ways in", async () => {
     serve();
     renderAt("/");
-    expect(await screen.findByRole("heading", { level: 1, name: /Every decision on the record/ })).toBeInTheDocument();
+    const heading = await screen.findByRole("heading", { level: 1, name: "Deterministic Multi-Agent Orchestration." });
+    expect(heading.textContent?.trim().split(/\s+/)).toHaveLength(3);
+    expect(hero()).toHaveTextContent("Parallel LangGraph waves, evidence-guarded reviews, and nanosecond span traces.");
     expect(screen.getAllByRole("navigation", { name: "Main" }).length).toBeGreaterThan(0);
     expect(within(hero()).getByRole("link", { name: /Launch Live Demo/ })).toHaveAttribute("href", "/runs/new");
-    expect(within(hero()).getByRole("link", { name: "Inspect Benchmarks" })).toHaveAttribute("href", "/benchmarks");
-    expect(within(hero()).getByRole("link", { name: "Open Workspace" })).toHaveAttribute("href", "/app");
+    expect(within(hero()).getByRole("link", { name: "Benchmarks" })).toHaveAttribute("href", "/benchmarks");
+    // The workspace stays one click away, in the navigation.
+    expect(screen.getAllByRole("link", { name: "Overview" })[0]).toHaveAttribute("href", "/app");
   });
 
   it("opens the live demo from the primary call to action", async () => {
@@ -159,11 +162,19 @@ describe("landing page interactions", () => {
   const tab = (name: RegExp) => within(screen.getByRole("tablist", { name: "Stages of a run" })).getByRole("tab", { name });
   const stageState = (id: string) => screen.getByTestId("beam-diagram").querySelector(`[data-stage="${id}"]`)?.getAttribute("data-state");
 
-  it("states what it is built on, in the hero", async () => {
+  it("names the pipeline in a ticker that rests when there is no 3D cycle to follow", async () => {
     serve();
     renderAt("/");
     await screen.findByRole("heading", { level: 1 });
-    expect(within(hero()).getByLabelText("Built on")).toHaveTextContent("LangGraph • Monotonic Spans • Fail-Closed Sandbox");
+    const ticker = within(hero()).getByRole("list", { name: "Pipeline" });
+    expect(within(ticker).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "PLANNER",
+      "→3× CODER WAVE",
+      "→EVIDENCE GUARD",
+      "→PYTEST",
+    ]);
+    // jsdom has no WebGL2: the 2D diagram plays no cycle, so nothing is lit.
+    expect(ticker.querySelector("[aria-current]")).toBeNull();
   });
 
   it("puts each engineering decision on a spotlight card that follows the pointer", async () => {

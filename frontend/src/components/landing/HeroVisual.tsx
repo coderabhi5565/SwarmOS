@@ -2,6 +2,7 @@ import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from "
 import { cn } from "@/lib/utils";
 import { HeroPipeline2D } from "./HeroPipeline2D";
 import { PIPELINE_NODES } from "./pipeline";
+import type { PhaseId } from "./simulation";
 
 // The only import of the scene module: three.js and React Three Fiber are
 // requested when this component renders with WebGL2 and motion allowed,
@@ -37,7 +38,17 @@ export type HeroFallback = "no-webgl2" | "reduced-motion" | "context-lost" | "sc
  * 3D chunk loads, if the context is lost or if the scene fails, the 2D
  * diagram. The pipeline is also listed for assistive technology.
  */
-export function HeroVisual({ className }: { className?: string }) {
+export function HeroVisual({
+  className,
+  fallbackClassName,
+  onPhase,
+}: {
+  className?: string;
+  /** Layout of the 2D diagram (the 3D scene always fills the visual). */
+  fallbackClassName?: string;
+  /** The phase the 3D scene's execution cycle is playing; null once the 2D diagram is shown. */
+  onPhase?: (phase: PhaseId | null) => void;
+}) {
   const [fallback, setFallback] = useState<HeroFallback | null>(() =>
     !webgl2Available() ? "no-webgl2" : prefersReducedMotion() ? "reduced-motion" : null,
   );
@@ -53,14 +64,19 @@ export function HeroVisual({ className }: { className?: string }) {
     return () => query.removeEventListener?.("change", onChange);
   }, []);
 
+  // The 2D diagram plays no cycle: whoever follows the phase is told so.
+  useEffect(() => {
+    if (fallback) onPhase?.(null);
+  }, [fallback, onPhase]);
+
   return (
     <div className={cn("relative isolate", className)} data-hero={fallback ?? "3d"}>
       {fallback ? (
-        <HeroPipeline2D />
+        <HeroPipeline2D className={fallbackClassName} />
       ) : (
         <SceneBoundary onError={() => setFallback("scene-error")}>
-          <Suspense fallback={<HeroPipeline2D />}>
-            <HeroScene3D onContextLost={() => setFallback("context-lost")} />
+          <Suspense fallback={<HeroPipeline2D className={fallbackClassName} />}>
+            <HeroScene3D onContextLost={() => setFallback("context-lost")} onPhase={onPhase} />
           </Suspense>
         </SceneBoundary>
       )}

@@ -10,6 +10,7 @@ import {
   Color,
   DodecahedronGeometry,
   IcosahedronGeometry,
+  LineBasicMaterial,
   MeshBasicMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
@@ -27,6 +28,9 @@ import {
 import { CODER_IDS, PIPELINE_EDGES, pipelineNode } from "./pipeline";
 
 export const STAR_COUNT = 360;
+/** The floor grid: lines every GRID_STEP across GRID_SIZE, below the pipeline. */
+export const GRID_SIZE = 36;
+export const GRID_STEP = 1.5;
 
 /** A rim glow: brightest where the surface turns away from the camera. */
 const FRESNEL_VERTEX = /* glsl */ `
@@ -75,6 +79,10 @@ export interface HeroResources {
   shockRing: RingGeometry;
   packet: SphereGeometry;
   stars: BufferGeometry;
+  /** A soft halo around the planner core (additive, stands in for bloom). */
+  glow: SphereGeometry;
+  /** Line segments of the floor grid. */
+  grid: BufferGeometry;
   /** By edge id: the curve a packet follows, its tube and the tube's material. */
   curves: Record<string, QuadraticBezierCurve3>;
   tubes: Record<string, TubeGeometry>;
@@ -92,6 +100,8 @@ export interface HeroResources {
   shockMaterial: MeshBasicMaterial;
   packetMaterial: MeshBasicMaterial;
   starMaterial: PointsMaterial;
+  glowMaterial: MeshBasicMaterial;
+  gridMaterial: LineBasicMaterial;
 
   /** Every geometry and material above, for disposal and tests. */
   all: (BufferGeometry | Material)[];
@@ -129,6 +139,15 @@ export function createHeroResources(): HeroResources {
   const stars = new BufferGeometry();
   stars.setAttribute("position", new BufferAttribute(starPositions, 3));
 
+  const half = GRID_SIZE / 2;
+  const gridPositions: number[] = [];
+  for (let offset = -half; offset <= half; offset += GRID_STEP) {
+    gridPositions.push(-half, 0, offset, half, 0, offset); // along x
+    gridPositions.push(offset, 0, -half, offset, 0, half); // along z
+  }
+  const grid = new BufferGeometry();
+  grid.setAttribute("position", new BufferAttribute(new Float32Array(gridPositions), 3));
+
   const emissive = (color: string, flatShading = false) =>
     new MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.3, roughness: 0.35, metalness: 0.25, flatShading });
 
@@ -145,6 +164,8 @@ export function createHeroResources(): HeroResources {
     shockRing: new RingGeometry(0.5, 0.56, 64),
     packet: new SphereGeometry(0.075, 12, 12),
     stars,
+    glow: new SphereGeometry(1.25, 32, 32),
+    grid,
     curves,
     tubes,
     tubeMaterials,
@@ -175,6 +196,14 @@ export function createHeroResources(): HeroResources {
     shockMaterial: new MeshBasicMaterial({ color: verifier.color, transparent: true, opacity: 0, depthWrite: false }),
     packetMaterial: new MeshBasicMaterial({ color: "#e0f2fe" }),
     starMaterial: new PointsMaterial({ color: "#94a3b8", size: 0.045, sizeAttenuation: true, transparent: true, opacity: 0.7 }),
+    glowMaterial: new MeshBasicMaterial({
+      color: planner.color,
+      transparent: true,
+      opacity: 0.1,
+      depthWrite: false,
+      blending: AdditiveBlending,
+    }),
+    gridMaterial: new LineBasicMaterial({ color: "#475569", transparent: true, opacity: 0.28 }),
   };
 
   const all: (BufferGeometry | Material)[] = [
@@ -190,6 +219,8 @@ export function createHeroResources(): HeroResources {
     resources.shockRing,
     resources.packet,
     resources.stars,
+    resources.glow,
+    resources.grid,
     ...Object.values(tubes),
     ...Object.values(tubeMaterials),
     resources.coreMaterial,
@@ -204,6 +235,8 @@ export function createHeroResources(): HeroResources {
     resources.shockMaterial,
     resources.packetMaterial,
     resources.starMaterial,
+    resources.glowMaterial,
+    resources.gridMaterial,
   ];
   return { ...resources, all, dispose: () => all.forEach((resource) => resource.dispose()) };
 }
