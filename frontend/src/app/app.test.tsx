@@ -95,7 +95,7 @@ afterEach(() => {
 describe("overview", () => {
   it("shows the real catalog, history and backend mode", async () => {
     stubApi({ "/health": health, "/api/demo-tasks": demoTasks, "/api/runs": runs });
-    renderAt("/");
+    renderAt("/app");
 
     expect(await screen.findByText("Parallel pipeline")).toBeInTheDocument();
     expect(screen.getByText(/3 steps · 2 waves · parallel/)).toBeInTheDocument();
@@ -109,14 +109,14 @@ describe("overview", () => {
 
   it("reports a sleeping backend as waking, not failed", async () => {
     stubApi({ "/health": "fail", "/api/demo-tasks": demoTasks, "/api/runs": runs });
-    renderAt("/");
+    renderAt("/app");
     expect((await screen.findAllByText("waking server…")).length).toBeGreaterThan(0);
     expect(screen.queryByText("API unreachable")).not.toBeInTheDocument();
   });
 
   it("shows API errors instead of empty sections", async () => {
     stubApi({ "/health": health, "/api/runs": runs }); // the catalog 404s
-    renderAt("/");
+    renderAt("/app");
     expect(await screen.findByRole("alert")).toHaveTextContent("not found");
   });
 });
@@ -133,5 +133,31 @@ describe("routing", () => {
     stubApi({ "/health": health });
     renderAt("/runs/run_missing");
     expect(await screen.findByRole("heading", { name: "Run not found" })).toBeInTheDocument();
+  });
+});
+
+describe("workspace routes", () => {
+  it("leads from / to the workspace overview at /app", async () => {
+    stubApi({ "/health": health, "/api/demo-tasks": demoTasks, "/api/runs": runs });
+    const { router } = renderAt("/");
+    expect(await screen.findByText("Parallel pipeline")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/app");
+  });
+
+  it("links the navigation to every workspace page", async () => {
+    stubApi({ "/health": { ...health, mode: "local" } });
+    renderAt("/app");
+    const nav = screen.getAllByRole("navigation", { name: "Main" })[0];
+    await within(nav).findByRole("link", { name: "Legacy" }); // local mode only
+    const hrefs = within(nav).getAllByRole("link").map((link) => link.getAttribute("href"));
+    expect(hrefs).toEqual(["/app", "/runs/new", "/console", "/history", "/benchmarks", "/legacy"]);
+    expect(screen.getByRole("link", { name: "SwarmOS" })).toHaveAttribute("href", "/");
+  });
+
+  it.each(["/app", "/runs/new", "/console", "/history", "/benchmarks"])("%s renders inside the shell", async (path) => {
+    stubApi({ "/health": health, "/api/demo-tasks": demoTasks, "/api/runs": runs });
+    renderAt(path);
+    expect((await screen.findAllByRole("navigation", { name: "Main" })).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("heading", { name: "Page not found" })).not.toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-import { createBrowserRouter, type RouteObject } from "react-router";
+import { createBrowserRouter, Navigate, type RouteObject } from "react-router";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { OverviewPage } from "@/pages/OverviewPage";
 import { AppShell, type RouteHandle } from "./layout/AppShell";
@@ -8,7 +8,9 @@ export const routes: RouteObject[] = [
     path: "/",
     element: <AppShell />,
     children: [
-      { index: true, element: <OverviewPage /> },
+      // The landing page takes "/" (next commit); until then it leads to the workspace.
+      { index: true, element: <Navigate to="/app" replace /> },
+      { path: "app", element: <OverviewPage /> },
       // Pages load on demand, so the overview ships only what it needs.
       {
         path: "console",

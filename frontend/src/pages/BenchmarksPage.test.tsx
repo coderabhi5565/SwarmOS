@@ -51,7 +51,7 @@ afterEach(() => {
 describe("benchmarks page", () => {
   it("is reached from the navigation and loads lazily", async () => {
     serve({ current: { "": experimentPage([completed("bex_a")]) } });
-    const { router } = renderAt("/");
+    const { router } = renderAt("/app");
     await userEvent.click((await screen.findAllByRole("link", { name: "Benchmarks" }))[0]);
     expect(router.state.location.pathname).toBe("/benchmarks");
     expect(await screen.findByRole("heading", { name: "Experiments" })).toBeInTheDocument();
