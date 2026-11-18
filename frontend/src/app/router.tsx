@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, type RouteObject } from "react-router";
+import { createBrowserRouter, type RouteObject } from "react-router";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { OverviewPage } from "@/pages/OverviewPage";
 import { AppShell, type RouteHandle } from "./layout/AppShell";
@@ -8,8 +8,12 @@ export const routes: RouteObject[] = [
     path: "/",
     element: <AppShell />,
     children: [
-      // The landing page takes "/" (next commit); until then it leads to the workspace.
-      { index: true, element: <Navigate to="/app" replace /> },
+      {
+        // The public front page; its 3D hero is a further lazy chunk.
+        index: true,
+        handle: { fullBleed: true } satisfies RouteHandle,
+        lazy: async () => ({ Component: (await import("@/pages/LandingPage")).LandingPage }),
+      },
       { path: "app", element: <OverviewPage /> },
       // Pages load on demand, so the overview ships only what it needs.
       {

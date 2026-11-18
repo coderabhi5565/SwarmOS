@@ -11,6 +11,7 @@ import "@/pages/BenchmarkExperimentPage";
 import "@/pages/BenchmarksPage";
 import "@/pages/ConsolePage";
 import "@/pages/HistoryPage";
+import "@/pages/LandingPage";
 import "@/pages/LegacyPage";
 import "@/pages/NewRunPage";
 import "@/pages/RunPage";

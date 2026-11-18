@@ -137,11 +137,12 @@ describe("routing", () => {
 });
 
 describe("workspace routes", () => {
-  it("leads from / to the workspace overview at /app", async () => {
+  it("keeps the workspace overview at /app, apart from the landing page at /", async () => {
     stubApi({ "/health": health, "/api/demo-tasks": demoTasks, "/api/runs": runs });
-    const { router } = renderAt("/");
+    const { router } = renderAt("/app");
     expect(await screen.findByText("Parallel pipeline")).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/app");
+    expect(screen.queryByRole("link", { name: /Launch Live Demo/ })).not.toBeInTheDocument();
   });
 
   it("links the navigation to every workspace page", async () => {
