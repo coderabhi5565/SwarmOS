@@ -19,7 +19,7 @@ from app.benchmarks.metrics import (
     TrialMetrics,
     TrialTimings,
 )
-from app.benchmarks.report import TIMING_ROWS, arm_positions, render_report
+from app.benchmarks.report import TIMING_ROWS, _ms, arm_positions, render_report
 from app.benchmarks.runner import ExperimentRunner
 from app.benchmarks.store import BenchmarkStore
 from app.benchmarks.views import experiment_detail
@@ -330,3 +330,21 @@ def test_a_report_rendered_with_public_settings_withholds_host_details(tmp_path)
 
 def test_every_line_fits_the_repository_line_limit(tmp_path):
     assert max(len(line) for line in render_report(hand_built(tmp_path)).splitlines()) < 400
+
+
+@pytest.mark.parametrize(
+    ("value", "text"),
+    [
+        (None, "—"),
+        (0, "0 ms"),  # a measured zero (a scripted call makes no HTTP attempt)
+        (0.0, "0 ms"),
+        (0.004, "0.004 ms"),  # a few microseconds: never rounded to look like zero
+        (0.01, "0.01 ms"),
+        (12.345, "12.35 ms"),
+        (999.99, "999.99 ms"),
+        (1000.0, "1.00 s"),
+        (2750.0, "2.75 s"),
+    ],
+)
+def test_durations_keep_measured_zeros_apart_from_tiny_values(value, text):
+    assert _ms(value) == text

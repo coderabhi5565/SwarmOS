@@ -68,8 +68,14 @@ MISSING = "—"
 
 
 def _ms(value: float | None) -> str:
+    """A duration. An exact (measured) zero reads "0 ms"; a value below
+    0.01 ms keeps the backend's three decimals, so it never reads as zero."""
     if value is None:
         return MISSING
+    if value == 0:
+        return "0 ms"
+    if value < 0.01:
+        return f"{value:.3f} ms"
     if value < 1000:
         return f"{value:.2f} ms"
     return f"{value / 1000:.2f} s"
