@@ -18,11 +18,18 @@ const health = (mode: Health["mode"]): Health => ({
 });
 
 /** Serve one recorded run: its record, and its events by cursor. */
-function serve(fixture: TraceFixture, { upTo, mode = "public_demo", record = {} }: { upTo?: number; mode?: Health["mode"]; record?: Partial<RunRecord> } = {}) {
+function serve(
+  fixture: TraceFixture,
+  { upTo, mode = "public_demo", record = {}, signedIn = false }: { upTo?: number; mode?: Health["mode"]; record?: Partial<RunRecord>; signedIn?: boolean } = {},
+) {
   const runId = fixture.run.run_id;
   const events = fixture.events.filter((event) => upTo === undefined || event.seq <= upTo);
   return stubFetch((url) => {
     if (url.pathname === "/health") return json(health(mode));
+    if (url.pathname === "/api/auth/me" && signedIn) {
+      const user = { user_id: "usr_0123456789abcdef", full_name: "Uma User", email: "uma@example.test", phone_masked: "*******2030", role: "user" as const };
+      return json({ authenticated: true, user, mode });
+    }
     if (url.pathname === `/api/runs/${runId}`) return json(runDetailFrom(fixture, record));
     if (url.pathname === `/api/runs/${runId}/events`) {
       const after = url.searchParams.get("after_seq");
@@ -152,13 +159,19 @@ describe("run detail", () => {
     expect(within(review).queryByText("approved")).not.toBeInTheDocument();
   });
 
-  it("offers cancellation only for a live run in local mode", async () => {
+  it("offers cancellation for a live run locally, and to signed-in accounts only in the public demo", async () => {
     const fixture = fixtures.parallelOverlap;
     serve(fixture, { upTo: 8, record: { status: "running" }, mode: "public_demo" });
     const publicView = renderAt(`/runs/${fixture.run.run_id}`);
     await screen.findByRole("listitem", { name: "Coder agent" });
     expect(screen.queryByRole("button", { name: /Cancel run/ })).not.toBeInTheDocument();
     publicView.unmount();
+
+    vi.unstubAllGlobals();
+    serve(fixture, { upTo: 8, record: { status: "running" }, mode: "public_demo", signedIn: true });
+    const signedInView = renderAt(`/runs/${fixture.run.run_id}`);
+    expect(await screen.findByRole("button", { name: /Cancel run/ })).toBeInTheDocument();
+    signedInView.unmount();
 
     vi.unstubAllGlobals();
     serve(fixture, { upTo: 8, record: { status: "running" }, mode: "local" });

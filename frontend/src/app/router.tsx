@@ -27,6 +27,15 @@ export const routes: RouteObject[] = [
         lazy: async () => ({ Component: (await import("@/pages/LegacyPage")).LegacyPage }),
       },
       {
+        path: "login",
+        lazy: async () => ({ Component: (await import("@/pages/LoginPage")).LoginPage }),
+      },
+      {
+        path: "register",
+        lazy: async () => ({ Component: (await import("@/pages/RegisterPage")).RegisterPage }),
+      },
+      {
+        // Catalog runs; in the public demo, starting one needs an account.
         path: "runs/new",
         lazy: async () => ({ Component: (await import("@/pages/NewRunPage")).NewRunPage }),
       },
@@ -39,7 +48,7 @@ export const routes: RouteObject[] = [
         lazy: async () => ({ Component: (await import("@/pages/HistoryPage")).HistoryPage }),
       },
       {
-        // Read-only in the public demo; creation comes from the server's can_create.
+        // Creation comes from the server's can_create: operators only in the public demo.
         path: "benchmarks",
         lazy: async () => ({ Component: (await import("@/pages/BenchmarksPage")).BenchmarksPage }),
       },

@@ -4,6 +4,7 @@
  */
 import type {
   AppConfig,
+  AuthResponse,
   BenchmarkCancel,
   BenchmarkCreateRequest,
   BenchmarkExperimentDetail,
@@ -11,6 +12,9 @@ import type {
   BenchmarkSuites,
   DemoTasks,
   Health,
+  LoginRequest,
+  Me,
+  RegisterRequest,
   RunDetail,
   RunEvents,
   RunList,
@@ -53,6 +57,9 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const { query, headers, ...rest } = init ?? {};
   const response = await fetch(apiUrl(path, query), {
+    // The session is an HttpOnly cookie: send it, also to a configured
+    // API origin (which must list this site in SWARMOS_CORS_ORIGINS).
+    credentials: "include",
     ...rest,
     headers: { Accept: "application/json", "Content-Type": "application/json", ...headers },
   });
@@ -99,6 +106,14 @@ const experimentPath = (experimentId: string) =>
 
 export const api = {
   health: () => apiFetch<Health>("/health"),
+
+  /** The signed-in account, if any (cookie or bearer). */
+  me: () => apiFetch<Me>("/api/auth/me"),
+  login: (body: LoginRequest) => apiFetch<AuthResponse>("/api/auth/login", { method: "POST", body: JSON.stringify(body) }),
+  register: (body: RegisterRequest) =>
+    apiFetch<AuthResponse>("/api/auth/register", { method: "POST", body: JSON.stringify(body) }),
+  logout: () => apiFetch<AuthResponse>("/api/auth/logout", { method: "POST" }),
+
   config: () => apiFetch<AppConfig>("/api/config"),
   demoTasks: () => apiFetch<DemoTasks>("/api/demo-tasks"),
 
@@ -130,14 +145,14 @@ export const api = {
   getBenchmarkExperiment: (experimentId: string) =>
     apiFetch<BenchmarkExperimentDetail>(experimentPath(experimentId)),
 
-  /** Local mode only: the public demo answers 403. */
+  /** Locally, or for an operator in the public demo (401 signed out, 403 for users). */
   createBenchmarkExperiment: (body: BenchmarkCreateRequest) =>
     apiFetch<BenchmarkExperimentDetail>("/api/benchmarks/experiments", {
       method: "POST",
       body: JSON.stringify(body),
     }),
 
-  /** Local mode only: the public demo answers 403. */
+  /** Locally, or for an operator in the public demo (401 signed out, 403 for users). */
   cancelBenchmarkExperiment: (experimentId: string) =>
     apiFetch<BenchmarkCancel>(`${experimentPath(experimentId)}/cancel`, { method: "POST" }),
 };

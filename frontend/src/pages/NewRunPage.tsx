@@ -1,9 +1,11 @@
 import { ArrowRight, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { useMe } from "@/api/auth";
 import { ApiError } from "@/api/client";
 import { useCreateRun, useDemoTasks, useHealth } from "@/api/queries";
 import type { DemoTask, RunRequest } from "@/api/types";
+import { SignInPrompt } from "@/components/auth/SignInPrompt";
 import { ToneBadge } from "@/components/execution/primitives";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,11 +14,15 @@ import { cn } from "@/lib/utils";
 /**
  * Start a run from the curated catalog: the only kind of run the public
  * demo accepts. No free-form goal, files, or provider choice is offered.
+ * In the public demo starting a run needs an account; browsing does not.
  */
 export function NewRunPage() {
   const tasks = useDemoTasks();
   const health = useHealth();
+  const me = useMe();
   const create = useCreateRun();
+  const publicDemo = (health.data?.mode ?? tasks.data?.mode) === "public_demo";
+  const needsAccount = publicDemo && !me.isPending && !me.signedIn;
   const navigate = useNavigate();
   const [selected, setSelected] = useState<string | null>(null);
   const task = tasks.data?.tasks.find((candidate) => candidate.id === selected) ?? null;
@@ -85,23 +91,30 @@ export function NewRunPage() {
         </fieldset>
       )}
 
-      <div className="glass flex flex-wrap items-center gap-3 rounded-xl p-4">
-        <Button size="lg" disabled={!task || create.isPending} onClick={start}>
-          {create.isPending ? <Loader2 aria-hidden="true" className="animate-spin" /> : <ArrowRight aria-hidden="true" />}
-          {create.isPending ? "Starting…" : "Start run"}
-        </Button>
-        <p className="text-sm text-muted-foreground">
-          {task ? (
-            <>
-              <span className="text-foreground">{task.title}</span> · up to {task.limits.max_agent_calls} model calls,{" "}
-              {task.limits.max_wall_seconds} s
-            </>
-          ) : (
-            "Select a task to start."
-          )}
-        </p>
-        {create.isError && <SubmitError error={create.error} />}
-      </div>
+      {needsAccount ? (
+        <SignInPrompt title="Sign in to start a run">
+          The public demo runs catalog tasks for signed-in accounts. The catalog, run history and traces stay open to
+          everyone.
+        </SignInPrompt>
+      ) : (
+        <div className="glass flex flex-wrap items-center gap-3 rounded-xl p-4">
+          <Button size="lg" disabled={!task || create.isPending} onClick={start}>
+            {create.isPending ? <Loader2 aria-hidden="true" className="animate-spin" /> : <ArrowRight aria-hidden="true" />}
+            {create.isPending ? "Starting…" : "Start run"}
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            {task ? (
+              <>
+                <span className="text-foreground">{task.title}</span> · up to {task.limits.max_agent_calls} model calls,{" "}
+                {task.limits.max_wall_seconds} s
+              </>
+            ) : (
+              "Select a task to start."
+            )}
+          </p>
+          {create.isError && <SubmitError error={create.error} />}
+        </div>
+      )}
     </div>
   );
 }
@@ -180,7 +193,9 @@ function TaskOption({ task, selected, onSelect }: { task: DemoTask; selected: bo
 function SubmitError({ error }: { error: Error }) {
   let title = "The run could not be started.";
   if (error instanceof ApiError) {
-    if (error.status === 429) {
+    if (error.status === 401) {
+      title = "Sign in to start a run.";
+    } else if (error.status === 429) {
       title = error.retryAfter
         ? `Busy right now. Try again in ${formatWait(error.retryAfter)}.`
         : "Busy right now. Try again shortly.";

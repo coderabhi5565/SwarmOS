@@ -2,6 +2,7 @@ import { Download, Square } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
 import { ApiError } from "@/api/client";
+import { useMe } from "@/api/auth";
 import { useCancelRun, useHealth, useExecution } from "@/api/queries";
 import type { RunDetail, RunRecord } from "@/api/types";
 import { AgentRoster } from "@/components/execution/AgentRoster";
@@ -170,11 +171,16 @@ function RunHeader({
 const isActor = (role: string): role is "planner" | "coder" | "reviewer" | "verifier" =>
   role === "planner" || role === "coder" || role === "reviewer" || role === "verifier";
 
-/** Only where the backend allows it: never in the public demo. */
+/**
+ * Only where the backend may allow it: locally, or for a signed-in account
+ * in the public demo (a user may cancel their own runs; the server says so
+ * if this run is someone else's).
+ */
 function CancelRun({ runId }: { runId: string }) {
   const health = useHealth();
+  const me = useMe();
   const cancel = useCancelRun();
-  if (health.data?.mode !== "local") return null;
+  if (health.data?.mode !== "local" && !(health.data?.mode === "public_demo" && me.signedIn)) return null;
   return (
     <>
       <Button variant="outline" size="sm" disabled={cancel.isPending || cancel.isSuccess} onClick={() => cancel.mutate(runId)}>

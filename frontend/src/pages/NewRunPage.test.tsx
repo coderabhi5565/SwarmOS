@@ -42,9 +42,17 @@ const catalog: DemoTasks = {
 
 const health: Health = { status: "ok", service: "swarmos", version: "0.3.0", mode: "public_demo", provider_mode: "auto", provider_kind: "demo", openai_configured: false, auth_required: false };
 
+/** A signed-in user: in the public demo, starting a run needs an account (AuthPages.test.tsx covers visitors). */
+const me = {
+  authenticated: true,
+  user: { user_id: "usr_0123456789abcdef", full_name: "Uma User", email: "uma@example.test", phone_masked: "*******2030", role: "user" as const },
+  mode: "public_demo",
+};
+
 function serve(createRun: Route = () => undefined) {
   return stubFetch((url, init) => {
     if (url.pathname === "/health") return json(health);
+    if (url.pathname === "/api/auth/me") return json(me);
     if (url.pathname === "/api/demo-tasks") return json(catalog);
     if (url.pathname === "/api/runs" && init?.method === "POST") return createRun(url, init);
     return undefined;

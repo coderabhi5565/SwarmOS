@@ -13,7 +13,9 @@ import "@/pages/ConsolePage";
 import "@/pages/HistoryPage";
 import "@/pages/LandingPage";
 import "@/pages/LegacyPage";
+import "@/pages/LoginPage";
 import "@/pages/NewRunPage";
+import "@/pages/RegisterPage";
 import "@/pages/RunPage";
 
 /** Render the real route table at `path`, with the app's providers. */

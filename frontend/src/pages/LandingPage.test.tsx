@@ -125,12 +125,12 @@ describe("landing page", () => {
     expect(note.parentElement).toHaveTextContent("Benchmarks claim no statistical significance.");
   });
 
-  it("only reads the backend's health", async () => {
+  it("only reads the backend's health (and, in the header, who is signed in)", async () => {
     const mock = serve();
     renderAt("/");
     await screen.findAllByText("public demo · demo fixture");
     const calls = mock.mock.calls.map(([input, init]) => [new URL(String(input), "http://localhost").pathname, init?.method ?? "GET"]);
-    expect(new Set(calls.map((call) => call.join(" ")))).toEqual(new Set(["/health GET"]));
+    expect(new Set(calls.map((call) => call.join(" ")))).toEqual(new Set(["/health GET", "/api/auth/me GET"]));
   });
 });
 

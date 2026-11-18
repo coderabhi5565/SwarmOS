@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/api/queries";
+import { AccountControls } from "@/components/auth/AccountControls";
 import { BackendStatus } from "./BackendStatus";
 
 export const NAV_ITEMS = [
@@ -88,6 +89,7 @@ export function AppShell() {
             >
               GitHub
             </a>
+            <AccountControls className="hidden md:flex" />
             <Sheet>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="md:hidden" aria-label="Open navigation">
@@ -104,6 +106,7 @@ export function AppShell() {
                     GitHub
                   </a>
                 </nav>
+                <AccountControls className="mx-4 mt-4 flex-wrap" />
                 <BackendStatus className="mx-4 mt-4 self-start" />
               </SheetContent>
             </Sheet>

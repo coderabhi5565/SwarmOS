@@ -396,7 +396,9 @@ describe("benchmark experiment page", () => {
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
     expect([...container.querySelectorAll("svg")].every((svg) => svg.getAttribute("aria-hidden") === "true")).toBe(true);
     const paths = mock.mock.calls.map(([input, init]) => [new URL(String(input), "http://localhost").pathname, init?.method ?? "GET"]);
-    expect(paths.filter(([path]) => path.startsWith("/api/"))).toEqual([[PATH, "GET"]]);
+    // The page reads its experiment; the header reads who is signed in. Nothing else.
+    expect(paths.filter(([path]) => path.startsWith("/api/") && path !== "/api/auth/me")).toEqual([[PATH, "GET"]]);
+    expect(paths.filter(([path]) => path === "/api/auth/me").every(([, method]) => method === "GET")).toBe(true);
   });
 });
 

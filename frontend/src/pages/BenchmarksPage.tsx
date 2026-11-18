@@ -1,5 +1,6 @@
 import { ArrowRight, Loader2, RotateCw } from "lucide-react";
 import { Link } from "react-router";
+import { useMe } from "@/api/auth";
 import {
   experimentsFromPages,
   isActiveExperiment,
@@ -7,6 +8,7 @@ import {
   useBenchmarkSuites,
 } from "@/api/benchmarkQueries";
 import type { BenchmarkExperimentSummary } from "@/api/types";
+import { SignInPrompt } from "@/components/auth/SignInPrompt";
 import { ExperimentStatusBadge, ProvenanceBadge } from "@/components/benchmarks/badges";
 import { CreateExperimentForm } from "@/components/benchmarks/CreateExperimentForm";
 import { formatDate, formatDuration } from "@/components/execution/format";
@@ -104,17 +106,31 @@ export function BenchmarksPage() {
 
 /**
  * Experiment creation, only where the server says it accepts experiments
- * (its suites response's can_create; false in the public demo). The form,
- * and with it the create mutation, is never mounted otherwise.
+ * (its suites response's can_create: in the public demo, for operators
+ * only). The form, and with it the create mutation, is never mounted
+ * otherwise; in the public demo a prompt says who may start one instead.
  */
 function CreateExperimentPanel() {
   const suites = useBenchmarkSuites();
+  const me = useMe();
   if (suites.isPending) return null;
   if (suites.isError) {
     return (
       <p role="status" className="text-sm text-muted-foreground">
         Could not load the benchmark options ({suites.error.message}); the experiment list below still works.
       </p>
+    );
+  }
+  if (!suites.data.can_create && suites.data.mode === "public_demo" && !me.isPending) {
+    return me.signedIn ? (
+      <SignInPrompt title="Experiments are for operators" signIn={false}>
+        You are signed in as a user: you can start catalog runs, but in the public demo only operators start or cancel
+        experiments. The experiments below are open to everyone.
+      </SignInPrompt>
+    ) : (
+      <SignInPrompt title="Operators start experiments">
+        Sign in with the operator account to start or cancel experiments. Everyone can open the experiments below.
+      </SignInPrompt>
     );
   }
   if (!suites.data.can_create) {

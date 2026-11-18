@@ -80,4 +80,11 @@ export type BenchmarkTrialTimings = Schemas["BenchmarkTrialTimings"];
 export type BenchmarkTimingAggregate = Schemas["BenchmarkTimingAggregate"];
 export type BenchmarkTimingSummary = Schemas["BenchmarkTimingSummary"];
 export type BenchmarkCancel = Schemas["BenchmarkCancelResponse"];
+
+// Accounts (app/auth.py).
+export type AuthUser = Schemas["AuthUser"];
+export type AuthResponse = Schemas["AuthResponse"];
+export type Me = Schemas["MeResponse"];
+export type LoginRequest = Schemas["LoginRequest"];
+export type RegisterRequest = Schemas["RegisterRequest"];
 export type BenchmarkExperimentStatus = BenchmarkExperimentSummary["status"];
