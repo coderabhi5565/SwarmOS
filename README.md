@@ -25,7 +25,7 @@ It runs fully offline with a deterministic demo fixture, and against local open-
 | React dashboard with provider/model provenance | Implemented, type-checked, built |
 | Benchmark experiments (versioned suites, fixed arms, provenance, per-arm metrics) and their dashboard pages | Implemented, tested; verified in a browser with the demo fixture only |
 | Live local-model end-to-end run | Performed with `qwen2.5-coder:1.5b`; **no run has reached `completed` yet** (see PROJECT_STATUS.md) |
-| Restricted public demo mode (catalog tasks, code policy, audited test runner, rate limits) | Implemented, tested on Windows; Linux validation pending |
+| Restricted public demo mode (catalog tasks, code policy, audited test runner, rate limits) | Implemented, tested on Windows and on Ubuntu Linux in GitHub Actions CI (run 44466099439) |
 | Accounts (email or phone + password) and roles (user, operator) | Implemented, tested; stored in SQLite, so ephemeral on a free host |
 | Free deployment config (Render blueprint, Cloudflare Pages proxy, Ubuntu CI) | Written, tested where possible; **not yet deployed** |
 | Kernel sandbox / network isolation | **Not implemented** (not available on the free hosting target; see [safety](docs/safety.md)) |
