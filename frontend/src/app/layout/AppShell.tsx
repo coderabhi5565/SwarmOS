@@ -16,8 +16,6 @@ export const NAV_ITEMS = [
   { to: "/benchmarks", label: "Benchmarks", end: false },
 ] as const;
 
-const REPOSITORY_URL = "https://github.com/coderabhi5565/SwarmOS";
-
 /** Shown only when the backend runs in local mode: the public demo refuses free-form runs. */
 const LOCAL_NAV_ITEMS = [{ to: "/legacy", label: "Legacy", end: false }] as const;
 
@@ -81,14 +79,6 @@ export function AppShell() {
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <BackendStatus className="hidden sm:inline-flex" />
-            <a
-              href={REPOSITORY_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="hidden text-sm text-muted-foreground hover:text-foreground md:inline"
-            >
-              GitHub
-            </a>
             <AccountControls className="hidden md:flex" />
             <Sheet>
               <SheetTrigger asChild>
@@ -102,9 +92,6 @@ export function AppShell() {
                 </SheetHeader>
                 <nav aria-label="Main" className="flex flex-col gap-1 px-4">
                   <NavItems />
-                  <a href={REPOSITORY_URL} target="_blank" rel="noreferrer" className="px-3 py-1.5 text-sm text-muted-foreground">
-                    GitHub
-                  </a>
                 </nav>
                 <AccountControls className="mx-4 mt-4 flex-wrap" />
                 <BackendStatus className="mx-4 mt-4 self-start" />
