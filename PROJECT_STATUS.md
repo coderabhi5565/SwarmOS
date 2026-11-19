@@ -12,7 +12,7 @@ Milestones (revised 2026-11-01):
 
 - M0 stabilize ✅
 - M1 orchestration and API reliability ✅
-- M2 restricted demo execution ✅ (Linux validation pending, in M7)
+- M2 restricted demo execution ✅ (validated on Linux in CI, 2026-11-19)
 - M3.0 backend contract for the frontend ✅
 - M3.1 frontend foundation ✅
 - M3.2 event reducer and replay engine ✅
@@ -38,12 +38,12 @@ Milestones (revised 2026-11-01):
 ## Current milestone
 
 **Accounts, roles and deployment configuration: complete and pushed**
-(commits `a220d66` backend, `dd52221` frontend, and this deployment
-commit). Email or phone plus password accounts, user and operator roles,
+(commits `a220d66` backend, `dd52221` frontend, `8d2456e` deployment).
+Email or phone plus password accounts, user and operator roles,
 public-demo authorization, a Render blueprint, a Cloudflare Pages
-same-origin proxy and an Ubuntu CI workflow. Nothing is deployed.
-Next: a green CI run on Linux (known issue 1), then the deployment itself,
-which needs the user's accounts and approval. M6.4 (benchmark charts) also
+same-origin proxy and an Ubuntu CI workflow, whose first run passed on
+Linux (known issue 1 resolved). Nothing is deployed.
+Next: the deployment itself, which needs the user's accounts and approval. M6.4 (benchmark charts) also
 awaits approval.
 
 ## Validation at the last milestone boundary
@@ -57,7 +57,7 @@ Accounts and deployment configuration, 2026-11-18, on Windows (pytest at
 | frontend `npx tsc --noEmit` / `vitest run` / `npm run build` | clean / 450 passed (39 files) / builds |
 | `ruff check .` | clean |
 | `ruff format --check` | not configured; the codebase has never been formatted |
-| CI on Ubuntu (`.github/workflows/ci.yml`) | added in this commit; its first run is the Linux validation of known issue 1 |
+| CI on Ubuntu (`.github/workflows/ci.yml`) | run 44466099439 on `8d2456e` (2026-11-19): backend (Ruff, full pytest including `tests/test_public_demo.py`) and frontend (tsc, Vitest, build) both passed. Linux test counts not recorded here (job logs need a GitHub sign-in) |
 | Browser verification against the real backend | sign-in, registration and role-aware pages: **not performed** (jsdom only); M7.5 pages: not performed; earlier pages: see M6.3 below |
 | Render or Cloudflare deployment | **not performed** |
 | Live local-model run with the guard | **not yet performed** |
@@ -803,9 +803,9 @@ restrictions instead (details in `docs/safety.md`):
 
 ## Known issues (open)
 
-1. **Blocks deployment (M7):** the restricted launcher has only been
-   validated on Windows. Run `tests/test_public_demo.py` on Linux in CI before
-   deploying; the read allowlist may need Linux system paths.
+1. Resolved (2026-11-19): the restricted launcher is validated on Linux.
+   `tests/test_public_demo.py` passed on Ubuntu in CI run 44466099439
+   (`8d2456e`), with no change to the read allowlist.
 1a. `local` mode still executes model-written code with containment only.
     Never deploy it publicly.
 1b. The current dashboard posts free-form goals, so it gets 403 in
@@ -894,7 +894,7 @@ None for M1–M3 locally. Later milestones need decisions on:
 - [x] Authentication, run ownership checks, rate limits (accounts; quotas beyond rate limits not built)
 - [ ] Postgres and migrations (M3)
 - [x] CI (Ubuntu, GitHub Actions) and the free hosting configuration (Render blueprint, Pages proxy)
-- [ ] A green CI run on Linux, including `tests/test_public_demo.py`
+- [x] A green CI run on Linux, including `tests/test_public_demo.py` (run 44466099439)
 - [ ] Secrets management (Render-generated operator token; nothing else yet), CORS for the production origin
 - [ ] Logging, metrics, error tracking, backups, rollback procedure
 - [ ] Explicit user authorization for external resources and costs
