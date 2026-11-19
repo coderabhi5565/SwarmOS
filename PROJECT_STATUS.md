@@ -32,29 +32,34 @@ Milestones (revised 2026-11-01):
   - M7.4 process histograms and SSE timing ✅
   - M7.5 observability UI (benchmark pages) ✅; Run Detail timing panel deferred
   - M7.6 scripted baseline report ✅ (`docs/benchmarks/m7-scripted-baseline.md`)
+  - Accounts, roles and free-deployment configuration ✅ (not deployed)
 - M8 release
 
 ## Current milestone
 
-**M7.6 — Scripted baseline report: complete and pushed** (commits
-`48455d0`, `44f2c01`, `f704de5` and this documentation commit). The M7
-measurement phases M7.0 to M7.6 are complete; the Run Detail timing panel
-and span waterfall stay deferred (known issue 14).
-Next: a whole-project review, then the ₹0/month portfolio deployment,
-each awaiting approval. M6.4 (benchmark charts) also awaits approval.
+**Accounts, roles and deployment configuration: complete and pushed**
+(commits `a220d66` backend, `dd52221` frontend, and this deployment
+commit). Email or phone plus password accounts, user and operator roles,
+public-demo authorization, a Render blueprint, a Cloudflare Pages
+same-origin proxy and an Ubuntu CI workflow. Nothing is deployed.
+Next: a green CI run on Linux (known issue 1), then the deployment itself,
+which needs the user's accounts and approval. M6.4 (benchmark charts) also
+awaits approval.
 
 ## Validation at the last milestone boundary
 
-M7.6, 2026-11-18, at `f704de5` (backend only; no frontend file changed
-since M7.5):
+Accounts and deployment configuration, 2026-11-18, on Windows (pytest at
+`a220d66`; no backend file changed after it; frontend at this commit):
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest` (`.env` loading disabled) | 871 passed, 2 skipped (848 at M7.5) |
-| frontend `npx tsc --noEmit` / `vitest run` / `npm run build` | not rerun (unchanged); at `300b72b`: clean / 339 passed (29 files) / builds |
+| `python -m pytest` (`.env` loading disabled) | 902 passed, 2 skipped (871 at M7.6; 31 new in `tests/test_auth.py`) |
+| frontend `npx tsc --noEmit` / `vitest run` / `npm run build` | clean / 450 passed (39 files) / builds |
 | `ruff check .` | clean |
 | `ruff format --check` | not configured; the codebase has never been formatted |
-| Browser verification against the real backend | M7.5 pages: **not performed** (no browser in the session; jsdom component tests only); earlier pages: see M6.3 below |
+| CI on Ubuntu (`.github/workflows/ci.yml`) | added in this commit; its first run is the Linux validation of known issue 1 |
+| Browser verification against the real backend | sign-in, registration and role-aware pages: **not performed** (jsdom only); M7.5 pages: not performed; earlier pages: see M6.3 below |
+| Render or Cloudflare deployment | **not performed** |
 | Live local-model run with the guard | **not yet performed** |
 
 Suite wall time varies a lot on this machine (80 s to 300 s for the same code).
@@ -64,6 +69,38 @@ frontend runs used `vitest run --maxWorkers=2`, and a few `tsc`/build runs
 were killed by out-of-memory and passed unchanged on retry.
 
 ## Completed
+
+### Accounts, roles and free-deployment configuration
+
+Decisions (2026-11-18, by the user): sessions are an HttpOnly cookie made
+first-party by a Cloudflare Pages Function that forwards `/api/*` and
+`/health` to Render (not a token in browser storage, and not a
+`SameSite=None` cookie, which Safari and Firefox block across sites);
+benchmark experiments are created and cancelled by operators only, so
+open registration cannot occupy the server with a long experiment.
+
+- Backend (`app/auth.py`, `app/main.py`): `users`, `auth_sessions` and
+  `run_owners` tables (additive); scrypt password hashes with a random
+  salt; SHA-256 session hashes; register, login (email or phone), logout
+  and me; per-client rate limits; validation errors on account routes
+  never echo the submitted values. In the public demo visitors browse,
+  users start catalog runs and cancel their own, operators also cancel
+  any run and create or cancel experiments. `SWARMOS_API_TOKEN` keeps
+  gating every `/api` route locally and is an operator credential in the
+  public demo. Credentialed CORS only for `SWARMOS_CORS_ORIGINS`.
+- Frontend: sign-in and registration pages, the account and role in the
+  header, sign-in prompts in place of the run and experiment forms, and a
+  cancel button for signed-in accounts on a live run. Requests send
+  credentials.
+- Deployment: `render.yaml` (free web service, restricted public demo,
+  generated operator token), `frontend/functions` with
+  `src/deploy/pagesProxy.ts` (forwarding, client address from
+  `CF-Connecting-IP`, 502 when unconfigured), `.github/workflows/ci.yml`.
+- The external scanner flags the `eval` call at `tests/test_public_demo.py:55`, a
+  code-policy test case unchanged since baseline `0bc071c`, because the
+  auth commit edits that file. The user approved that single flag; every
+  other scan result must stay clean.
+
 
 ### M7.6 — scripted baseline report
 
@@ -760,6 +797,9 @@ restrictions instead (details in `docs/safety.md`):
 - `review_invalid` is terminal for now. It is never an approval.
 - Only blocker findings are validated. Major/minor/nit findings and zero-finding rejections follow the normal revision path.
 - The guard checks evidence shape, not truth. Verification remains the independent ground truth.
+- Accounts are email or phone plus password, standard library only; no OAuth.
+- The deployed frontend reaches the API through the same-origin Pages proxy.
+- In the public demo only operators create or cancel benchmark experiments.
 
 ## Known issues (open)
 
@@ -821,13 +861,28 @@ restrictions instead (details in `docs/safety.md`):
     and Python version only.
 18. Failures are not broken down by terminal error class (proposal §4.2):
     trial metrics do not record the class. Deferred.
+19. Emails are not verified. On a free host whose database resets, whoever
+    registers `SWARMOS_OPERATOR_EMAIL` first after a restart is an
+    operator. Keep it private or unset (the generated API token also
+    grants the role). There is no password reset or account deletion.
+20. Rate limits key on the first `X-Forwarded-For` entry when
+    `SWARMOS_TRUST_PROXY_HEADERS=1`. The Pages proxy sets it from
+    `CF-Connecting-IP`; whether a caller reaching Render directly can
+    choose that entry depends on Render's proxy and is not verified.
+21. Requests now send credentials. A frontend pointed at another API
+    origin with `VITE_API_BASE_URL` needs that origin to list it in
+    `SWARMOS_CORS_ORIGINS`; the dev proxy and the Pages proxy are
+    same-origin and need nothing.
+22. The sign-in, registration and role-aware screens, and the Pages
+    proxy, were verified with tests (jsdom, and the proxy module in
+    isolation), not in a real browser or on Cloudflare.
 
 ## Blockers needing the user
 
 None for M1–M3 locally. Later milestones need decisions on:
 
-- hosting provider and paid infrastructure;
-- an authentication provider;
+- paid infrastructure (the free plan is configured: Render and Cloudflare
+  Pages, not yet deployed);
 - a production database;
 - error tracking;
 - a domain;
@@ -836,9 +891,10 @@ None for M1–M3 locally. Later milestones need decisions on:
 ## Deployment checklist (not started)
 
 - [ ] Sandboxed execution worker (M2). Public code execution stays disabled until then.
-- [ ] Authentication, ownership checks, quotas, rate limits (M4)
+- [x] Authentication, run ownership checks, rate limits (accounts; quotas beyond rate limits not built)
 - [ ] Postgres and migrations (M3)
-- [ ] Dockerfiles, Compose, CI (M8)
-- [ ] Secrets management, CORS for the production origin
+- [x] CI (Ubuntu, GitHub Actions) and the free hosting configuration (Render blueprint, Pages proxy)
+- [ ] A green CI run on Linux, including `tests/test_public_demo.py`
+- [ ] Secrets management (Render-generated operator token; nothing else yet), CORS for the production origin
 - [ ] Logging, metrics, error tracking, backups, rollback procedure
 - [ ] Explicit user authorization for external resources and costs

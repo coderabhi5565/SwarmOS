@@ -26,6 +26,8 @@ It runs fully offline with a deterministic demo fixture, and against local open-
 | Benchmark experiments (versioned suites, fixed arms, provenance, per-arm metrics) and their dashboard pages | Implemented, tested; verified in a browser with the demo fixture only |
 | Live local-model end-to-end run | Performed with `qwen2.5-coder:1.5b`; **no run has reached `completed` yet** (see PROJECT_STATUS.md) |
 | Restricted public demo mode (catalog tasks, code policy, audited test runner, rate limits) | Implemented, tested on Windows; Linux validation pending |
+| Accounts (email or phone + password) and roles (user, operator) | Implemented, tested; stored in SQLite, so ephemeral on a free host |
+| Free deployment config (Render blueprint, Cloudflare Pages proxy, Ubuntu CI) | Written, tested where possible; **not yet deployed** |
 | Kernel sandbox / network isolation | **Not implemented** (not available on the free hosting target; see [safety](docs/safety.md)) |
 | Live repository checkout, commit, or push | **Not implemented** |
 | Multi-provider orchestration | **Not implemented** (one endpoint per run) |
@@ -163,22 +165,26 @@ All four roles run the same graph under every policy; policies only change model
 | `GET` | `/health` | Liveness, provider kind, auth status |
 | `GET` | `/api/config` | Profiles, routing, caps, safety flags |
 | `GET` | `/api/provider/models` | List models from the endpoint (no inference) |
-| `POST` | `/api/runs?wait=true` | Create and execute a run inline |
-| `POST` | `/api/runs` | Create a run in the background (`202`) |
+| `POST` | `/api/auth/register` | Create an account and sign in (`201`; `409` if the email or phone is taken; `422` invalid input) |
+| `POST` | `/api/auth/login` | Sign in with `{identifier, password}`, the identifier an email or a phone (`401` if wrong; `429` rate-limited) |
+| `POST` | `/api/auth/logout` | End this session and clear its cookie |
+| `GET` | `/api/auth/me` | The signed-in account (`authenticated`, `user` or null, `mode`) |
+| `POST` | `/api/runs?wait=true` | Create and execute a run inline (`403` in the public demo) |
+| `POST` | `/api/runs` | Create a run in the background (`202`; in the public demo, catalog tasks only and `401` signed out) |
 | `GET` | `/api/runs?limit&cursor` | Run history, newest first: lightweight summaries (no file contents), paged with `next_cursor` |
 | `GET` | `/api/runs/{id}` | Run record plus every trace event |
 | `GET` | `/api/runs/{id}/events?after_seq` | Trace events in `seq` order; with `after_seq`, only newer ones. Returns `last_seq` for the next poll |
 | `GET` | `/api/runs/{id}/measurements` | The run's stored timing measurements (phases, coder busy, wall and critical path, attributed orchestration, calls, waits, verification, persistence, spans), or `available: false` with the reason (in progress, predates measurements, process crash, flush failed, recording disabled, not recorded). Numbers, enums and validated ids only |
 | `GET` | `/api/runs/{id}/stream?after_seq` | The trace as Server-Sent Events, live until the run ends (`id` = `seq`; resumes after the greater of `after_seq` and `Last-Event-ID`; `end` closes it). See [docs/architecture.md](docs/architecture.md#live-streaming) |
-| `POST` | `/api/runs/{id}/cancel` | Cancel an in-flight run (`202`; `404` unknown, `409` finished or not active here; `403` in the public demo) |
+| `POST` | `/api/runs/{id}/cancel` | Cancel an in-flight run (`202`; `404` unknown, `409` finished or not active here; in the public demo `401` signed out and `403` for someone else's run, unless an operator) |
 | `GET` | `/api/demo-tasks` | The curated task catalog (the only runs the public demo accepts) |
 | `GET` | `/api/benchmarks/suites` | Benchmark suites, arms and caps (the public demo lists only the catalog suite) |
 | `GET` | `/api/benchmarks/experiments?limit&cursor` | Benchmark experiments, newest first, paged with `next_cursor` |
 | `GET` | `/api/benchmarks/experiments/{id}` | An experiment: provenance, arm configurations, identical-by-design warnings, aggregates, and every trial with its run and metrics (unknowns null, with reasons) |
-| `POST` | `/api/benchmarks/experiments` | Start an experiment on a fixed suite with fixed arms (`202`; `409` while another is active; `403` in the public demo) |
-| `POST` | `/api/benchmarks/experiments/{id}/cancel` | Cancel an experiment running in this server (`202`; `409` finished or not running here; `403` in the public demo) |
+| `POST` | `/api/benchmarks/experiments` | Start an experiment on a fixed suite with fixed arms (`202`; `409` while another is active; in the public demo operators only: `401` signed out, `403` for users) |
+| `POST` | `/api/benchmarks/experiments/{id}/cancel` | Cancel an experiment running in this server (`202`; `409` finished or not running here; in the public demo operators only) |
 
-Set `SWARMOS_API_TOKEN` to require `Authorization: Bearer <token>` on every `/api` route. The CLI refuses a non-loopback bind unless the token is set and `SWARMOS_ALLOW_REMOTE_BIND=1`.
+Locally, set `SWARMOS_API_TOKEN` to require `Authorization: Bearer <token>` on every `/api` route. The CLI refuses a non-loopback bind unless the token is set and `SWARMOS_ALLOW_REMOTE_BIND=1` (the public demo needs only the latter). In the public demo the token is an operator credential instead; see [Accounts and roles](#accounts-and-roles).
 
 ### Dashboard
 
@@ -264,6 +270,86 @@ labelled as fixtures. It also provides:
   three times a single run.
 - **Download trace JSON** - the complete run record and every trace event for offline review.
 
+## Accounts and roles
+
+Email or phone plus a password; no OAuth, no third-party service, standard
+library only (`app/auth.py`).
+
+- **Storage.** Additive SQLite tables in the run database: `users` (email
+  lowercase, phone digits only, each unique), `auth_sessions` and
+  `run_owners`. A password is kept only as a salted scrypt hash; a session
+  only as the SHA-256 of its token. Phones are shown masked (`******3210`).
+- **Sessions.** An HttpOnly, `SameSite=Lax` cookie (`Secure` when
+  `SWARMOS_TRUST_PROXY_HEADERS=1`), or `Authorization: Bearer <token>`.
+  Sessions last `SWARMOS_SESSION_TTL_HOURS` (default 168); signing out
+  revokes the session on the server.
+- **Rate limits.** Per client: `SWARMOS_LOGIN_ATTEMPTS_PER_CLIENT` per 15
+  minutes (default 10) and `SWARMOS_REGISTRATIONS_PER_CLIENT_PER_HOUR`
+  (default 5). An unknown account takes as long to refuse as a wrong
+  password.
+- **Roles.** `user`, or `operator` for the account whose email is
+  `SWARMOS_OPERATOR_EMAIL`. `SWARMOS_API_TOKEN` is also an operator
+  credential in the public demo. Emails are not verified: whoever registers
+  the operator address first holds the role, and a free host's database
+  resets on restart. Keep that address private, or leave it empty and use
+  the token.
+
+What each caller may do in the public demo (`SWARMOS_MODE=public_demo`):
+
+| | Visitor | User | Operator |
+| --- | --- | --- | --- |
+| Browse runs, traces, benchmarks, config, catalog | yes | yes | yes |
+| Start a catalog run | `401` | yes | yes |
+| Cancel a run | `401` | own runs only (`403` otherwise) | any run |
+| Create or cancel a benchmark experiment | `401` | `403` | yes (public suite, server provider) |
+| Free-form goals, `wait=true`, the endpoint probe | `403` | `403` | `403` |
+
+Locally (`SWARMOS_MODE=local`) nothing needs an account, as before.
+
+## Deployment (Render + Cloudflare Pages, ₹0/month)
+
+The configuration is in the repository; **nothing has been deployed yet**.
+
+**API on Render.** In the Render dashboard, create a Blueprint from this
+repository. `render.yaml` defines one free web service: it installs with
+`pip install ".[dev]"`, starts `swarmos serve --host 0.0.0.0 --port $PORT`,
+checks `/health`, and runs the restricted public demo
+(`SWARMOS_MODE=public_demo`, `SWARMOS_EXECUTION_SANDBOX=restricted`,
+`SWARMOS_CODE_POLICY=1`, `SWARMOS_ALLOW_REMOTE_BIND=1`,
+`SWARMOS_TRUST_PROXY_HEADERS=1`, Python pinned with `PYTHON_VERSION`).
+Render asks for two values, only when the Blueprint is first created:
+
+- `SWARMOS_CORS_ORIGINS`: leave empty when the frontend goes through the
+  Pages proxy below; set it to the frontend's origin only if browsers call
+  the API directly.
+- `SWARMOS_OPERATOR_EMAIL`: optional (see Accounts and roles).
+
+`SWARMOS_API_TOKEN` is generated by Render; read it in the dashboard to act
+as operator with `Authorization: Bearer <token>`.
+
+**Frontend on Cloudflare Pages.** Connect the repository with root
+directory `frontend`, build command `npm run build` and output directory
+`dist`. Set the environment variable `SWARMOS_API_ORIGIN` to the Render
+service's origin (`https://<service>.onrender.com`) and leave
+`VITE_API_BASE_URL` unset. The Pages Functions in `frontend/functions`
+forward `/api/*` and `/health` to that origin (`src/deploy/pagesProxy.ts`),
+so the app and its API share one origin: the session cookie is first-party
+and never visible to JavaScript, which a cookie sent across the two hosts'
+different sites could not be. `public/_redirects` serves the app for every
+other path.
+
+**What the free tiers mean.** The Render service spins down when idle, and
+the first request after that waits for it to start. Its disk is ephemeral:
+runs, benchmarks and accounts reset on every restart. Requests to Pages
+Functions count toward the Workers Free daily request quota; static assets
+do not.
+
+**CI.** `.github/workflows/ci.yml` runs on Ubuntu for every push to `main`
+and every pull request: Ruff and the full pytest suite (with the frontend
+built first, so the OpenAPI snapshot test can run), and the frontend's
+`tsc`, Vitest and build. Its Linux run of `tests/test_public_demo.py` is the
+validation the restricted launcher still needs before a public deployment.
+
 ## How autonomy is bounded
 
 | Control | Behaviour |
@@ -345,6 +431,8 @@ ruff check .
 cd frontend && npm run typecheck && npm test && npm run build
 ```
 
+The same checks run on Ubuntu in CI (`.github/workflows/ci.yml`).
+
 The suite covers typed contracts, plan validation, routing, wave independence, parallel execution, conflict rejection, retries and escalation, budget and call limits, review revisions, verification repair, provider error classification, JSON-mode downgrade, workspace safety, persistence and migration, the benchmark harness, and the HTTP API.
 
 ## Project layout
@@ -392,6 +480,8 @@ docs/                  Architecture, providers, safety, audit
   custom seed files.
 - Cost is an estimate from configured token rates, not a provider invoice.
 - The API serves the built dashboard only when `frontend/dist` exists.
+- Accounts have no email or phone verification, password reset or account
+  deletion, and on a free host they last only until the next restart.
 
 ## Roadmap
 
