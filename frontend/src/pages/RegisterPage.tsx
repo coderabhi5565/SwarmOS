@@ -2,7 +2,7 @@ import { Loader2, UserPlus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { emailProblem, MIN_PASSWORD, nameProblem, passwordProblem, phoneProblem, safeNext, useRegister } from "@/api/auth";
-import { AuthCard, EphemeralNote, Field, FormError } from "@/components/auth/AuthForm";
+import { AuthCard, Field, FormError } from "@/components/auth/AuthForm";
 import { Button } from "@/components/ui/button";
 
 /** Create an account (and sign in): name, email, phone and password. */
@@ -80,7 +80,6 @@ export function RegisterPage() {
           Sign in
         </Link>
       </p>
-      <EphemeralNote />
     </AuthCard>
   );
 }

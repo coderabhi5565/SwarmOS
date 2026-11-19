@@ -165,10 +165,15 @@ describe("sign-in page", () => {
     expect(requestsTo(mock, "/api/auth/login")).toHaveLength(0);
   });
 
-  it("explains that accounts are ephemeral", async () => {
+  it("shows only the form and its links, with no notice box", async () => {
     serve();
-    renderAt("/login");
-    expect(await screen.findByRole("note")).toHaveTextContent("ephemeral SQLite database");
+    const { unmount } = renderAt("/login");
+    await screen.findByRole("form", { name: "Sign in" });
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+    unmount();
+    renderAt("/register");
+    await screen.findByRole("form", { name: "Register" });
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 });
 

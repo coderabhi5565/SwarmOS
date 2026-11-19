@@ -2,7 +2,7 @@ import { Loader2, LogIn } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { safeNext, useLogin } from "@/api/auth";
-import { AuthCard, EphemeralNote, Field, FormError } from "@/components/auth/AuthForm";
+import { AuthCard, Field, FormError } from "@/components/auth/AuthForm";
 import { Button } from "@/components/ui/button";
 
 /** Sign in with an email address or a phone number, and a password. */
@@ -61,7 +61,6 @@ export function LoginPage() {
           Register
         </Link>
       </p>
-      <EphemeralNote />
     </AuthCard>
   );
 }

@@ -1,4 +1,3 @@
-import { Database } from "lucide-react";
 import { useId, type InputHTMLAttributes, type ReactNode } from "react";
 import { ApiError } from "@/api/client";
 import { cn } from "@/lib/utils";
@@ -90,17 +89,4 @@ function sentence(text: string): string {
   if (!trimmed) return "Something was not accepted.";
   const capital = trimmed[0].toUpperCase() + trimmed.slice(1);
   return /[.!?]$/.test(capital) ? capital : `${capital}.`;
-}
-
-/** Accounts live in the demo's SQLite file, which a free-tier restart wipes. */
-export function EphemeralNote() {
-  return (
-    <p role="note" className="flex gap-2 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground">
-      <Database aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-      <span>
-        Accounts are kept in this demo&apos;s ephemeral SQLite database: a free-tier restart deletes them, and you may need
-        to register again. Use a password you do not use anywhere else.
-      </span>
-    </p>
-  );
 }
