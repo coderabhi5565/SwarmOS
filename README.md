@@ -312,8 +312,10 @@ The configuration is in the repository; **nothing has been deployed yet**.
 
 **API on Render.** In the Render dashboard, create a Blueprint from this
 repository. `render.yaml` defines one free web service: it installs with
-`pip install ".[dev]"`, starts `swarmos serve --host 0.0.0.0 --port $PORT`,
-checks `/health`, and runs the restricted public demo
+`pip install -e ".[dev]"` (editable, so repository files such as
+`benchmarks/tasks.jsonl` resolve from the checkout), starts
+`swarmos serve --host 0.0.0.0 --port $PORT`, checks `/health`, and runs the
+restricted public demo
 (`SWARMOS_MODE=public_demo`, `SWARMOS_EXECUTION_SANDBOX=restricted`,
 `SWARMOS_CODE_POLICY=1`, `SWARMOS_ALLOW_REMOTE_BIND=1`,
 `SWARMOS_TRUST_PROXY_HEADERS=1`, Python pinned with `PYTHON_VERSION`).

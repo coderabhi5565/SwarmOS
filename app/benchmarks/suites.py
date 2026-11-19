@@ -23,6 +23,7 @@ from app.config import PROJECT_ROOT
 from app.demo_tasks import demo_catalog
 from app.models import Limits
 
+# Next to the package in a checkout or an editable install; see fixture_tasks_path.
 FIXTURE_TASKS = PROJECT_ROOT / "benchmarks" / "tasks.jsonl"
 SAMPLE_PROJECT = PROJECT_ROOT / "samples" / "sample_project"
 
@@ -162,11 +163,23 @@ def catalog_suite(sample_project: Path = SAMPLE_PROJECT) -> BenchmarkSuite:
     )
 
 
+def fixture_tasks_path() -> Path:
+    """Where ``benchmarks/tasks.jsonl`` is: beside the package (a checkout or
+    an editable install), else under the working directory. A non-editable
+    install copies only the package into site-packages, so the file is then
+    found in the checkout the server runs from."""
+    if FIXTURE_TASKS.exists():
+        return FIXTURE_TASKS
+    return Path.cwd() / "benchmarks" / "tasks.jsonl"
+
+
 def local_fixtures_suite(
-    path: Path = FIXTURE_TASKS, sample_project: Path = SAMPLE_PROJECT
+    path: Path | None = None, sample_project: Path = SAMPLE_PROJECT
 ) -> BenchmarkSuite:
     # Imported here: the legacy harness owns the task file format.
     from app.benchmarks.legacy import load_tasks
+
+    path = path if path is not None else fixture_tasks_path()
 
     tasks = [
         SuiteTask(

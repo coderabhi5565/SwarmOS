@@ -83,3 +83,41 @@ def test_suites_are_looked_up_by_id():
         get_suite("anything-else")
     with pytest.raises(SuiteError):
         catalog_suite().task("missing")
+
+
+# ----------------------------------------------------------------------
+# finding benchmarks/tasks.jsonl (Render ran a non-editable install, where
+# the package sits in site-packages and the file stays in the checkout)
+# ----------------------------------------------------------------------
+def test_the_fixture_tasks_resolve_beside_the_package(tmp_path, monkeypatch):
+    from app.benchmarks import suites as suites_module
+
+    monkeypatch.chdir(tmp_path)  # the working directory is not consulted
+    assert suites_module.fixture_tasks_path() == suites_module.FIXTURE_TASKS
+    assert suites_module.FIXTURE_TASKS.is_file()
+    assert local_fixtures_suite().tasks
+
+
+def test_the_fixture_tasks_fall_back_to_the_working_directory(tmp_path, monkeypatch):
+    from app.benchmarks import suites as suites_module
+
+    # As in site-packages: nothing beside the package; the checkout is the cwd.
+    monkeypatch.setattr(suites_module, "FIXTURE_TASKS", tmp_path / "site-packages" / "benchmarks" / "tasks.jsonl")
+    monkeypatch.chdir(suites_module.PROJECT_ROOT)
+    resolved = suites_module.fixture_tasks_path()
+    assert resolved == suites_module.PROJECT_ROOT / "benchmarks" / "tasks.jsonl"
+    assert resolved.is_file()
+    suite = local_fixtures_suite()
+    assert suite.tasks
+    assert [task.id for task in suite.tasks] == [task.id for task in local_fixtures_suite(resolved).tasks]
+    assert "local-fixtures" in all_suites()
+
+
+def test_a_missing_fixture_file_names_the_working_directory_path(tmp_path, monkeypatch):
+    from app.benchmarks import suites as suites_module
+
+    monkeypatch.setattr(suites_module, "FIXTURE_TASKS", tmp_path / "site-packages" / "benchmarks" / "tasks.jsonl")
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(FileNotFoundError, match="tasks.jsonl"):
+        local_fixtures_suite()
+    assert suites_module.fixture_tasks_path() == tmp_path / "benchmarks" / "tasks.jsonl"

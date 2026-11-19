@@ -9,7 +9,9 @@ services:
     name: swarmos-api
     runtime: python
     plan: free
-    buildCommand: pip install ".[dev]"
+    # Editable, so repo-relative files (benchmarks/tasks.jsonl,
+    # samples/sample_project) resolve from the checkout, not site-packages.
+    buildCommand: pip install -e ".[dev]"
     startCommand: swarmos serve --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
